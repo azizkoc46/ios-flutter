@@ -61,12 +61,27 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	
+	<!-- KAMERA İZNİ (Mevcut) -->
 	<key>NSCameraUsageDescription</key>
 	<string>Pazarcık Portal; profil, ilan, işletme ve başvuru görselleri çekebilmeniz için kameraya erişim ister.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Pazarcık Portal; yakınınızdaki işletmeleri, nöbetçi eczaneleri ve konuma bağlı yerel bilgileri göstermek için konumunuzu kullanır.</string>
+	
+	<!-- FOTOĞRAF KÜTÜPHANESİ İZNİ (Mevcut) -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Pazarcık Portal; profil, ilan, işletme, duyuru, fotoğraf ve video seçebilmeniz için fotoğraf arşivinize erişim ister.</string>
+
+	<!-- MİKROFON İZNİ (Apple'ın hata verdiği ve eklenen kısım) -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Pazarcık Portal; ilan veya duyurular için video çekerken ses kaydı alabilmeniz amacıyla mikrofon erişimine ihtiyaç duyar.</string>
+
+	<!-- KONUM İZNİ (Mevcut) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Pazarcık Portal; yakınınızdaki işletmeleri, nöbetçi eczaneleri ve konuma bağlı yerel bilgileri göstermek için konumunuzu kullanır.</string>
+	
+	<!-- SÜREKLİ KONUM İZNİ (Apple'ın uyarı verdiği ve eklenen kısım) -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Pazarcık Portal; yakınınızdaki işletmeleri, nöbetçi eczaneleri ve konuma bağlı yerel bilgileri göstermek için konumunuzu kullanır.</string>
+
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
