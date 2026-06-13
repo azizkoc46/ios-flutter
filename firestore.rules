@@ -1,0 +1,149 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUser() {
+      return get(/databases/$(database)/documents/customers/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return signedIn() &&
+        (currentUser().data.role in ['admin', 'yonetici', 'yönetici'] ||
+         currentUser().data.isAdmin == true ||
+         currentUser().data.admin == true);
+    }
+
+    function ownsRestaurant(restaurantId) {
+      return signedIn() && request.auth.uid == restaurantId;
+    }
+
+    function tableServiceEnabled(restaurantId) {
+      return get(/databases/$(database)/documents/customers/$(restaurantId))
+          .data.tableServiceEnabled == true;
+    }
+
+    function tablePermissionUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'tableServiceEnabled',
+        'tableServiceUpdatedAt'
+      ]);
+    }
+
+    function adminIdentityUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'isAdmin',
+        'admin'
+      ]) &&
+      !(request.resource.data.role in ['admin', 'yonetici', 'yönetici']);
+    }
+
+    function safeNewIdentity(data) {
+      return data.role is string &&
+        !(data.role in ['admin', 'yonetici', 'yönetici']) &&
+        data.isAdmin != true && data.admin != true;
+    }
+
+    function validTable(data) {
+      return data.name is string &&
+        data.name.size() > 0 && data.name.size() <= 50 &&
+        data.status in ['empty', 'occupied', 'reserved', 'bill_requested'];
+    }
+
+    function validOrder(data, restaurantId) {
+      return data.vendorId == restaurantId &&
+        data.tableId is string && data.tableName is string &&
+        data.status in ['active', 'closed'] &&
+        data.items is list && data.items.size() <= 200 &&
+        data.payments is list && data.payments.size() <= 100 &&
+        data.grandTotal is number && data.paidTotal is number;
+    }
+
+    match /customers/{userId} {
+      allow read: if true;
+      allow create: if signedIn() && request.auth.uid == userId &&
+                       safeNewIdentity(request.resource.data);
+      allow update: if isAdmin() ||
+                       (signedIn() && request.auth.uid == userId &&
+                        tablePermissionUnchanged() && adminIdentityUnchanged());
+      allow delete: if isAdmin() ||
+                       (signedIn() && request.auth.uid == userId);
+
+      match /extras/{extraId} {
+        allow read, write: if signedIn();
+      }
+
+      match /restaurant_tables/{tableId} {
+        allow read: if (ownsRestaurant(userId) && tableServiceEnabled(userId)) ||
+                       isAdmin();
+        allow create, update: if ownsRestaurant(userId) &&
+                                tableServiceEnabled(userId) &&
+                                validTable(request.resource.data);
+        allow delete: if ownsRestaurant(userId) &&
+                         tableServiceEnabled(userId) &&
+                         resource.data.activeOrderId == null;
+      }
+
+      match /table_orders/{orderId} {
+        allow read: if (ownsRestaurant(userId) && tableServiceEnabled(userId)) ||
+                       isAdmin();
+        allow create, update: if ownsRestaurant(userId) &&
+                                tableServiceEnabled(userId) &&
+                                validOrder(request.resource.data, userId);
+        allow delete: if false;
+      }
+    }
+
+    match /orders/{document=**} {
+      allow read, write: if true;
+    }
+
+    match /businesses/{document=**} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
+    match /admin_activity_log/{document=**} { allow read, write: if signedIn(); }
+    match /admin_notification_requests/{document=**} { allow read, write: if signedIn(); }
+    match /admin_notifications_log/{document=**} { allow read, write: if signedIn(); }
+    match /admin_tokens/{document=**} { allow read, write: if signedIn(); }
+    match /announcements/{document=**} { allow read, write: if signedIn(); }
+    match /app_notifications/{document=**} { allow read, write: if signedIn(); }
+    match /app_settings/{document=**} { allow read, write: if signedIn(); }
+    match /business_claims/{document=**} { allow read, write: if signedIn(); }
+    match /campaigns/{document=**} { allow read, write: if signedIn(); }
+    match /cateogries/{document=**} { allow read, write: if signedIn(); }
+    match /cek_gonder_reports/{document=**} { allow read, write: if signedIn(); }
+    match /classified_ads/{document=**} { allow read, write: if signedIn(); }
+    match /comments/{document=**} { allow read, write: if signedIn(); }
+    match /complaints/{document=**} { allow read, write: if signedIn(); }
+    match /corporate_seller_applications/{document=**} { allow read, write: if signedIn(); }
+    match /custom_pages/{document=**} { allow read, write: if signedIn(); }
+    match /customer_order_push_requests/{document=**} { allow read, write: if signedIn(); }
+    match /dernekler/{document=**} { allow read, write: if signedIn(); }
+    match /earthquake_alerts/{document=**} { allow read, write: if signedIn(); }
+    match /group_posts/{document=**} { allow read, write: if signedIn(); }
+    match /group_reports/{document=**} { allow read, write: if signedIn(); }
+    match /job_ads/{document=**} { allow read, write: if signedIn(); }
+    match /job_postings/{document=**} { allow read, write: if signedIn(); }
+    match /notification_send_requests/{document=**} { allow read, write: if signedIn(); }
+    match /notifications/{document=**} { allow read, write: if signedIn(); }
+    match /phone_verification_requests/{document=**} { allow read, write: if signedIn(); }
+    match /polls/{document=**} { allow read, write: if signedIn(); }
+    match /posts/{document=**} { allow read, write: if signedIn(); }
+    match /products/{document=**} { allow read, write: if signedIn(); }
+    match /reads/{document=**} { allow read, write: if signedIn(); }
+    match /requests_complaints/{document=**} { allow read, write: if signedIn(); }
+    match /reviews/{document=**} { allow read, write: if signedIn(); }
+    match /seller_order_push_requests/{document=**} { allow read, write: if signedIn(); }
+    match /seller_reviews/{document=**} { allow read, write: if signedIn(); }
+    match /sellers/{document=**} { allow read, write: if signedIn(); }
+    match /sikayetler/{document=**} { allow read, write: if signedIn(); }
+    match /story_categories/{document=**} { allow read, write: if signedIn(); }
+    match /user_notification_requests/{document=**} { allow read, write: if signedIn(); }
+    match /votes/{document=**} { allow read, write: if signedIn(); }
+  }
+}

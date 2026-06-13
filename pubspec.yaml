@@ -1,0 +1,111 @@
+name: pazarcik_portal
+description: "Pazarcik Portal"
+publish_to: 'none'
+version: 1.0.2+30
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # 🔥 KRİTİK EKLEME: iOS İkonlarının (çarpı işareti sorunu) çözümü için şart
+  cupertino_icons: ^1.0.6
+  sensors_plus: ^7.0.0
+  flutter_compass: ^0.8.1
+
+
+  # --- Temel Paketler ---
+  flutter_inappwebview: ^6.1.5
+  permission_handler: ^11.3.1
+  url_launcher: ^6.3.2
+  carousel_slider: ^5.0.0
+  http: ^1.6.0
+  shared_preferences: ^2.3.2
+  package_info_plus: ^9.0.1
+  video_player: ^2.8.1
+  file_picker: ^8.0.1
+  just_audio: ^0.9.36
+  
+  # --- Sosyal Medya Girişleri ---
+  google_sign_in: ^6.2.1
+  sign_in_with_apple: ^6.1.2
+
+  # --- Firebase Paketleri ---
+  firebase_core: any
+  firebase_messaging: any
+  firebase_remote_config: any
+  firebase_in_app_messaging: any
+  firebase_auth: ^6.4.0
+  cloud_firestore: any
+  firebase_storage: ^13.3.0
+  flutter_local_notifications: ^17.1.2
+  timezone: ^0.9.4
+
+  # --- Esnaf ve UI Paketleri ---
+  cloudinary_public: ^0.23.1
+  provider: ^6.1.2
+  cached_network_image: ^3.4.1
+  image_picker: ^1.2.2
+  geocoding: ^3.0.0
+  geolocator: ^12.0.0
+  intl: ^0.19.0
+  uuid: ^4.4.0
+  badges: ^3.1.2 
+  loading_animation_widget: ^1.2.1 
+  convex_bottom_bar: ^3.2.0
+
+  # --- Orijinal Projeden Kalanlar ---
+  font_awesome_flutter: any
+  floating_action_bubble: any
+  liquid_swipe: any
+  is_first_run: any
+  flutter_swiper_null_safety: any
+  photo_view: any
+  flutter_stripe: any
+  share_plus: ^12.0.2
+  google_fonts: ^8.1.0
+  html: ^0.15.6
+  lottie: ^3.3.3
+  firebase_app_check: ^0.4.3
+  webfeed_plus: ^1.1.2
+  story_view: ^0.16.6
+  googleapis_auth: ^2.3.0
+  app_links: ^7.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: ^0.14.1
+  flutter_native_splash: ^2.4.1 # 🔥 Açılış ekranı için paketi ekledik
+
+# --- 1. UYGULAMA İKONU AYARLARI ---
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/pazarcikportal.png" # Yazım hatası (d harfi) düzeltildi
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/pazarcikportal.png"
+
+# --- 2. AÇILIŞ (SPLASH) EKRANI AYARLARI ---
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: "assets/login.png"
+  android: true
+  ios: true
+  # 👇 BUNU EKLİYORUZ (Android 12 ve üzeri cihazlar için şart)
+  android_12:
+    image: "assets/login.png"
+    color: "#FFFFFF"
+
+flutter:
+  uses-material-design: true
+  
+  # 🔥 EKLEME: Font paketlerinin ve ikonların sentezlenmesi için
+  generate: true 
+
+  assets:
+    - assets/
+    - assets/pazarcikportal.png # Ana logo
+    - assets/login.png # 🔥 Login ve açılış logon da burada tanımlı olmalı
