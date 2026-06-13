@@ -100,6 +100,9 @@ flutter_native_splash:
     color: "#FFFFFF"
 
 flutter:
+  config:
+    enable-swift-package-manager: false
+
   uses-material-design: true
   
   # 🔥 EKLEME: Font paketlerinin ve ikonların sentezlenmesi için
