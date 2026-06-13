@@ -1,0 +1,4 @@
+#include "Generated.xcconfig"
+PRODUCT_BUNDLE_IDENTIFIER = com.pp.pazarckportal.pazarckportal
+CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements
+APS_ENVIRONMENT = development

@@ -1,0 +1,16 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.pp.pazarckportal.pazarckportal",
+      "sha256_cert_fingerprints": [
+        "94:60:FB:84:BC:F3:A8:65:A6:54:83:C0:DB:3D:34:A7:57:B5:A0:40:F7:FA:8E:D1:D5:5F:AA:DF:4A:2E:07:59",
+        "57:9B:EB:0B:84:69:AF:AC:BD:16:66:3D:82:94:B6:D7:1F:24:72:F5:4E:68:2C:9E:FF:21:B8:77:23:7B:1C:D9",
+        "0c:66:ea:ff:f8:76:f4:38:31:09:9f:d0:8e:34:56:2b:30:93:33:e0:59:70:4b:d0:40:21:00:46:70:ad:2d:5a"
+      ]
+    }
+  }
+]

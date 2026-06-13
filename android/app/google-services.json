@@ -1,0 +1,114 @@
+{
+  "project_info": {
+    "project_number": "615903758381",
+    "project_id": "pazarcik-portal-7faf2",
+    "storage_bucket": "pazarcik-portal-7faf2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:615903758381:android:6b648d2b988797bfb610a4",
+        "android_client_info": {
+          "package_name": "com.example.pazarckportal"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "615903758381-q8nc09olfvjv347ur655uujm1otf9oo2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.pazarckportal",
+            "certificate_hash": "8fa97fcf7b8f43c993e434fba898bcf26386288d"
+          }
+        },
+        {
+          "client_id": "615903758381-c6pp4josijm4lr9kljr1viv8cvml46hf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBfEjiOOnRjnv7GtHZJ7oz46ScuLpRZZDg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "615903758381-c6pp4josijm4lr9kljr1viv8cvml46hf.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "615903758381-d1uvkqubtupkhdedpi1esc32g8gpchdc.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.pazarcik.portal.app"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:615903758381:android:f4d24ce9835910e9b610a4",
+        "android_client_info": {
+          "package_name": "com.pp.pazarckportal.pazarckportal"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "615903758381-bvavir8s7jdh6eihna3047ri7k9scrtb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pp.pazarckportal.pazarckportal",
+            "certificate_hash": "f4e024078330e4c3becc037094cecdfb7e6a2934"
+          }
+        },
+        {
+          "client_id": "615903758381-ghh97vhaks1n3j72iqgotpi2h0ln8opn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pp.pazarckportal.pazarckportal",
+            "certificate_hash": "8fa97fcf7b8f43c993e434fba898bcf26386288d"
+          }
+        },
+        {
+          "client_id": "615903758381-sfu9iq7dh1m1o02ma0cmpmc4kvv4ujaf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pp.pazarckportal.pazarckportal",
+            "certificate_hash": "c4084155dc67bbd432f5c4078bc6c74496d7935c"
+          }
+        },
+        {
+          "client_id": "615903758381-c6pp4josijm4lr9kljr1viv8cvml46hf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBfEjiOOnRjnv7GtHZJ7oz46ScuLpRZZDg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "615903758381-c6pp4josijm4lr9kljr1viv8cvml46hf.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "615903758381-d1uvkqubtupkhdedpi1esc32g8gpchdc.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.pazarcik.portal.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

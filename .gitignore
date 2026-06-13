@@ -31,6 +31,7 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+**/build/
 /coverage/
 
 # Symbolication related
@@ -43,3 +44,63 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local secrets and signing material
+key.properties
+**/*.keystore
+**/*.jks
+*.p8
+*.p12
+*.mobileprovision
+.env
+.env.*
+**/service-account*.json
+**/serviceAccount*.json
+
+# Dependencies and local tooling
+**/node_modules/
+.firebase/
+.adal/
+.agents/
+.aider-desk/
+.augment/
+.bob/
+.chrome-*/
+.claude/
+.codeartsdoer/
+.codebuddy/
+.codemaker/
+.codestudio/
+.continue/
+.cortex/
+.crush/
+.devin/
+.factory/
+.flutter_appdata/
+.forge/
+.goose/
+.iflow/
+.junie/
+.kilocode/
+.kiro/
+.kode/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.pochi/
+.qoder/
+.qwen/
+.roo/
+.rovodev/
+.tabnine/
+.trae/
+.vibe/
+.windsurf/
+.zencoder/
+
+# Local verification artifacts
+.live-main.dart.js
+web-build.*.log
+web-*.png
