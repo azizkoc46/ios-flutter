@@ -26,7 +26,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  // âœ… Her alan iÃ§in ayrÄ± obscure state
+  // ✅ Her alan için ayrı obscure state
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool isLogin = true;
@@ -94,7 +94,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
     final userDoc = await firebase.collection('customers').doc(user.uid).get();
     if (!userDoc.exists) {
       await firebase.collection('customers').doc(user.uid).set({
-        'fullname': displayName ?? 'PazarcÄ±k Ãœyesi',
+        'fullname': displayName ?? 'Pazarcık Üyesi',
         'email': user.email ?? '',
         'image': photoUrl ?? '',
         'role': 'customer',
@@ -114,10 +114,10 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
     FocusScope.of(context).unfocus();
     if (!valid) return;
 
-    // âœ… KayÄ±t modunda ÅŸifre eÅŸleÅŸme kontrolÃ¼
+    // ✅ Kayıt modunda şifre eşleşme kontrolü
     if (!isLogin &&
         _passwordController.text != _confirmPasswordController.text) {
-      showSnackBar("Åifreler eÅŸleÅŸmiyor");
+      showSnackBar("Şifreler eşleşmiyor");
       return;
     }
 
@@ -142,7 +142,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                     resourceType: CloudinaryResourceType.Image));
             imageUrl = response.secureUrl;
           } catch (e) {
-            debugPrint("Resim yÃ¼kleme hatasÄ±: $e");
+            debugPrint("Resim yükleme hatası: $e");
           }
         }
 
@@ -156,18 +156,18 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
           'createdAt': Timestamp.now(),
         });
 
-        showSnackBar("HoÅŸ Geldiniz!", isError: false);
+        showSnackBar("Hoş Geldiniz!", isError: false);
         if (mounted) {
           Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const PazarcikAnaEkran()));
         }
       }
     } on FirebaseAuthException catch (e) {
-      // âœ… Firebase hata mesajlarÄ±nÄ± TÃ¼rkÃ§e gÃ¶ster
+      // ✅ Firebase hata mesajlarını Türkçe göster
       final msg = _firebaseErrorMessage(e.code);
       showSnackBar(msg);
     } catch (e) {
-      showSnackBar("Bir hata oluÅŸtu, tekrar deneyin.");
+      showSnackBar("Bir hata oluştu, tekrar deneyin.");
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -176,21 +176,21 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
   String _firebaseErrorMessage(String code) {
     switch (code) {
       case 'user-not-found':
-        return 'Bu e-posta ile kayÄ±tlÄ± kullanÄ±cÄ± bulunamadÄ±.';
+        return 'Bu e-posta ile kayıtlı kullanıcı bulunamadı.';
       case 'wrong-password':
-        return 'HatalÄ± ÅŸifre girdiniz.';
+        return 'Hatalı şifre girdiniz.';
       case 'email-already-in-use':
-        return 'Bu e-posta adresi zaten kullanÄ±mda.';
+        return 'Bu e-posta adresi zaten kullanımda.';
       case 'weak-password':
-        return 'Åifre en az 6 karakter olmalÄ±dÄ±r.';
+        return 'Şifre en az 6 karakter olmalıdır.';
       case 'invalid-email':
-        return 'GeÃ§ersiz e-posta adresi.';
+        return 'Geçersiz e-posta adresi.';
       case 'too-many-requests':
-        return 'Ã‡ok fazla deneme yapÄ±ldÄ±. LÃ¼tfen bekleyin.';
+        return 'Çok fazla deneme yapıldı. Lütfen bekleyin.';
       case 'network-request-failed':
-        return 'Ä°nternet baÄŸlantÄ±nÄ±zÄ± kontrol edin.';
+        return 'İnternet bağlantınızı kontrol edin.';
       default:
-        return 'GiriÅŸ yapÄ±lamadÄ±. Tekrar deneyin.';
+        return 'Giriş yapılamadı. Tekrar deneyin.';
     }
   }
 
@@ -229,16 +229,16 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
           photoUrl: googleUser.photoUrl,
           authType: 'google');
     } on FirebaseAuthException catch (e) {
-      debugPrint('Google giriÅŸ hatasÄ±: ${e.code} - ${e.message}');
+      debugPrint('Google giriş hatası: ${e.code} - ${e.message}');
       if (e.code == 'unauthorized-domain') {
-        showSnackBar('Bu web adresi Firebase yetkili alanlarÄ±na eklenmemiÅŸ.');
+        showSnackBar('Bu web adresi Firebase yetkili alanlarına eklenmemiş.');
       } else if (e.code != 'popup-closed-by-user' &&
           e.code != 'cancelled-popup-request') {
-        showSnackBar("Google ile giriÅŸ baÅŸarÄ±sÄ±z: ${e.message ?? e.code}");
+        showSnackBar("Google ile giriş başarısız: ${e.message ?? e.code}");
       }
     } catch (e) {
-      debugPrint('Google giriÅŸ hatasÄ±: $e');
-      showSnackBar("Google ile giriÅŸ baÅŸarÄ±sÄ±z.");
+      debugPrint('Google giriş hatası: $e');
+      showSnackBar("Google ile giriş başarısız.");
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -266,15 +266,15 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
         );
       }
     } on FirebaseAuthException catch (e) {
-      debugPrint('Apple giriÅŸ hatasÄ±: ${e.code} - ${e.message}');
+      debugPrint('Apple giriş hatası: ${e.code} - ${e.message}');
       if (e.code != 'web-context-cancelled' &&
           e.code != 'popup-closed-by-user' &&
           e.code != 'canceled') {
-        showSnackBar('Apple ile giriÅŸ baÅŸarÄ±sÄ±z: ${e.message ?? e.code}');
+        showSnackBar('Apple ile giriş başarısız: ${e.message ?? e.code}');
       }
     } catch (e) {
-      debugPrint('Apple giriÅŸ hatasÄ±: $e');
-      showSnackBar('Apple ile giriÅŸ baÅŸarÄ±sÄ±z.');
+      debugPrint('Apple giriş hatası: $e');
+      showSnackBar('Apple ile giriş başarısız.');
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -282,10 +282,10 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    // âœ… Responsive boyut hesabÄ±
+    // ✅ Responsive boyut hesabı
     final size = MediaQuery.of(context).size;
-    final isCompact = size.height < 700; // iPhone SE gibi kÃ¼Ã§Ã¼k ekranlar
-    final hPad = size.width > 430 ? 40.0 : 28.0; // Tablet/geniÅŸ ekran padding
+    final isCompact = size.height < 700; // iPhone SE gibi küçük ekranlar
+    final hPad = size.width > 430 ? 40.0 : 28.0; // Tablet/geniş ekran padding
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
@@ -315,7 +315,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                   padding: EdgeInsets.symmetric(
                       horizontal: hPad, vertical: isCompact ? 12 : 24),
                   child: ConstrainedBox(
-                    // âœ… Tablet'te iÃ§erik Ã§ok geniÅŸ olmasÄ±n
+                    // ✅ Tablet'te içerik çok geniş olmasın
                     constraints: const BoxConstraints(maxWidth: 480),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -338,7 +338,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                                 )
                               ],
                             ),
-                            // âœ… Yeni logo: assets/login.png
+                            // ✅ Yeni logo: assets/login.png
                             child: Image.asset(
                               'assets/login.png',
                               fit: BoxFit.cover,
@@ -353,7 +353,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                         SizedBox(height: isCompact ? 16 : 22),
 
                         Text(
-                          isLogin ? "PazarcÄ±k Portal" : "Hesap OluÅŸtur",
+                          isLogin ? "Pazarcık Portal" : "Hesap Oluştur",
                           style: GoogleFonts.inter(
                               fontSize: isCompact ? 26 : 30,
                               fontWeight: FontWeight.w800,
@@ -363,8 +363,8 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                         const SizedBox(height: 6),
                         Text(
                           isLogin
-                              ? "Devam etmek iÃ§in giriÅŸ yapÄ±n"
-                              : "Portal ayrÄ±calÄ±klarÄ± iÃ§in kayÄ±t olun",
+                              ? "Devam etmek için giriş yapın"
+                              : "Portal ayrıcalıkları için kayıt olun",
                           style: GoogleFonts.inter(
                               fontSize: 14,
                               color: const Color(0xFF8E8E93),
@@ -402,7 +402,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                                   if (v == null || v.isEmpty)
                                     return "E-posta girin";
                                   if (!v.contains('@'))
-                                    return "GeÃ§erli e-posta girin";
+                                    return "Geçerli e-posta girin";
                                   return null;
                                 },
                               ),
@@ -410,7 +410,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                               _buildIOSField(
                                 controller: _passwordController,
                                 icon: Icons.lock_rounded,
-                                hint: "Åifre",
+                                hint: "Şifre",
                                 isPassword: true,
                                 obscure: _obscurePassword,
                                 onObscureTap: () => setState(
@@ -420,9 +420,9 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                                     : const [AutofillHints.newPassword],
                                 validator: (v) {
                                   if (v == null || v.isEmpty)
-                                    return "Åifre girin";
+                                    return "Şifre girin";
                                   if (!isLogin && v.length < 6)
-                                    return "En az 6 karakter olmalÄ±";
+                                    return "En az 6 karakter olmalı";
                                   return null;
                                 },
                               ),
@@ -431,7 +431,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                                 _buildIOSField(
                                   controller: _confirmPasswordController,
                                   icon: Icons.shield_rounded,
-                                  hint: "Åifre Tekrar",
+                                  hint: "Şifre Tekrar",
                                   isPassword: true,
                                   obscure: _obscureConfirm,
                                   onObscureTap: () => setState(
@@ -441,9 +441,9 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                                   ],
                                   validator: (v) {
                                     if (v == null || v.isEmpty)
-                                      return "Åifreyi tekrar girin";
+                                      return "Şifreyi tekrar girin";
                                     if (v != _passwordController.text)
-                                      return "Åifreler eÅŸleÅŸmiyor";
+                                      return "Şifreler eşleşmiyor";
                                     return null;
                                   },
                                 ),
@@ -459,7 +459,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                                     onPressed: () => Navigator.of(context)
                                         .pushNamed(ForgotPassword.routeName),
                                     child: Text(
-                                      "Åifremi Unuttum",
+                                      "Şifremi Unuttum",
                                       style: GoogleFonts.inter(
                                           color: const Color(0xFF007AFF),
                                           fontWeight: FontWeight.w600,
@@ -488,7 +488,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                                       ? const CupertinoActivityIndicator(
                                           color: Colors.white)
                                       : Text(
-                                          isLogin ? "GiriÅŸ Yap" : "KayÄ±t Ol",
+                                          isLogin ? "Giriş Yap" : "Kayıt Ol",
                                           style: GoogleFonts.inter(
                                               fontSize: 16,
                                               fontWeight: FontWeight.w700),
@@ -510,7 +510,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 14),
                               child: Text(
-                                "veya ÅŸununla devam et",
+                                "veya şununla devam et",
                                 style: GoogleFonts.inter(
                                     fontSize: 12,
                                     color: const Color(0xFF8E8E93),
@@ -568,7 +568,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
 
                         SizedBox(height: isCompact ? 18 : 24),
 
-                        // GEÃ‡Ä°Å BUTONU
+                        // GEÇİŞ BUTONU
                         GestureDetector(
                           onTap: _switchLog,
                           child: RichText(
@@ -578,10 +578,10 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                               children: [
                                 TextSpan(
                                     text: isLogin
-                                        ? "HesabÄ±nÄ±z yok mu? "
-                                        : "Zaten Ã¼ye misiniz? "),
+                                        ? "Hesabınız yok mu? "
+                                        : "Zaten üye misiniz? "),
                                 TextSpan(
-                                    text: isLogin ? "KayÄ±t Ol" : "GiriÅŸ Yap",
+                                    text: isLogin ? "Kayıt Ol" : "Giriş Yap",
                                     style: const TextStyle(
                                         color: Color(0xFF007AFF),
                                         fontWeight: FontWeight.bold)),
@@ -603,7 +603,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
     );
   }
 
-  // âœ… AyrÄ± obscure parametresi ile yeniden yazÄ±ldÄ±
+  // ✅ Ayrı obscure parametresi ile yeniden yazıldı
   Widget _buildIOSField({
     required TextEditingController controller,
     required IconData icon,
@@ -658,12 +658,12 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
           errorStyle: GoogleFonts.inter(fontSize: 11.5),
         ),
         validator: validator ??
-            (v) => (v == null || v.isEmpty) ? "LÃ¼tfen doldurun" : null,
+            (v) => (v == null || v.isEmpty) ? "Lütfen doldurun" : null,
       ),
     );
   }
 
-  // âœ… Sosyal butonlar label ile daha anlaÅŸÄ±lÄ±r
+  // ✅ Sosyal butonlar label ile daha anlaşılır
   Widget _buildSocialButton({
     required IconData icon,
     required Color color,

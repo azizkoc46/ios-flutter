@@ -18,7 +18,7 @@ class PublicDetailPage extends StatefulWidget {
 }
 
 class _PublicDetailPageState extends State<PublicDetailPage> {
-  // ğŸ”¥ Kamu Kurumu TemasÄ±: TÃ¼rk BayraÄŸÄ± KÄ±rmÄ±zÄ±sÄ±
+  // 🔥 Kamu Kurumu Teması: Türk Bayrağı Kırmızısı
   final Color publicRed = const Color(0xFFD32F2F);
   final TextEditingController _commentController = TextEditingController();
 
@@ -34,7 +34,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
     _checkIfSaved();
   }
 
-  // --- YardÄ±mcÄ± Fonksiyonlar ---
+  // --- Yardımcı Fonksiyonlar ---
   Future<void> _checkIfSaved() async {
     final prefs = await SharedPreferences.getInstance();
     List<String> savedIds = prefs.getStringList('saved_public') ?? [];
@@ -56,7 +56,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
     if (_commentController.text.trim().isEmpty) return;
     if (_currentUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("Yorum yapmak iÃ§in giriÅŸ yapmalÄ±sÄ±nÄ±z."),
+          content: Text("Yorum yapmak için giriş yapmalısınız."),
           behavior: SnackBarBehavior.floating));
       return;
     }
@@ -96,7 +96,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
     final saved = await showCupertinoDialog<bool>(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text("Yorumu DÃ¼zenle"),
+        title: const Text("Yorumu Düzenle"),
         content: Padding(
           padding: const EdgeInsets.only(top: 12),
           child: CupertinoTextField(
@@ -107,7 +107,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
         ),
         actions: [
           CupertinoDialogAction(
-            child: const Text("VazgeÃ§"),
+            child: const Text("Vazgeç"),
             onPressed: () => Navigator.pop(context, false),
           ),
           CupertinoDialogAction(
@@ -157,12 +157,12 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
                   const SizedBox(height: 25),
                   _buildActions(data),
                   const Divider(height: 50, thickness: 0.5),
-                  _buildSection("Kurum HakkÄ±nda", data['description']),
+                  _buildSection("Kurum Hakkında", data['description']),
                   _buildSection("Adres & Konum", data['addressDesc']),
-                  _buildSection("Ä°letiÅŸim & Sosyal Medya", null,
+                  _buildSection("İletişim & Sosyal Medya", null,
                       isSocial: true, social: data['socialMedia']),
                   const Divider(height: 50, thickness: 0.5),
-                  const Text("VatandaÅŸ YorumlarÄ±",
+                  const Text("Vatandaş Yorumları",
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 15),
@@ -178,7 +178,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
     );
   }
 
-  // --- Widget BileÅŸenleri ---
+  // --- Widget Bileşenleri ---
 
   Widget _buildSliverAppBar(Map<String, dynamic> data) => SliverAppBar(
         expandedHeight: 250,
@@ -223,10 +223,10 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
           }),
           _actionIcon(
               CupertinoIcons.share,
-              "PaylaÅŸ",
+              "Paylaş",
               Colors.blue,
               () => Share.share(
-                  "${data['businessName']} detaylarÄ± iÃ§in PazarcÄ±k Portal'a bak!")),
+                  "${data['businessName']} detayları için Pazarcık Portal'a bak!")),
           _actionIcon(
               _isSaved ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
               "Kaydet",
@@ -290,7 +290,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
-          return const Text("HenÃ¼z geri bildirim yapÄ±lmamÄ±ÅŸ.",
+          return const Text("Henüz geri bildirim yapılmamış.",
               style: TextStyle(color: Colors.grey));
         final docs = snapshot.data!.docs;
         final mainComments = docs.where((doc) {
@@ -345,7 +345,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
         Row(children: [
           GestureDetector(
             onTap: () => _setReply(doc.id, visibleName),
-            child: const Text("YanÄ±tla",
+            child: const Text("Yanıtla",
                 style: TextStyle(
                     fontSize: 12,
                     color: Colors.blue,
@@ -355,7 +355,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
             const SizedBox(width: 14),
             GestureDetector(
               onTap: () => _editComment(doc.id, c['comment'] ?? ""),
-              child: const Text("DÃ¼zenle",
+              child: const Text("Düzenle",
                   style: TextStyle(fontSize: 12, color: Colors.grey)),
             ),
             const SizedBox(width: 14),
@@ -384,7 +384,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(children: [
                 Expanded(
-                  child: Text("YanÄ±tlanÄ±yor: $_replyToName",
+                  child: Text("Yanıtlanıyor: $_replyToName",
                       style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 ),
                 GestureDetector(
@@ -412,7 +412,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
               Expanded(
                   child: CupertinoTextField(
                       controller: _commentController,
-                      placeholder: "GÃ¶rÃ¼ÅŸÃ¼nÃ¼zÃ¼ yazÄ±n...",
+                      placeholder: "Görüşünüzü yazın...",
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                           color: Colors.grey.shade100,

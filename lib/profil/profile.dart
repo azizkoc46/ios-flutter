@@ -8,7 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Projene Ã¶zel yollar
+// Projene özel yollar
 import 'package:pazarcik_portal/esnaf_sistemi/lib/components/loading.dart';
 import 'package:pazarcik_portal/esnaf_sistemi/lib/constants/colors.dart';
 import 'package:pazarcik_portal/auth/auth.dart';
@@ -34,8 +34,8 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // --- DEÄÄ°ÅKENLER ---
-  String _appVersion = "SÃ¼rÃ¼m yÃ¼kleniyor";
+  // --- DEĞİŞKENLER ---
+  String _appVersion = "Sürüm yükleniyor";
   bool _isNamazNotificationOn = true;
   bool _isUploadingImage = false;
   bool _hasAdminClaim = false;
@@ -65,16 +65,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           claims['isAdmin'] == true ||
           claimRole == 'admin' ||
           claimRole == 'yonetici' ||
-          claimRole == 'yÃ¶netici';
+          claimRole == 'yönetici';
       if (mounted && hasAdminClaim != _hasAdminClaim) {
         setState(() => _hasAdminClaim = hasAdminClaim);
       }
     } catch (e) {
-      debugPrint('YÃ¶netici yetkisi okunamadÄ±: $e');
+      debugPrint('Yönetici yetkisi okunamadı: $e');
     }
   }
 
-  // SÃ¼rÃ¼m bilgisini dinamik Ã§eken fonksiyon
+  // Sürüm bilgisini dinamik çeken fonksiyon
   Future<void> _getAppVersion() async {
     try {
       final packageInfo = await PackageInfo.fromPlatform();
@@ -84,7 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
       }
     } catch (e) {
-      debugPrint("SÃ¼rÃ¼m Ã§ekilemedi: $e");
+      debugPrint("Sürüm çekilemedi: $e");
     }
   }
 
@@ -95,7 +95,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
-  // --- FOTOÄRAF YÃœKLEME ---
+  // --- FOTOĞRAF YÜKLEME ---
   Future<void> _pickAndUploadImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image =
@@ -121,17 +121,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .update({'image': downloadUrl});
 
       _showInAppNotificationDialog(
-          "BaÅŸarÄ±lÄ±", "Profil fotoÄŸrafÄ±nÄ±z gÃ¼ncellendi.");
+          "Başarılı", "Profil fotoğrafınız güncellendi.");
     } catch (e) {
-      debugPrint("Resim yÃ¼kleme hatasÄ±: $e");
+      debugPrint("Resim yükleme hatası: $e");
       _showInAppNotificationDialog(
-          "Hata", "FotoÄŸraf yÃ¼klenirken bir sorun oluÅŸtu.");
+          "Hata", "Fotoğraf yüklenirken bir sorun oluştu.");
     } finally {
       setState(() => _isUploadingImage = false);
     }
   }
 
-  // --- Ã‡IKIÅ YAP ---
+  // --- ÇIKIŞ YAP ---
   _logout() async {
     await FirebaseAuth.instance.signOut();
     if (mounted) {
@@ -142,27 +142,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // --- BÄ°LDÄ°RÄ°M AYARLARI ---
+  // --- BİLDİRİM AYARLARI ---
   void _showNotificationCategoryDialog() {
     showAdaptiveDialog(
       context: context,
       builder: (context) => AlertDialog.adaptive(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Haber Bildirim BÃ¶lgesi"),
+        title: const Text("Haber Bildirim Bölgesi"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildDialogTile("ğŸ‡¹ğŸ‡· TÃ¼rkiye GÃ¼ndemi", () {
+            _buildDialogTile("🇹🇷 Türkiye Gündemi", () {
               Navigator.pop(context);
-              _showNotificationFrequencyDialog("TÃ¼rkiye GÃ¼ndemi", "gundem");
+              _showNotificationFrequencyDialog("Türkiye Gündemi", "gundem");
             }),
-            _buildDialogTile("ğŸŒ¶ï¸ KahramanmaraÅŸ", () {
+            _buildDialogTile("🌶️ Kahramanmaraş", () {
               Navigator.pop(context);
-              _showNotificationFrequencyDialog("KahramanmaraÅŸ", "maras");
+              _showNotificationFrequencyDialog("Kahramanmaraş", "maras");
             }),
-            _buildDialogTile("ğŸ“ PazarcÄ±k", () {
+            _buildDialogTile("📍 Pazarcık", () {
               Navigator.pop(context);
-              _showNotificationFrequencyDialog("PazarcÄ±k", "pazarcik");
+              _showNotificationFrequencyDialog("Pazarcık", "pazarcik");
             }),
           ],
         ),
@@ -180,26 +180,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildDialogTile(
-                "âš¡ AnÄ±nda",
+                "⚡ Anında",
                 () => _bildirimAyariniKaydet(
-                    category, prefix, "AnÄ±nda", "_aninda"),
+                    category, prefix, "Anında", "_aninda"),
                 icon: Icons.flash_on,
                 color: Colors.orange),
             _buildDialogTile(
-                "ğŸ•’ Saatlik",
+                "🕒 Saatlik",
                 () => _bildirimAyariniKaydet(
                     category, prefix, "Saatlik", "_saatlik"),
                 icon: Icons.access_time,
                 color: Colors.blue),
             _buildDialogTile(
-                "ğŸ“… GÃ¼nlÃ¼k",
+                "📅 Günlük",
                 () => _bildirimAyariniKaydet(
-                    category, prefix, "GÃ¼nlÃ¼k", "_gunluk"),
+                    category, prefix, "Günlük", "_gunluk"),
                 icon: Icons.calendar_today,
                 color: Colors.green),
             const Divider(),
-            _buildDialogTile("ğŸ”• Kapat",
-                () => _bildirimAyariniKaydet(category, prefix, "KapalÄ±", ""),
+            _buildDialogTile("🔕 Kapat",
+                () => _bildirimAyariniKaydet(category, prefix, "Kapalı", ""),
                 icon: Icons.notifications_off, color: Colors.grey),
           ],
         ),
@@ -216,17 +216,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await NotificationService().updateSubscription(pre, suf);
       if (mounted) {
         _showInAppNotificationDialog(
-            "BaÅŸarÄ±lÄ±", "$cat bildirimleri '$gos' olarak ayarlandÄ±.");
+            "Başarılı", "$cat bildirimleri '$gos' olarak ayarlandı.");
       }
     } catch (e) {
       if (mounted) {
         _showInAppNotificationDialog(
-            "Hata", "Ayar gÃ¼ncellenirken bir sorun oluÅŸtu.");
+            "Hata", "Ayar güncellenirken bir sorun oluştu.");
       }
     }
   }
 
-  // --- GÄ°ZLÄ°LÄ°K POLÄ°TÄ°KASI PENCERESÄ° ---
+  // --- GİZLİLİK POLİTİKASI PENCERESİ ---
   void _showPrivacyPolicy() {
     showModalBottomSheet(
       context: context,
@@ -252,7 +252,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            const Text("Gizlilik PolitikasÄ±",
+            const Text("Gizlilik Politikası",
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 15),
             Container(
@@ -265,10 +265,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 border: Border.all(color: const Color(0xFFBBD7FF)),
               ),
               child: const Text(
-                "PazarcÄ±k Portal resmi belediye veya kamu kurumu uygulamasÄ± deÄŸildir. "
-                "Dernek/yerel topluluk hesabÄ± Ã¼zerinden yÃ¼rÃ¼tÃ¼len, kar amacÄ± gÃ¼tmeyen, "
-                "satÄ±ÅŸ yeri olmayan ve yalnÄ±zca bilgilendirme, duyuru, yerel rehber ve "
-                "topluluk iletiÅŸimi amacÄ± taÅŸÄ±yan baÄŸÄ±msÄ±z bir ÅŸehir portalÄ±dÄ±r.",
+                "Pazarcık Portal resmi belediye veya kamu kurumu uygulaması değildir. "
+                "Dernek/yerel topluluk hesabı üzerinden yürütülen, kar amacı gütmeyen, "
+                "satış yeri olmayan ve yalnızca bilgilendirme, duyuru, yerel rehber ve "
+                "topluluk iletişimi amacı taşıyan bağımsız bir şehir portalıdır.",
                 style: TextStyle(
                   fontSize: 13,
                   height: 1.45,
@@ -281,21 +281,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 child: Text(
-                  "PAZARCIK PORTAL GÄ°ZLÄ°LÄ°K POLÄ°TÄ°KASI VE KULLANIM ÅARTLARI\n\n"
-                  "1. Kapsam ve AmacÄ±mÄ±z\n"
-                  "PazarcÄ±k Portal ('Uygulama'), kullanÄ±cÄ±larÄ±n yerel iÅŸletmelere ulaÅŸmasÄ±nÄ±, ilan vermesini ve Ã§eÅŸitli hizmetlerden faydalanmasÄ±nÄ± saÄŸlayan bir bilgi, iletiÅŸim ve sergileme platformudur. Bu politika, kiÅŸisel verilerinizin nasÄ±l iÅŸlendiÄŸini ve platformun kullanÄ±m koÅŸullarÄ±nÄ± ÅŸeffaf bir ÅŸekilde belirler.\n\n"
-                  "2. Veri Toplama ve KullanÄ±m AmacÄ±\n"
-                  "UygulamamÄ±z; hizmetlerin doÄŸru ve eksiksiz sunulabilmesi, kullanÄ±cÄ± gÃ¼venliÄŸinin saÄŸlanmasÄ± ve uygulama iÃ§i sistemlerin Ã§alÄ±ÅŸabilmesi amacÄ±yla temel kullanÄ±cÄ± verilerini (ad, soyad, iletiÅŸim bilgileri vb.) Firebase altyapÄ±sÄ± Ã¼zerinden iÅŸler. Toplanan hiÃ§bir kiÅŸisel veri, hukuki bir zorunluluk (adli makamlarÄ±n resmi talepleri vb.) olmadÄ±kÃ§a 3. ÅŸahÄ±slarla, kurumlarla veya reklam ÅŸirketleriyle bilerek ve isteyerek paylaÅŸÄ±lmaz, satÄ±lamaz ve ticari amaÃ§la kullanÄ±lamaz.\n\n"
-                  "3. Cihaz Ä°zinleri (Kamera ve Galeri)\n"
-                  "Profil fotoÄŸrafÄ± gÃ¼ncelleme, maÄŸaza ilanÄ± verme veya istek/ÅŸikayet formlarÄ±na medya (resim/video) ekleme gibi iÅŸlemler iÃ§in cihazÄ±nÄ±zÄ±n kamera ve galeri eriÅŸimi talep edilir. Bu izinler yalnÄ±zca sizin onayÄ±nÄ±z ve inisiyatifinizle, uygulamanÄ±n Ã¶zelliklerini kullanabilmeniz iÃ§in istenir. Arka planda gizli bir veri Ã§ekimi yapÄ±lmaz.\n\n"
-                  "4. Sorumluluk Reddi ve Platformun RolÃ¼ (Ã–NEMLÄ°)\n"
-                  "PazarcÄ±k Portal, 5651 sayÄ±lÄ± yasa kapsamÄ±nda hukuki tanÄ±mÄ±yla yalnÄ±zca bir 'Yer SaÄŸlayÄ±cÄ±' ve dijital bir 'Sergileme AlanÄ±'dÄ±r.\n\n"
-                  "â€¢ Uygulama Ã¼zerinden sergilenen hiÃ§bir Ã¼rÃ¼n, hizmet veya ilan Ã¼zerinden platformumuzca KOMÄ°SYON ALINMAMAKTADIR.\n"
-                  "â€¢ Platformda yer alan ilanlarÄ±n, satÄ±lan Ã¼rÃ¼nlerin, verilen hizmetlerin kalitesi, teslimatÄ±, yasallÄ±ÄŸÄ± veya kullanÄ±cÄ±larÄ±n birbiriyle olan iletiÅŸimlerinin doÄŸruluÄŸu konusunda PazarcÄ±k Portal'Ä±n hiÃ§bir hukuki, maddi veya cezai sorumluluÄŸu BULUNMAMAKTADIR.\n"
-                  "â€¢ AlÄ±cÄ± ve satÄ±cÄ± arasÄ±ndaki her tÃ¼rlÃ¼ ticari, maddi veya hukuki anlaÅŸmazlÄ±ktan doÄŸrudan doÄŸruya taraflarÄ±n kendileri sorumludur. PazarcÄ±k Portal yÃ¶netimi taraf, kefil veya hakem deÄŸildir.\n\n"
-                  "5. KullanÄ±cÄ± YÃ¼kÃ¼mlÃ¼lÃ¼kleri\n"
-                  "KullanÄ±cÄ±lar, uygulama iÃ§erisinde paylaÅŸtÄ±klarÄ± her tÃ¼rlÃ¼ iÃ§eriÄŸin, yazÄ±nÄ±n ve gÃ¶rselin TÃ¼rkiye Cumhuriyeti kanunlarÄ±na uygun olduÄŸunu peÅŸinen kabul eder. YasadÄ±ÅŸÄ±, yanÄ±ltÄ±cÄ±, telif hakkÄ± ihlali iÃ§eren veya suÃ§ teÅŸkil eden her tÃ¼rlÃ¼ iÃ§erikte tÃ¼m hukuki ve cezai sorumluluk tamamen paylaÅŸÄ±mÄ± yapan kiÅŸiye aittir.\n\n"
-                  "UygulamayÄ± kullanan her birey, KVKK aydÄ±nlatma metnini, bu gizlilik politikasÄ±nÄ± ve kullanÄ±m ÅŸartlarÄ±nÄ± okumuÅŸ, anlamÄ±ÅŸ ve eksiksiz olarak kabul etmiÅŸ sayÄ±lÄ±r.",
+                  "PAZARCIK PORTAL GİZLİLİK POLİTİKASI VE KULLANIM ŞARTLARI\n\n"
+                  "1. Kapsam ve Amacımız\n"
+                  "Pazarcık Portal ('Uygulama'), kullanıcıların yerel işletmelere ulaşmasını, ilan vermesini ve çeşitli hizmetlerden faydalanmasını sağlayan bir bilgi, iletişim ve sergileme platformudur. Bu politika, kişisel verilerinizin nasıl işlendiğini ve platformun kullanım koşullarını şeffaf bir şekilde belirler.\n\n"
+                  "2. Veri Toplama ve Kullanım Amacı\n"
+                  "Uygulamamız; hizmetlerin doğru ve eksiksiz sunulabilmesi, kullanıcı güvenliğinin sağlanması ve uygulama içi sistemlerin çalışabilmesi amacıyla temel kullanıcı verilerini (ad, soyad, iletişim bilgileri vb.) Firebase altyapısı üzerinden işler. Toplanan hiçbir kişisel veri, hukuki bir zorunluluk (adli makamların resmi talepleri vb.) olmadıkça 3. şahıslarla, kurumlarla veya reklam şirketleriyle bilerek ve isteyerek paylaşılmaz, satılamaz ve ticari amaçla kullanılamaz.\n\n"
+                  "3. Cihaz İzinleri (Kamera ve Galeri)\n"
+                  "Profil fotoğrafı güncelleme, mağaza ilanı verme veya istek/şikayet formlarına medya (resim/video) ekleme gibi işlemler için cihazınızın kamera ve galeri erişimi talep edilir. Bu izinler yalnızca sizin onayınız ve inisiyatifinizle, uygulamanın özelliklerini kullanabilmeniz için istenir. Arka planda gizli bir veri çekimi yapılmaz.\n\n"
+                  "4. Sorumluluk Reddi ve Platformun Rolü (ÖNEMLİ)\n"
+                  "Pazarcık Portal, 5651 sayılı yasa kapsamında hukuki tanımıyla yalnızca bir 'Yer Sağlayıcı' ve dijital bir 'Sergileme Alanı'dır.\n\n"
+                  "• Uygulama üzerinden sergilenen hiçbir ürün, hizmet veya ilan üzerinden platformumuzca KOMİSYON ALINMAMAKTADIR.\n"
+                  "• Platformda yer alan ilanların, satılan ürünlerin, verilen hizmetlerin kalitesi, teslimatı, yasallığı veya kullanıcıların birbiriyle olan iletişimlerinin doğruluğu konusunda Pazarcık Portal'ın hiçbir hukuki, maddi veya cezai sorumluluğu BULUNMAMAKTADIR.\n"
+                  "• Alıcı ve satıcı arasındaki her türlü ticari, maddi veya hukuki anlaşmazlıktan doğrudan doğruya tarafların kendileri sorumludur. Pazarcık Portal yönetimi taraf, kefil veya hakem değildir.\n\n"
+                  "5. Kullanıcı Yükümlülükleri\n"
+                  "Kullanıcılar, uygulama içerisinde paylaştıkları her türlü içeriğin, yazının ve görselin Türkiye Cumhuriyeti kanunlarına uygun olduğunu peşinen kabul eder. Yasadışı, yanıltıcı, telif hakkı ihlali içeren veya suç teşkil eden her türlü içerikte tüm hukuki ve cezai sorumluluk tamamen paylaşımı yapan kişiye aittir.\n\n"
+                  "Uygulamayı kullanan her birey, KVKK aydınlatma metnini, bu gizlilik politikasını ve kullanım şartlarını okumuş, anlamış ve eksiksiz olarak kabul etmiş sayılır.",
                   style: const TextStyle(
                     fontSize: 13,
                     height: 1.5,
@@ -309,7 +309,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             SizedBox(
               width: double.infinity,
               child: CupertinoButton.filled(
-                child: const Text("AnladÄ±m"),
+                child: const Text("Anladım"),
                 onPressed: () => Navigator.pop(context),
               ),
             )
@@ -469,14 +469,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               .trim();
           final bool isAdmin = role == 'admin' ||
               role == 'yonetici' ||
-              role == 'yÃ¶netici' ||
+              role == 'yönetici' ||
               userData['isAdmin'] == true ||
               userData['admin'] == true ||
               _hasAdminClaim;
           bool isApproved = userData['isApproved'] ?? false;
           String imageUrl = userData['image'] ?? "";
-          String fullname = userData['fullname'] ?? "PazarcÄ±klÄ±";
-          String phone = userData['phone'] ?? "Telefon kayÄ±tlÄ± deÄŸil";
+          String fullname = userData['fullname'] ?? "Pazarcıklı";
+          String phone = userData['phone'] ?? "Telefon kayıtlı değil";
 
           return SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
@@ -485,7 +485,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 const SizedBox(height: 20),
 
-                // --- PROFÄ°L FOTOÄRAFI ---
+                // --- PROFİL FOTOĞRAFI ---
                 Center(
                   child: Stack(
                     children: [
@@ -543,23 +543,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 30),
 
                 // --- 1. GRUP: HESAP ---
-                _buildSectionTitle("Hesap AyarlarÄ±"),
+                _buildSectionTitle("Hesap Ayarları"),
                 _buildMenuCard(isDark, [
-                  _menuItem(Icons.person_outline, "KiÅŸisel Bilgiler",
+                  _menuItem(Icons.person_outline, "Kişisel Bilgiler",
                       isDark: isDark,
                       onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
                               builder: (context) => const EditProfile()))),
                   if (!isAdmin)
-                    _menuItem(Icons.shopping_bag_outlined, "SipariÅŸlerim",
+                    _menuItem(Icons.shopping_bag_outlined, "Siparişlerim",
                         isDark: isDark,
                         onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
                                 builder: (context) => const MyOrdersScreen()))),
                   if (isAdmin)
-                    _menuItem(Icons.admin_panel_settings, "YÃ¶netici Paneli",
+                    _menuItem(Icons.admin_panel_settings, "Yönetici Paneli",
                         isDark: isDark,
                         color: Colors.red,
                         onTap: () => Navigator.push(
@@ -568,7 +568,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 builder: (context) =>
                                     const AdminPanelScreen()))),
                   if (role == 'satici' && isApproved)
-                    _menuItem(Icons.dashboard_customize, "MaÄŸazamÄ± YÃ¶net",
+                    _menuItem(Icons.dashboard_customize, "Mağazamı Yönet",
                         isDark: isDark,
                         color: Colors.green,
                         onTap: () => Navigator.push(
@@ -578,7 +578,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (role == 'customer')
                     _menuItem(
                       Icons.storefront,
-                      "Esnaf HesabÄ± AÃ§",
+                      "Esnaf Hesabı Aç",
                       isDark: isDark,
                       color: Colors.orange,
                       onTap: () => Navigator.push(
@@ -589,16 +589,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   if (role == 'vendor_pending')
-                    _menuItem(Icons.hourglass_empty, "BaÅŸvuru Ä°nceleniyor",
+                    _menuItem(Icons.hourglass_empty, "Başvuru İnceleniyor",
                         isDark: isDark, color: Colors.grey),
                 ]),
 
                 const SizedBox(height: 25),
 
-                // --- 2. GRUP: Ä°ÅLETME REHBERÄ° ---
-                _buildSectionTitle("Ä°ÅŸletme Rehberi"),
+                // --- 2. GRUP: İŞLETME REHBERİ ---
+                _buildSectionTitle("İşletme Rehberi"),
                 _buildMenuCard(isDark, [
-                  _menuItem(Icons.add_business_outlined, "Ä°ÅŸletmemi Ekle",
+                  _menuItem(Icons.add_business_outlined, "İşletmemi Ekle",
                       isDark: isDark,
                       color: const Color(0xFF004D40),
                       onTap: () => Navigator.push(
@@ -606,7 +606,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           MaterialPageRoute(
                               builder: (context) => const BusinessAddPage(
                                   existingBusiness: {}, docId: '')))),
-                  _menuItem(Icons.list_alt_outlined, "Ä°ÅŸletmelerimi YÃ¶net",
+                  _menuItem(Icons.list_alt_outlined, "İşletmelerimi Yönet",
                       isDark: isDark,
                       color: Colors.blueGrey,
                       onTap: () => Navigator.push(
@@ -617,33 +617,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                 const SizedBox(height: 25),
 
-                // --- 3. GRUP: Ä°Å & KARÄ°YER ---
-                _buildSectionTitle("Ä°ÅŸ & Kariyer"),
+                // --- 3. GRUP: İŞ & KARİYER ---
+                _buildSectionTitle("İş & Kariyer"),
                 _buildMenuCard(isDark, [
-                  _menuItem(Icons.work_outline, "Ä°ÅŸ Ä°lanÄ± Ver",
+                  _menuItem(Icons.work_outline, "İş İlanı Ver",
                       isDark: isDark,
                       color: const Color(0xFF0284C7),
                       onTap: () => Navigator.push(
                           context,
                           CupertinoPageRoute(
                               builder: (context) => const AddJobPage()))),
-                  _menuItem(
-                      Icons.manage_search_outlined, "Ä°ÅŸ Ä°lanlarÄ±mÄ± YÃ¶net",
+                  _menuItem(Icons.manage_search_outlined, "İş İlanlarımı Yönet",
                       isDark: isDark, color: Colors.deepPurple, onTap: () {
-                    debugPrint("Ä°ÅŸ ilanlarÄ±m sayfasÄ±na gidilecek");
+                    debugPrint("İş ilanlarım sayfasına gidilecek");
                   }),
                 ]),
 
                 const SizedBox(height: 25),
 
-                // --- 4. GRUP: BÄ°LDÄ°RÄ°M VE UYGULAMA ---
-                _buildSectionTitle("Uygulama AyarlarÄ±"),
+                // --- 4. GRUP: BİLDİRİM VE UYGULAMA ---
+                _buildSectionTitle("Uygulama Ayarları"),
                 _buildMenuCard(isDark, [
-                  // ğŸ”¥ KaranlÄ±k Mod (Sorun Ã§Ã¶zÃ¼ldÃ¼!)
+                  // 🔥 Karanlık Mod (Sorun çözüldü!)
                   ListTile(
                     leading: const Icon(Icons.dark_mode_outlined,
                         color: Colors.indigo),
-                    title: Text("KaranlÄ±k Mod",
+                    title: Text("Karanlık Mod",
                         style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w500,
@@ -652,7 +651,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       value: isDark,
                       activeTrackColor: primaryColor,
                       onChanged: (v) async {
-                        // BURASI Ã–NEMLÄ°: State'i zorla gÃ¼ncelliyoruz!
+                        // BURASI ÖNEMLİ: State'i zorla güncelliyoruz!
                         setState(() {});
                         isDarkModeNotifier.value = v;
                         final prefs = await SharedPreferences.getInstance();
@@ -661,11 +660,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const Divider(height: 1, indent: 50),
-                  // Namaz Bildirimleri (AÃ§/Kapat)
+                  // Namaz Bildirimleri (Aç/Kapat)
                   ListTile(
                     leading: const Icon(CupertinoIcons.moon_stars,
                         color: Colors.teal),
-                    title: Text("Namaz Vakti UyarÄ±larÄ±",
+                    title: Text("Namaz Vakti Uyarıları",
                         style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w500,
@@ -686,7 +685,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const Divider(height: 1, indent: 50),
-                  // Haber Bildirimleri (DetaylÄ±)
+                  // Haber Bildirimleri (Detaylı)
                   _menuItem(
                       Icons.notifications_active_outlined, "Haber Bildirimleri",
                       isDark: isDark,
@@ -697,9 +696,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 25),
 
                 // --- 5. GRUP: DESTEK ---
-                _buildSectionTitle("Destek & Ä°letiÅŸim"),
+                _buildSectionTitle("Destek & İletişim"),
                 _buildMenuCard(isDark, [
-                  _menuItem(Icons.message_outlined, "Ä°stek & Åikayet",
+                  _menuItem(Icons.message_outlined, "İstek & Şikayet",
                       isDark: isDark,
                       color: Colors.teal,
                       onTap: () => Navigator.push(
@@ -707,15 +706,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           CupertinoPageRoute(
                               builder: (context) =>
                                   const RequestComplaintPage()))),
-                  _menuItem(Icons.privacy_tip_outlined, "Gizlilik PolitikasÄ±",
+                  _menuItem(Icons.privacy_tip_outlined, "Gizlilik Politikası",
                       isDark: isDark, onTap: _showPrivacyPolicy),
-                  _menuItem(Icons.info_outline, "Uygulama HakkÄ±nda",
+                  _menuItem(Icons.info_outline, "Uygulama Hakkında",
                       isDark: isDark, trailingText: _appVersion),
                 ]),
 
                 const SizedBox(height: 40),
 
-                // --- Ã‡IKIÅ YAP ---
+                // --- ÇIKIŞ YAP ---
                 OutlinedButton(
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.redAccent,
@@ -730,7 +729,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       Icon(Icons.logout),
                       SizedBox(width: 10),
-                      Text("Ã‡Ä±kÄ±ÅŸ Yap",
+                      Text("Çıkış Yap",
                           style: TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 16))
                     ],

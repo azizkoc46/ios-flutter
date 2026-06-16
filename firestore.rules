@@ -112,37 +112,79 @@ service cloud.firestore {
     match /admin_tokens/{document=**} { allow read, write: if signedIn(); }
     match /announcements/{document=**} { allow read, write: if signedIn(); }
     match /app_notifications/{document=**} { allow read, write: if signedIn(); }
-    match /app_settings/{document=**} { allow read, write: if signedIn(); }
+    match /app_settings/{document=**} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
     match /business_claims/{document=**} { allow read, write: if signedIn(); }
-    match /campaigns/{document=**} { allow read, write: if signedIn(); }
-    match /cateogries/{document=**} { allow read, write: if signedIn(); }
+    match /campaigns/{document=**} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+    match /cateogries/{document=**} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
     match /cek_gonder_reports/{document=**} { allow read, write: if signedIn(); }
-    match /classified_ads/{document=**} { allow read, write: if signedIn(); }
+    match /classified_ads/{document=**} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
     match /comments/{document=**} { allow read, write: if signedIn(); }
     match /complaints/{document=**} { allow read, write: if signedIn(); }
     match /corporate_seller_applications/{document=**} { allow read, write: if signedIn(); }
     match /custom_pages/{document=**} { allow read, write: if signedIn(); }
     match /customer_order_push_requests/{document=**} { allow read, write: if signedIn(); }
-    match /dernekler/{document=**} { allow read, write: if signedIn(); }
-    match /earthquake_alerts/{document=**} { allow read, write: if signedIn(); }
+    match /dernekler/{document=**} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+    match /earthquake_alerts/{document=**} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
     match /group_posts/{document=**} { allow read, write: if signedIn(); }
     match /group_reports/{document=**} { allow read, write: if signedIn(); }
-    match /job_ads/{document=**} { allow read, write: if signedIn(); }
-    match /job_postings/{document=**} { allow read, write: if signedIn(); }
+    match /job_ads/{document=**} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+    match /job_postings/{document=**} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
     match /notification_send_requests/{document=**} { allow read, write: if signedIn(); }
     match /notifications/{document=**} { allow read, write: if signedIn(); }
     match /phone_verification_requests/{document=**} { allow read, write: if signedIn(); }
-    match /polls/{document=**} { allow read, write: if signedIn(); }
-    match /posts/{document=**} { allow read, write: if signedIn(); }
-    match /products/{document=**} { allow read, write: if signedIn(); }
+    match /polls/{document=**} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+    match /posts/{document=**} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+    match /products/{document=**} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
     match /reads/{document=**} { allow read, write: if signedIn(); }
     match /requests_complaints/{document=**} { allow read, write: if signedIn(); }
-    match /reviews/{document=**} { allow read, write: if signedIn(); }
+    match /reviews/{document=**} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
     match /seller_order_push_requests/{document=**} { allow read, write: if signedIn(); }
     match /seller_reviews/{document=**} { allow read, write: if signedIn(); }
-    match /sellers/{document=**} { allow read, write: if signedIn(); }
+    match /sellers/{document=**} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
     match /sikayetler/{document=**} { allow read, write: if signedIn(); }
-    match /story_categories/{document=**} { allow read, write: if signedIn(); }
+    match /story_categories/{document=**} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
     match /user_notification_requests/{document=**} { allow read, write: if signedIn(); }
     match /votes/{document=**} { allow read, write: if signedIn(); }
   }
