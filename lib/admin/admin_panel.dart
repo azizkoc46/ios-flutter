@@ -45,7 +45,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 12, // SEKMELERİ SİLDİĞİMİZ İÇİN SAYIYI DÜŞÜRDÜK
+      length: 13,
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: AppBar(
@@ -126,6 +126,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   Tab(text: "✨ Öne Çıkanlar"),
                   Tab(text: "🏢 Emlakçılar"),
                   Tab(text: "🏪 İşletmeler"),
+                  Tab(text: "Sahiplik"),
                   Tab(text: "📸 Çek Gönder"),
                   Tab(text: "📢 Duyurular"),
                   Tab(text: "⚙️ Ayarlar"),
@@ -145,6 +146,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             AdminStoriesTab(),
             AdminBusinessTab(type: 'emlakci'),
             AdminBusinessTab(type: 'private'),
+            AdminBusinessTab(type: 'claims'),
             AdminCekGonderTab(),
             AdminAnnouncementsTab(),
             AdminSettingsTab(),

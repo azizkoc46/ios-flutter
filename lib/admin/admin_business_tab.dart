@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 class AdminBusinessTab extends StatelessWidget {
   final String type;
   // type:
-  // 'emlakci', 'corporate', 'private', 'public', 'vendor', 'community'
+  // 'emlakci', 'corporate', 'private', 'public', 'vendor', 'community', 'claims'
 
   const AdminBusinessTab({
     Key? key,
@@ -18,11 +18,13 @@ class AdminBusinessTab extends StatelessWidget {
   bool get _isCommunityList => type == 'community';
   bool get _isCorporateApplications => type == 'corporate';
   bool get _isUserApproval => type == 'emlakci' || type == 'vendor';
+  bool get _isOwnershipClaims => type == 'claims';
 
   String get _mainCollection {
     if (_isBusinessList) return 'businesses';
     if (_isCommunityList) return 'dernekler';
     if (_isCorporateApplications) return 'corporate_seller_applications';
+    if (_isOwnershipClaims) return 'business_claims';
     return 'customers';
   }
 
@@ -41,6 +43,12 @@ class AdminBusinessTab extends StatelessWidget {
       return FirebaseFirestore.instance
           .collection('corporate_seller_applications')
           .orderBy('createdAt', descending: true);
+    }
+
+    if (type == 'claims') {
+      return FirebaseFirestore.instance
+          .collection('business_claims')
+          .orderBy('timestamp', descending: true);
     }
 
     if (type == 'emlakci') {
@@ -272,6 +280,79 @@ class AdminBusinessTab extends StatelessWidget {
     await batch.commit();
   }
 
+  Future<void> _approveOwnershipClaim(
+    BuildContext context,
+    String claimId,
+    Map<String, dynamic> data,
+  ) async {
+    final String businessId = (data['businessId'] ?? '').toString();
+    final String userId = (data['userId'] ?? '').toString();
+
+    if (businessId.isEmpty || userId.isEmpty) {
+      throw Exception("Başvuruda businessId veya userId bulunamadı.");
+    }
+
+    final batch = FirebaseFirestore.instance.batch();
+    final claimRef =
+        FirebaseFirestore.instance.collection('business_claims').doc(claimId);
+    final businessRef =
+        FirebaseFirestore.instance.collection('businesses').doc(businessId);
+    final userRef =
+        FirebaseFirestore.instance.collection('customers').doc(userId);
+
+    batch.set(
+      claimRef,
+      {
+        'status': 'approved',
+        'approvedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    batch.set(
+      businessRef,
+      {
+        'ownerId': userId,
+        'editorId': userId,
+        'claimedBy': userId,
+        'claimId': claimId,
+        'claimStatus': 'approved',
+        'status': 'approved',
+        'isActive': true,
+        'claimedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    batch.set(
+      userRef,
+      {
+        'managedBusinessIds': FieldValue.arrayUnion([businessId]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    await batch.commit();
+  }
+
+  Future<void> _rejectOwnershipClaim(
+    BuildContext context,
+    String claimId,
+    Map<String, dynamic> data,
+  ) async {
+    await FirebaseFirestore.instance
+        .collection('business_claims')
+        .doc(claimId)
+        .set({
+      'status': 'rejected',
+      'rejectedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   Future<void> _handleApprove(
     BuildContext context,
     String docId,
@@ -290,6 +371,8 @@ class AdminBusinessTab extends StatelessWidget {
         await _approveBusiness(context, docId, _mainCollection);
       } else if (_isCorporateApplications) {
         await _approveCorporateApplication(context, docId, data);
+      } else if (_isOwnershipClaims) {
+        await _approveOwnershipClaim(context, docId, data);
       } else if (_isUserApproval) {
         await _approveLegacyUser(context, docId, data);
       }
@@ -323,6 +406,8 @@ class AdminBusinessTab extends StatelessWidget {
         await _deleteDocument(context, docId, _mainCollection);
       } else if (_isCorporateApplications) {
         await _rejectCorporateApplication(context, docId, data);
+      } else if (_isOwnershipClaims) {
+        await _rejectOwnershipClaim(context, docId, data);
       } else if (_isUserApproval) {
         await _rejectLegacyUser(context, docId);
       }
@@ -431,6 +516,8 @@ class AdminBusinessTab extends StatelessWidget {
         return CupertinoIcons.house_fill;
       case 'corporate':
         return CupertinoIcons.building_2_fill;
+      case 'claims':
+        return CupertinoIcons.checkmark_seal_fill;
       case 'vendor':
         return CupertinoIcons.cart_fill;
       case 'community':
@@ -448,6 +535,8 @@ class AdminBusinessTab extends StatelessWidget {
         return "Emlakçı başvurusu bulunamadı.";
       case 'corporate':
         return "Kurumsal satıcı başvurusu bulunamadı.";
+      case 'claims':
+        return "Sahiplik basvurusu bulunamadi.";
       case 'vendor':
         return "Satıcı başvurusu bulunamadı.";
       case 'community':
@@ -476,6 +565,13 @@ class AdminBusinessTab extends StatelessWidget {
           docs = docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
             return data['status'] != 'archived';
+          }).toList();
+        }
+
+        if (_isOwnershipClaims) {
+          docs = docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return (data['status'] ?? 'pending') != 'archived';
           }).toList();
         }
 
@@ -630,11 +726,14 @@ class AdminBusinessTab extends StatelessWidget {
   Widget _details(Map<String, dynamic> data) {
     final fields = <MapEntry<String, String>>[
       MapEntry("Vergi No", (data['taxId'] ?? '').toString()),
+      MapEntry("Vergi / TC No", (data['taxNumber'] ?? '').toString()),
       MapEntry(
           "Telefon", (data['officePhone'] ?? data['phone'] ?? '').toString()),
       MapEntry("Adres",
           (data['businessAddress'] ?? data['address'] ?? '').toString()),
       MapEntry("Not", (data['note'] ?? '').toString()),
+      MapEntry("Basvuran", (data['applicantName'] ?? '').toString()),
+      MapEntry("Isletme ID", (data['businessId'] ?? '').toString()),
       MapEntry("Kullanıcı ID", (data['userId'] ?? '').toString()),
     ].where((e) => e.value.trim().isNotEmpty).toList();
 
