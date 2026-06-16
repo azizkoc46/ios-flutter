@@ -249,14 +249,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 offset: const Offset(0, 5))
                           ]),
                       child: ListTile(
-                        leading: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: trendyolOrange.withOpacity(0.15),
-                            shape: BoxShape.circle,
+                        leading: SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: trendyolOrange.withOpacity(0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(CupertinoIcons.bell_fill,
+                                color: trendyolOrange, size: 20),
                           ),
-                          child: const Icon(CupertinoIcons.bell_fill,
-                              color: trendyolOrange),
                         ),
                         title: Text(
                           "Yeni Sipariş Bildirimleri",

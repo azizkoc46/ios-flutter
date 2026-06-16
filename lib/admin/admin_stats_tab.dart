@@ -326,13 +326,16 @@ class _QuickActionTile extends StatelessWidget {
         ],
       ),
       child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: iconColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
+        leading: SizedBox(
+          width: 40,
+          height: 40,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor),
           ),
-          child: Icon(icon, color: iconColor),
         ),
         title: Text(title,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),

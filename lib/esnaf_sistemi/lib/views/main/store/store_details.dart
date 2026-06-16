@@ -460,13 +460,18 @@ class _StoreDetailsState extends State<StoreDetails> {
                     MaterialPageRoute(
                         builder: (context) => DetailsScreen(product: doc)))
                 : null,
-            leading: ClipRRect(
+            leading: SizedBox(
+              width: 60,
+              height: 60,
+              child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: PortalNetworkImage(
                     url: (d['productImage'] ?? "").toString(),
                     width: 60,
                     height: 60,
-                    fit: BoxFit.cover)),
+                    fit: BoxFit.cover),
+              ),
+            ),
             title: Text(d['productName'] ?? "",
                 style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
             subtitle: Text("₺${d['price']}",

@@ -948,13 +948,16 @@ class _AdminUsersTabState extends State<AdminUsersTab> {
   }) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(10),
+      leading: SizedBox(
+        width: 38,
+        height: 38,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: color, size: 18),
         ),
-        child: Icon(icon, color: color, size: 18),
       ),
       title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
       onTap: onTap,

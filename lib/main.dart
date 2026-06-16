@@ -215,6 +215,11 @@ class PazarcikAnaEkran extends StatefulWidget {
 }
 
 class _PazarcikAnaEkranState extends State<PazarcikAnaEkran> {
+  static bool _webInstallPromptShown = false;
+  static const String _androidStoreUrl =
+      "https://play.google.com/store/apps/details?id=com.pp.pazarckportal.pazarckportal";
+  static const String _iosStoreUrl = "https://apps.apple.com/app/id6779951979";
+
   int _seciliIndex = 0;
   final PrayerTimeService _prayerService = PrayerTimeService();
   final WeatherService _weatherService = WeatherService();
@@ -232,6 +237,155 @@ class _PazarcikAnaEkranState extends State<PazarcikAnaEkran> {
     _ayarlariYukle();
     _baslangicVerileriniYukle();
     _initDeepLinks();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowWebInstallPrompt();
+    });
+  }
+
+  Future<void> _maybeShowWebInstallPrompt() async {
+    if (!kIsWeb || _webInstallPromptShown || !mounted) return;
+
+    final platform = defaultTargetPlatform;
+    final bool isIos = platform == TargetPlatform.iOS;
+    final bool isAndroid = platform == TargetPlatform.android;
+    if (!isIos && !isAndroid) return;
+
+    _webInstallPromptShown = true;
+    final storeUrl = isIos ? _iosStoreUrl : _androidStoreUrl;
+    final title =
+        isIos ? "iPhone uygulamasını indir" : "Android uygulamasını indir";
+    final subtitle = isIos
+        ? "Pazarcık Portal'ı App Store'dan indirip daha hızlı kullanabilirsiniz."
+        : "Pazarcık Portal'ı Google Play'den indirip daha hızlı kullanabilirsiniz.";
+    final icon = isIos ? CupertinoIcons.device_phone_portrait : Icons.android;
+    final accent = isIos ? const Color(0xFF0A84FF) : const Color(0xFF1EA64B);
+
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: "Kapat",
+      barrierColor: Colors.black.withOpacity(0.08),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        final size = MediaQuery.sizeOf(dialogContext);
+        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
+        return SafeArea(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Material(
+                color: Colors.transparent,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: size.width < 380 ? size.width - 32 : 360,
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.16),
+                          blurRadius: 28,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: accent.withOpacity(0.12),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(icon, color: accent, size: 24),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: "Kapat",
+                              onPressed: () => Navigator.pop(dialogContext),
+                              icon: const Icon(CupertinoIcons.xmark, size: 18),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            height: 1.35,
+                            color: isDark ? Colors.white70 : Colors.black54,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              child: const Text("Sonra"),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: accent,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              onPressed: () async {
+                                final uri = Uri.parse(storeUrl);
+                                await launchUrl(
+                                  uri,
+                                  mode: LaunchMode.externalApplication,
+                                );
+                              },
+                              icon:
+                                  const Icon(CupertinoIcons.arrow_down_circle),
+                              label: const Text("İndir"),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final offset = Tween<Offset>(
+          begin: const Offset(0.08, 0),
+          end: Offset.zero,
+        ).animate(
+            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(position: offset, child: child),
+        );
+      },
+    );
   }
 
   void _initDeepLinks() async {
@@ -419,14 +573,20 @@ class _PazarcikAnaEkranState extends State<PazarcikAnaEkran> {
             color: isDark ? Colors.grey.shade700 : Colors.grey.shade200),
       ),
       child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFBC02D).withOpacity(0.2),
-            shape: BoxShape.circle,
+        leading: SizedBox(
+          width: 44,
+          height: 44,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: const Color(0xFFFBC02D).withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              CupertinoIcons.car_detailed,
+              color: Color(0xFFF8A809),
+              size: 22,
+            ),
           ),
-          child:
-              const Icon(CupertinoIcons.car_detailed, color: Color(0xFFF8A809)),
         ),
         title: Text(
           name,

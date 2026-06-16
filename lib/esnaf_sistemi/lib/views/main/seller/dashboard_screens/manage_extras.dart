@@ -228,14 +228,17 @@ class _ManageExtrasScreenState extends State<ManageExtrasScreen> {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-              // ignore: deprecated_member_use
-              color: trendyolOrange.withOpacity(0.1),
-              shape: BoxShape.circle),
-          child:
-              const Icon(CupertinoIcons.add, color: trendyolOrange, size: 20),
+        leading: SizedBox(
+          width: 40,
+          height: 40,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+                // ignore: deprecated_member_use
+                color: trendyolOrange.withOpacity(0.1),
+                shape: BoxShape.circle),
+            child:
+                const Icon(CupertinoIcons.add, color: trendyolOrange, size: 20),
+          ),
         ),
         title: Text(doc['name'],
             style:
