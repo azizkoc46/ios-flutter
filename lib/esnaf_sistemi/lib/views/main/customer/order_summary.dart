@@ -12,6 +12,7 @@ import '../../../providers/cart.dart';
 import '../../../models/cart.dart';
 import '../../../utils/delivery_neighborhoods.dart';
 import '../../../utils/store_availability.dart';
+import 'package:pazarcik_portal/auth/auth.dart';
 
 // Tema Renkleri
 const Color trendyolOrange = Color(0xfff27a1a);
@@ -117,6 +118,7 @@ kb0f8Vu/zXfNM/ySHgIVv7EYnkWuIdWaQ8cgMvygT0C7HIdroJ77KKwTNA2vSMjH
   }
 
   Future<void> _fetchSavedData() async {
+    if (userId.isEmpty) return;
     var userDoc = await FirebaseFirestore.instance
         .collection('customers')
         .doc(userId)
@@ -276,6 +278,14 @@ kb0f8Vu/zXfNM/ySHgIVv7EYnkWuIdWaQ8cgMvygT0C7HIdroJ77KKwTNA2vSMjH
 
   // 🔥 SİPARİŞİ ONAYLA VE ESNAFA BİLDİRİM GÖNDER
   Future<void> _handleOrderConfirmation() async {
+    if (userId.isEmpty) {
+      _showErrorSnackBar("Sipariş vermek için giriş yapmalısınız.");
+      Navigator.of(context).push(
+        CupertinoPageRoute(builder: (_) => const Auth()),
+      );
+      return;
+    }
+
     if (selectedMahalle == null ||
         _addressDescController.text.isEmpty ||
         _phoneController.text.isEmpty) {

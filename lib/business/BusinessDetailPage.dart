@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pazarcik_portal/widgets/comment_identity.dart';
+import 'package:pazarcik_portal/utils/map_launcher.dart';
 
 class BusinessDetailPage extends StatefulWidget {
   final DocumentSnapshot doc;
@@ -18,7 +19,7 @@ class BusinessDetailPage extends StatefulWidget {
 }
 
 class _BusinessDetailPageState extends State<BusinessDetailPage> {
-  final Color primaryColor = const Color(0xFF004D40); // Zümrüt Yeşili
+  final Color primaryColor = const Color(0xFF004D40); // ZÃ¼mrÃ¼t YeÅŸili
   final TextEditingController _commentController = TextEditingController();
 
   bool _isSaved = false;
@@ -33,18 +34,18 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
     _checkIfSaved();
   }
 
-  // --- MAVİ LİNK PAYLAŞIM FONKSİYONU ---
+  // --- MAVÄ° LÄ°NK PAYLAÅIM FONKSÄ°YONU ---
   void _shareBusiness(Map<String, dynamic> data) {
-    String name = data['businessName'] ?? "İşletme";
-    String category = data['category'] ?? "Sektör";
+    String name = data['businessName'] ?? "Ä°ÅŸletme";
+    String category = data['category'] ?? "SektÃ¶r";
 
     String shareUrl =
         "https://pazarcik-portal-7faf2.web.app/isletme?id=${widget.doc.id}";
 
-    String shareText = "🏢 Pazarcık Rehberinde Yeni İşletme!\n\n"
-        "📍 Adı: $name\n"
-        "📂 Kategori: $category\n\n"
-        "🔗 Detaylar ve Konum İçin Tıkla:\n$shareUrl";
+    String shareText = "ğŸ¢ PazarcÄ±k Rehberinde Yeni Ä°ÅŸletme!\n\n"
+        "ğŸ“ AdÄ±: $name\n"
+        "ğŸ“‚ Kategori: $category\n\n"
+        "ğŸ”— Detaylar ve Konum Ä°Ã§in TÄ±kla:\n$shareUrl";
 
     Share.share(shareText);
   }
@@ -86,14 +87,14 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
     }
     await prefs.setStringList('saved_businesses', savedIds);
     setState(() => _isSaved = !_isSaved);
-    _showToast(_isSaved ? "Favorilere eklendi" : "Favorilerden çıkarıldı");
+    _showToast(_isSaved ? "Favorilere eklendi" : "Favorilerden Ã§Ä±karÄ±ldÄ±");
   }
 
   // --- Yorum Yazma ---
   Future<void> _sendComment() async {
     if (_commentController.text.trim().isEmpty) return;
     if (_currentUserId == null) {
-      _showToast("Yorum yapmak için giriş yapmalısınız.");
+      _showToast("Yorum yapmak iÃ§in giriÅŸ yapmalÄ±sÄ±nÄ±z.");
       return;
     }
 
@@ -160,7 +161,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
     final saved = await showCupertinoDialog<bool>(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text("Yorumu Düzenle"),
+        title: const Text("Yorumu DÃ¼zenle"),
         content: Padding(
           padding: const EdgeInsets.only(top: 12),
           child: CupertinoTextField(
@@ -172,7 +173,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
         ),
         actions: [
           CupertinoDialogAction(
-            child: const Text("Vazgeç"),
+            child: const Text("VazgeÃ§"),
             onPressed: () => Navigator.pop(context, false),
           ),
           CupertinoDialogAction(
@@ -195,7 +196,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
       'comment': controller.text.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
-    _showToast("Yorum güncellendi.");
+    _showToast("Yorum gÃ¼ncellendi.");
   }
 
   void _setReply(String commentId, String name) {
@@ -205,15 +206,15 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
     });
   }
 
-  // --- SAHİPLİK BAŞVURUSU GÖNDERME ---
+  // --- SAHÄ°PLÄ°K BAÅVURUSU GÃ–NDERME ---
   Future<void> _submitClaimRequest(
       String name, String phone, String taxNumber) async {
     if (name.isEmpty || phone.isEmpty || taxNumber.isEmpty) {
-      _showToast("Lütfen tüm alanları doldurunuz.");
+      _showToast("LÃ¼tfen tÃ¼m alanlarÄ± doldurunuz.");
       return;
     }
     if (_currentUserId == null) {
-      _showToast("Başvuru yapmak için giriş yapmalısınız.");
+      _showToast("BaÅŸvuru yapmak iÃ§in giriÅŸ yapmalÄ±sÄ±nÄ±z.");
       return;
     }
 
@@ -230,13 +231,13 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
       });
 
       Navigator.pop(context);
-      _showToast("Talebiniz başarıyla alındı. Yönetim inceleyecektir.");
+      _showToast("Talebiniz baÅŸarÄ±yla alÄ±ndÄ±. YÃ¶netim inceleyecektir.");
     } catch (e) {
-      _showToast("Bir hata oluştu: $e");
+      _showToast("Bir hata oluÅŸtu: $e");
     }
   }
 
-  // --- SAHİPLİK BAŞVURUSU FORMU (BOTTOM SHEET) ---
+  // --- SAHÄ°PLÄ°K BAÅVURUSU FORMU (BOTTOM SHEET) ---
   void _showClaimDialog(Map<String, dynamic> data) {
     final TextEditingController nameCtrl = TextEditingController();
     final TextEditingController phoneCtrl = TextEditingController();
@@ -281,13 +282,13 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              "${data['businessName']} adlı işletmenin yetkilisi olduğunuzu doğrulamak için aşağıdaki bilgileri doldurun.",
+              "${data['businessName']} adlÄ± iÅŸletmenin yetkilisi olduÄŸunuzu doÄŸrulamak iÃ§in aÅŸaÄŸÄ±daki bilgileri doldurun.",
               style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
             ),
             const SizedBox(height: 24),
             CupertinoTextField(
               controller: nameCtrl,
-              placeholder: "Adınız Soyadınız",
+              placeholder: "AdÄ±nÄ±z SoyadÄ±nÄ±z",
               padding: const EdgeInsets.all(16),
               prefix: const Padding(
                 padding: EdgeInsets.only(left: 12),
@@ -300,7 +301,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
             const SizedBox(height: 12),
             CupertinoTextField(
               controller: phoneCtrl,
-              placeholder: "İletişim Numaranız",
+              placeholder: "Ä°letiÅŸim NumaranÄ±z",
               keyboardType: TextInputType.phone,
               padding: const EdgeInsets.all(16),
               prefix: const Padding(
@@ -314,7 +315,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
             const SizedBox(height: 12),
             CupertinoTextField(
               controller: taxCtrl,
-              placeholder: "Vergi Numaranız (veya T.C.)",
+              placeholder: "Vergi NumaranÄ±z (veya T.C.)",
               keyboardType: TextInputType.number,
               padding: const EdgeInsets.all(16),
               prefix: const Padding(
@@ -333,7 +334,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
                 borderRadius: BorderRadius.circular(12),
                 onPressed: () => _submitClaimRequest(
                     nameCtrl.text, phoneCtrl.text, taxCtrl.text),
-                child: const Text("Talebi Gönder",
+                child: const Text("Talebi GÃ¶nder",
                     style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
@@ -378,13 +379,13 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
                     const SizedBox(height: 20),
                   ],
 
-                  _buildSection("Hakkında", data['description']),
+                  _buildSection("HakkÄ±nda", data['description']),
                   _buildSection("Adres Bilgisi", data['addressDesc']),
 
-                  // 🔥 YENİ EKLENEN: Vitrin & Ürün Galerisi
+                  // ğŸ”¥ YENÄ° EKLENEN: Vitrin & ÃœrÃ¼n Galerisi
                   _buildGallerySection(data['galleryUrls'] as List<dynamic>?),
 
-                  _buildSection("Ürünler & Hizmetler", null,
+                  _buildSection("ÃœrÃ¼nler & Hizmetler", null,
                       isTags: true, tags: data['tags']),
                   _buildSection("Sosyal Medya", null,
                       isSocial: true, social: data['socialMedia']),
@@ -406,7 +407,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
     );
   }
 
-  // 🔥 YENİ EKLENEN: Galeri Widget'ı
+  // ğŸ”¥ YENÄ° EKLENEN: Galeri Widget'Ä±
   Widget _buildGallerySection(List<dynamic>? galleryUrls) {
     if (galleryUrls == null || galleryUrls.isEmpty) return const SizedBox();
 
@@ -417,7 +418,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
         SizedBox(
-          height: 120, // Resimlerin yüksekliği
+          height: 120, // Resimlerin yÃ¼ksekliÄŸi
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
@@ -445,7 +446,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
             },
           ),
         ),
-        const SizedBox(height: 25), // Altındaki bölümle boşluk
+        const SizedBox(height: 25), // AltÄ±ndaki bÃ¶lÃ¼mle boÅŸluk
       ],
     );
   }
@@ -479,13 +480,13 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Bu işletmenin sahibi misiniz?",
+                  Text("Bu iÅŸletmenin sahibi misiniz?",
                       style: TextStyle(
                           color: Colors.orange.shade900,
                           fontWeight: FontWeight.bold,
                           fontSize: 14)),
                   const SizedBox(height: 4),
-                  Text("Sayfayı devralmak ve yönetmek için başvuru yapın.",
+                  Text("SayfayÄ± devralmak ve yÃ¶netmek iÃ§in baÅŸvuru yapÄ±n.",
                       style: TextStyle(
                           color: Colors.orange.shade800, fontSize: 12)),
                 ],
@@ -547,15 +548,14 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
               () => launchUrl(Uri.parse("tel:${data['contact']}"))),
           _actionIcon(CupertinoIcons.location_fill, "Yol Tarifi", Colors.blue,
               () async {
-            final String? mapUrl = data['mapLink'];
-            if (mapUrl != null && mapUrl.isNotEmpty) {
-              final Uri uri = Uri.parse(mapUrl);
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-            } else {
-              _showToast("Konum bilgisi bulunamadı.");
-            }
+            await PortalMapLauncher.open(
+              context,
+              address: (data['address'] ?? data['businessName'] ?? 'Pazarcık')
+                  .toString(),
+              fallbackUrl: data['mapLink']?.toString(),
+            );
           }),
-          _actionIcon(CupertinoIcons.share, "Paylaş", Colors.orange,
+          _actionIcon(CupertinoIcons.share, "PaylaÅŸ", Colors.orange,
               () => _shareBusiness(data)),
           _actionIcon(
               _isSaved ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
@@ -638,7 +638,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox();
         if (snapshot.data!.docs.isEmpty)
-          return const Text("Henüz yorum yapılmamış.");
+          return const Text("HenÃ¼z yorum yapÄ±lmamÄ±ÅŸ.");
         final docs = snapshot.data!.docs;
         final mainComments = docs.where((doc) {
           final c = doc.data() as Map<String, dynamic>;
@@ -697,7 +697,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
           Row(children: [
             GestureDetector(
               onTap: () => _setReply(doc.id, visibleName),
-              child: const Text("Yanıtla",
+              child: const Text("YanÄ±tla",
                   style: TextStyle(
                       fontSize: 12,
                       color: Colors.blue,
@@ -707,7 +707,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
               const SizedBox(width: 14),
               GestureDetector(
                 onTap: () => _editComment(doc.id, c['comment'] ?? ""),
-                child: const Text("Düzenle",
+                child: const Text("DÃ¼zenle",
                     style: TextStyle(fontSize: 12, color: Colors.grey)),
               ),
               const SizedBox(width: 14),
@@ -737,7 +737,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(children: [
                 Expanded(
-                  child: Text("Yanıtlanıyor: $_replyToName",
+                  child: Text("YanÄ±tlanÄ±yor: $_replyToName",
                       style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 ),
                 GestureDetector(
@@ -766,7 +766,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
             Expanded(
                 child: CupertinoTextField(
                     controller: _commentController,
-                    placeholder: "Deneyiminizi paylaşın...",
+                    placeholder: "Deneyiminizi paylaÅŸÄ±n...",
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                         color: const Color(0xFFF2F2F7),

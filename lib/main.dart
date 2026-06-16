@@ -190,19 +190,7 @@ class RootAuthorityCheck extends StatelessWidget {
   const RootAuthorityCheck({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-              body: Center(child: CupertinoActivityIndicator(radius: 15)));
-        }
-        if (snapshot.hasData) return const PazarcikAnaEkran();
-        return const Auth();
-      },
-    );
-  }
+  Widget build(BuildContext context) => const PazarcikAnaEkran();
 }
 
 class PazarcikAnaEkran extends StatefulWidget {
@@ -1418,13 +1406,6 @@ class _StartupAnnouncementWrapperState
 
   Future<void> _showStartupAnnouncementIfNeeded() async {
     try {
-      if (FirebaseAuth.instance.currentUser == null) {
-        await FirebaseAuth.instance.authStateChanges().firstWhere(
-              (user) => user != null,
-            );
-      }
-      if (!mounted) return;
-
       final doc = await FirebaseFirestore.instance
           .collection('app_settings')
           .doc('startup_announcement')

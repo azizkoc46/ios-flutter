@@ -7,6 +7,7 @@ import 'dart:math';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pazarcik_portal/utils/map_launcher.dart';
 
 // ── Sabitler ──────────────────────────────────────────────────────
 const _kRed = Color(0xFFE53935);
@@ -489,10 +490,7 @@ class _PharmacyScreenState extends State<PharmacyScreen>
       _showSnack('Konum bilgisi yok.');
       return;
     }
-    await launchUrl(
-      Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lon'),
-      mode: LaunchMode.externalApplication,
-    );
+    await PortalMapLauncher.open(context, latitude: lat, longitude: lon);
   }
 
   void _showSnack(String msg) {

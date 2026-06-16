@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pazarcik_portal/widgets/comment_identity.dart';
+import 'package:pazarcik_portal/utils/map_launcher.dart';
 
 class PublicDetailPage extends StatefulWidget {
   final DocumentSnapshot doc;
@@ -17,7 +18,7 @@ class PublicDetailPage extends StatefulWidget {
 }
 
 class _PublicDetailPageState extends State<PublicDetailPage> {
-  // 🔥 Kamu Kurumu Teması: Türk Bayrağı Kırmızısı
+  // ğŸ”¥ Kamu Kurumu TemasÄ±: TÃ¼rk BayraÄŸÄ± KÄ±rmÄ±zÄ±sÄ±
   final Color publicRed = const Color(0xFFD32F2F);
   final TextEditingController _commentController = TextEditingController();
 
@@ -33,7 +34,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
     _checkIfSaved();
   }
 
-  // --- Yardımcı Fonksiyonlar ---
+  // --- YardÄ±mcÄ± Fonksiyonlar ---
   Future<void> _checkIfSaved() async {
     final prefs = await SharedPreferences.getInstance();
     List<String> savedIds = prefs.getStringList('saved_public') ?? [];
@@ -55,7 +56,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
     if (_commentController.text.trim().isEmpty) return;
     if (_currentUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("Yorum yapmak için giriş yapmalısınız."),
+          content: Text("Yorum yapmak iÃ§in giriÅŸ yapmalÄ±sÄ±nÄ±z."),
           behavior: SnackBarBehavior.floating));
       return;
     }
@@ -95,7 +96,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
     final saved = await showCupertinoDialog<bool>(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text("Yorumu Düzenle"),
+        title: const Text("Yorumu DÃ¼zenle"),
         content: Padding(
           padding: const EdgeInsets.only(top: 12),
           child: CupertinoTextField(
@@ -106,7 +107,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
         ),
         actions: [
           CupertinoDialogAction(
-            child: const Text("Vazgeç"),
+            child: const Text("VazgeÃ§"),
             onPressed: () => Navigator.pop(context, false),
           ),
           CupertinoDialogAction(
@@ -156,12 +157,12 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
                   const SizedBox(height: 25),
                   _buildActions(data),
                   const Divider(height: 50, thickness: 0.5),
-                  _buildSection("Kurum Hakkında", data['description']),
+                  _buildSection("Kurum HakkÄ±nda", data['description']),
                   _buildSection("Adres & Konum", data['addressDesc']),
-                  _buildSection("İletişim & Sosyal Medya", null,
+                  _buildSection("Ä°letiÅŸim & Sosyal Medya", null,
                       isSocial: true, social: data['socialMedia']),
                   const Divider(height: 50, thickness: 0.5),
-                  const Text("Vatandaş Yorumları",
+                  const Text("VatandaÅŸ YorumlarÄ±",
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 15),
@@ -177,7 +178,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
     );
   }
 
-  // --- Widget Bileşenleri ---
+  // --- Widget BileÅŸenleri ---
 
   Widget _buildSliverAppBar(Map<String, dynamic> data) => SliverAppBar(
         expandedHeight: 250,
@@ -213,16 +214,19 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
               () => launchUrl(Uri.parse("tel:${data['contact']}"))),
           _actionIcon(CupertinoIcons.location_solid, "Yol Tarifi", publicRed,
               () async {
-            if (data['mapLink'] != null)
-              await launchUrl(Uri.parse(data['mapLink']),
-                  mode: LaunchMode.externalApplication);
+            await PortalMapLauncher.open(
+              context,
+              address: (data['address'] ?? data['businessName'] ?? 'Pazarcık')
+                  .toString(),
+              fallbackUrl: data['mapLink']?.toString(),
+            );
           }),
           _actionIcon(
               CupertinoIcons.share,
-              "Paylaş",
+              "PaylaÅŸ",
               Colors.blue,
               () => Share.share(
-                  "${data['businessName']} detayları için Pazarcık Portal'a bak!")),
+                  "${data['businessName']} detaylarÄ± iÃ§in PazarcÄ±k Portal'a bak!")),
           _actionIcon(
               _isSaved ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
               "Kaydet",
@@ -286,7 +290,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
-          return const Text("Henüz geri bildirim yapılmamış.",
+          return const Text("HenÃ¼z geri bildirim yapÄ±lmamÄ±ÅŸ.",
               style: TextStyle(color: Colors.grey));
         final docs = snapshot.data!.docs;
         final mainComments = docs.where((doc) {
@@ -341,7 +345,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
         Row(children: [
           GestureDetector(
             onTap: () => _setReply(doc.id, visibleName),
-            child: const Text("Yanıtla",
+            child: const Text("YanÄ±tla",
                 style: TextStyle(
                     fontSize: 12,
                     color: Colors.blue,
@@ -351,7 +355,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
             const SizedBox(width: 14),
             GestureDetector(
               onTap: () => _editComment(doc.id, c['comment'] ?? ""),
-              child: const Text("Düzenle",
+              child: const Text("DÃ¼zenle",
                   style: TextStyle(fontSize: 12, color: Colors.grey)),
             ),
             const SizedBox(width: 14),
@@ -380,7 +384,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(children: [
                 Expanded(
-                  child: Text("Yanıtlanıyor: $_replyToName",
+                  child: Text("YanÄ±tlanÄ±yor: $_replyToName",
                       style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 ),
                 GestureDetector(
@@ -408,7 +412,7 @@ class _PublicDetailPageState extends State<PublicDetailPage> {
               Expanded(
                   child: CupertinoTextField(
                       controller: _commentController,
-                      placeholder: "Görüşünüzü yazın...",
+                      placeholder: "GÃ¶rÃ¼ÅŸÃ¼nÃ¼zÃ¼ yazÄ±n...",
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                           color: Colors.grey.shade100,

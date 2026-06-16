@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import 'seller_store_page.dart';
 import 'package:pazarcik_portal/widgets/comment_identity.dart';
+import 'package:pazarcik_portal/utils/map_launcher.dart';
 
 class AdDetailPage extends StatefulWidget {
   final Map<String, dynamic> ad;
@@ -62,17 +63,11 @@ class _AdDetailPageState extends State<AdDetailPage> {
   }
 
   Future<void> _openMap(GeoPoint pos) async {
-    final url = Uri.parse(
-      "https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}",
+    await PortalMapLauncher.open(
+      context,
+      latitude: pos.latitude,
+      longitude: pos.longitude,
     );
-
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Harita uygulaması açılamadı.")),
-      );
-    }
   }
 
   void _shareAd() {
