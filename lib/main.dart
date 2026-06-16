@@ -60,7 +60,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> _checkAndRefreshSellerSubscription() async {
   try {
     var user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
+    if (user != null && !user.isAnonymous) {
       var doc = await FirebaseFirestore.instance
           .collection('sellers')
           .doc(user.uid)
@@ -76,6 +76,18 @@ Future<void> _checkAndRefreshSellerSubscription() async {
     }
   } catch (e) {
     debugPrint("Hafıza tazeleme hatası: $e");
+  }
+}
+
+Future<void> _ensureGuestSession() async {
+  final auth = FirebaseAuth.instance;
+  if (auth.currentUser != null) return;
+
+  try {
+    await auth.signInAnonymously();
+    debugPrint("Misafir oturumu açıldı.");
+  } catch (e) {
+    debugPrint("Misafir oturumu açılamadı: $e");
   }
 }
 
@@ -99,6 +111,7 @@ void main() async {
   }
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  await _ensureGuestSession();
   await _checkAndRefreshSellerSubscription();
 
   final prefs = await SharedPreferences.getInstance();
