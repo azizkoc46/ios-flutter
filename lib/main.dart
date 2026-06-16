@@ -175,6 +175,7 @@ class MyApp extends StatelessWidget {
               child: StartupAnnouncementWrapper(child: RootAuthorityCheck()),
             ),
             routes: {
+              '/home': (context) => const PazarcikAnaEkran(),
               '/profile': (context) => const ProfileScreen(),
               '/forgot-password': (context) => const ForgotPassword(),
               '/auth-screen': (context) => const Auth(),
