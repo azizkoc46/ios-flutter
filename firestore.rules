@@ -26,13 +26,6 @@ service cloud.firestore {
           .data.tableServiceEnabled == true;
     }
 
-    function tablePermissionUnchanged() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-        'tableServiceEnabled',
-        'tableServiceUpdatedAt'
-      ]);
-    }
-
     function safeSelfRole(data) {
       return !('role' in data) ||
         data.role in [
@@ -45,42 +38,13 @@ service cloud.firestore {
         ];
     }
 
-    function safeNewIdentity(data) {
-      return safeSelfRole(data) &&
-        data.isAdmin != true && data.admin != true;
-    }
-
-    function adminIdentityUnchanged() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-        'isAdmin',
-        'admin'
-      ]) &&
+    function safeSelfCustomerWrite(userId) {
+      return signedIn() &&
+      request.auth.uid == userId &&
       safeSelfRole(request.resource.data) &&
       request.resource.data.isAdmin != true &&
-      request.resource.data.admin != true;
-    }
-
-    function safeSelfCustomerUpdate(userId) {
-      return signedIn() &&
-        request.auth.uid == userId &&
-        safeNewIdentity(request.resource.data) &&
-        tablePermissionUnchanged() &&
-        adminIdentityUnchanged();
-    }
-
-    function safeVendorApplicationUpdate(userId) {
-      return signedIn() &&
-        request.auth.uid == userId &&
-        request.resource.data.role == 'vendor_pending' &&
-        request.resource.data.isApproved == false &&
-        request.resource.data.isAdmin != true &&
-        request.resource.data.admin != true &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'isAdmin',
-          'admin',
-          'tableServiceEnabled',
-          'tableServiceUpdatedAt'
-        ]);
+      request.resource.data.admin != true &&
+      request.resource.data.tableServiceEnabled != true;
     }
     function validTable(data) {
       return data.name is string &&
@@ -99,11 +63,7 @@ service cloud.firestore {
 
     match /customers/{userId} {
       allow read: if true;
-      allow create: if signedIn() && request.auth.uid == userId &&
-                       safeNewIdentity(request.resource.data);
-      allow update: if isAdmin() ||
-                       safeSelfCustomerUpdate(userId) ||
-                       safeVendorApplicationUpdate(userId);
+      allow create, update: if isAdmin() || safeSelfCustomerWrite(userId);
       allow delete: if isAdmin() ||
                        (signedIn() && request.auth.uid == userId);
 

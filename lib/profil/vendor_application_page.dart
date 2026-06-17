@@ -131,7 +131,7 @@ Esnaf, bu sözleşmeyi okuduğunu, anladığını ve dijital onay kutucuğunu i�
       final email = (userData['email'] ?? user.email ?? '').toString().trim();
       final applicantName = fullName.isNotEmpty ? fullName : storeName;
 
-      await FirebaseFirestore.instance.collection('customers').doc(uid).set({
+      final applicationData = {
         'uid': uid,
         'userId': uid,
         'fullname': applicantName,
@@ -151,7 +151,17 @@ Esnaf, bu sözleşmeyi okuduğunu, anladığını ve dijital onay kutucuğunu i�
         'applicationStatus': 'pending',
         'applicationDate': FieldValue.serverTimestamp(),
         'contractAccepted': true, // Sözleşme kabul edildi kaydı
-      }, SetOptions(merge: true));
+      };
+
+      await FirebaseFirestore.instance
+          .collection('corporate_seller_applications')
+          .doc(uid)
+          .set(applicationData, SetOptions(merge: true));
+
+      await FirebaseFirestore.instance
+          .collection('customers')
+          .doc(uid)
+          .set(applicationData, SetOptions(merge: true));
 
       // 🔥 YENİ EKLENEN: Admin Bildirimi
       await AdminNotificationService.instance.notifyAdmin(
@@ -165,7 +175,20 @@ Esnaf, bu sözleşmeyi okuduğunu, anladığını ve dijital onay kutucuğunu i�
       if (mounted) {
         _showSuccessDialog();
       }
+    } on FirebaseException catch (e) {
+      debugPrint(
+          'Esnaf basvurusu Firebase hatasi: code=${e.code}, message=${e.message}, plugin=${e.plugin}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.code == 'permission-denied'
+                ? "Başvuru kaydedilemedi: Firestore izni/App Check engeli var. Lütfen tekrar deneyin."
+                : "Başvuru kaydedilemedi: ${e.message ?? e.code}",
+          ),
+        ),
+      );
     } catch (e) {
+      debugPrint('Esnaf basvurusu beklenmeyen hata: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Hata oluştu: $e")),
       );
