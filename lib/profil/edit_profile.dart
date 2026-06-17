@@ -225,8 +225,14 @@ class _EditProfileState extends State<EditProfile> {
       final doc = await firebase.collection('customers').doc(userId).get();
       if (doc.exists) {
         userData = doc.data();
-        _emailController.text = userData?['email'] ?? '';
-        _fullnameController.text = userData?['fullname'] ?? '';
+        _emailController.text =
+            userData?['email'] ?? _auth.currentUser?.email ?? '';
+        _fullnameController.text = (userData?['fullname'] ??
+                userData?['fullName'] ??
+                userData?['name'] ??
+                _auth.currentUser?.displayName ??
+                '')
+            .toString();
         _phoneController.text = userData?['phone'] ?? '';
         _originalPhone = _phoneController.text.trim();
         _openAddressController.text =
@@ -629,9 +635,12 @@ class _EditProfileState extends State<EditProfile> {
           return;
         }
 
+        final fullName = _fullnameController.text.trim();
         final updateData = <String, dynamic>{
-          "email": _emailController.text.trim(),
-          "fullname": _fullnameController.text.trim(),
+          "email": _auth.currentUser?.email ?? _emailController.text.trim(),
+          "fullname": fullName,
+          "fullName": fullName,
+          "name": fullName,
           "phone": enteredPhone,
           "city": "Kahramanmaraş",
           "district": "Pazarcık",
@@ -648,6 +657,10 @@ class _EditProfileState extends State<EditProfile> {
           updateData['businessName'] = _businessNameController.text.trim();
           updateData['businessType'] = _businessTypeController.text.trim();
           updateData['vkn'] = _vknController.text.trim();
+        }
+
+        if (fullName.isNotEmpty) {
+          await _auth.currentUser?.updateDisplayName(fullName);
         }
 
         await firebase
@@ -724,8 +737,10 @@ class _EditProfileState extends State<EditProfile> {
     setState(() => isLoading = true);
 
     try {
-      await user.delete();
+      await _deleteOwnedUserData(user.uid);
       await firebase.collection('customers').doc(user.uid).delete();
+      await user.delete();
+      await FirebaseAuth.instance.signOut();
 
       if (!mounted) return;
       Navigator.of(context).popUntil((route) => route.isFirst);
@@ -741,6 +756,46 @@ class _EditProfileState extends State<EditProfile> {
       _showError("Hesap silinirken hata oluştu: $e");
     } finally {
       if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _deleteOwnedUserData(String uid) async {
+    final jobs = <Future<void>>[
+      _deleteWhere('businesses', 'ownerId', uid),
+      _deleteWhere('businesses', 'userId', uid),
+      _deleteWhere('businesses', 'uid', uid),
+      _deleteWhere('classified_ads', 'ownerId', uid),
+      _deleteWhere('classified_ads', 'sellerId', uid),
+      _deleteWhere('job_ads', 'ownerId', uid),
+      _deleteWhere('job_postings', 'ownerId', uid),
+      _deleteWhere('group_posts', 'uid', uid),
+      _deleteWhere('group_posts', 'userId', uid),
+      _deleteWhere('comments', 'userId', uid),
+      _deleteWhere('seller_reviews', 'reviewerId', uid),
+      _deleteWhere('reviews', 'reviewerId', uid),
+      _deleteWhere('notifications', 'to', uid),
+      _deleteWhere('app_notifications', 'uid', uid),
+      _deleteWhere('phone_verification_requests', 'uid', uid),
+      _deleteWhere('business_claims', 'claimedBy', uid),
+    ];
+
+    await Future.wait(jobs);
+  }
+
+  Future<void> _deleteWhere(String collection, String field, String uid) async {
+    while (true) {
+      final snapshot = await firebase
+          .collection(collection)
+          .where(field, isEqualTo: uid)
+          .limit(400)
+          .get();
+      if (snapshot.docs.isEmpty) return;
+
+      final batch = firebase.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
     }
   }
 
@@ -913,9 +968,14 @@ class _EditProfileState extends State<EditProfile> {
           border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
       child: TextFormField(
         controller: controller,
+        enabled: field != Field.email,
         obscureText: isPassword && obscure,
         style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface, fontSize: 15),
+          color: field == Field.email
+              ? Colors.grey.shade600
+              : Theme.of(context).colorScheme.onSurface,
+          fontSize: 15,
+        ),
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: maviRenk, size: 22),
           hintText: hint,
@@ -927,7 +987,9 @@ class _EditProfileState extends State<EditProfile> {
                   icon: Icon(obscure ? Icons.visibility_off : Icons.visibility,
                       color: maviRenk),
                   onPressed: () => setState(() => obscure = !obscure))
-              : null,
+              : field == Field.email
+                  ? const Icon(Icons.lock_outline, color: Colors.grey, size: 18)
+                  : null,
         ),
         validator: (v) => (field == Field.fullname && (v == null || v.isEmpty))
             ? "Boş bırakılamaz"

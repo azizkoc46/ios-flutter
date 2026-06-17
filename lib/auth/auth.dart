@@ -136,6 +136,8 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
     if (userDoc != null && !userDoc.exists) {
       final newUserData = {
         'fullname': displayName ?? 'Pazarcık Üyesi',
+        'fullName': displayName ?? user.displayName ?? 'Pazarcikli Uye',
+        'name': displayName ?? user.displayName ?? 'Pazarcikli Uye',
         'email': user.email ?? '',
         'image': photoUrl ?? '',
         'role': 'customer',
@@ -230,8 +232,12 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
         // credential.user yerine guncel _auth.currentUser kullaniyoruz
         final activeUser = _auth.currentUser ?? credential.user!;
 
+        await activeUser.updateDisplayName(_fullnameController.text.trim());
+
         final newCustomerData = {
           'fullname': _fullnameController.text.trim(),
+          'fullName': _fullnameController.text.trim(),
+          'name': _fullnameController.text.trim(),
           'email': _emailController.text.trim(),
           'image': imageUrl,
           'role': 'customer',
