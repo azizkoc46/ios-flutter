@@ -67,6 +67,21 @@ service cloud.firestore {
         tablePermissionUnchanged() &&
         adminIdentityUnchanged();
     }
+
+    function safeVendorApplicationUpdate(userId) {
+      return signedIn() &&
+        request.auth.uid == userId &&
+        request.resource.data.role == 'vendor_pending' &&
+        request.resource.data.isApproved == false &&
+        request.resource.data.isAdmin != true &&
+        request.resource.data.admin != true &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'isAdmin',
+          'admin',
+          'tableServiceEnabled',
+          'tableServiceUpdatedAt'
+        ]);
+    }
     function validTable(data) {
       return data.name is string &&
         data.name.size() > 0 && data.name.size() <= 50 &&
@@ -86,7 +101,9 @@ service cloud.firestore {
       allow read: if true;
       allow create: if signedIn() && request.auth.uid == userId &&
                        safeNewIdentity(request.resource.data);
-      allow update: if isAdmin() || safeSelfCustomerUpdate(userId);
+      allow update: if isAdmin() ||
+                       safeSelfCustomerUpdate(userId) ||
+                       safeVendorApplicationUpdate(userId);
       allow delete: if isAdmin() ||
                        (signedIn() && request.auth.uid == userId);
 

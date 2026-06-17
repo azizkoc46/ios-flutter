@@ -129,11 +129,14 @@ Esnaf, bu sözleşmeyi okuduğunu, anladığını ve dijital onay kutucuğunu i�
           .toString()
           .trim();
       final email = (userData['email'] ?? user.email ?? '').toString().trim();
+      final applicantName = fullName.isNotEmpty ? fullName : storeName;
 
       await FirebaseFirestore.instance.collection('customers').doc(uid).set({
-        'fullname': fullName,
-        'fullName': fullName,
-        'name': fullName,
+        'uid': uid,
+        'userId': uid,
+        'fullname': applicantName,
+        'fullName': applicantName,
+        'name': applicantName,
         'email': email,
         'storeName': storeName,
         'businessName': storeName,
@@ -144,6 +147,8 @@ Esnaf, bu sözleşmeyi okuduğunu, anladığını ve dijital onay kutucuğunu i�
         'storeAddress': _addressController.text.trim(),
         'role': 'vendor_pending',
         'isApproved': false,
+        'applicationType': 'vendor',
+        'applicationStatus': 'pending',
         'applicationDate': FieldValue.serverTimestamp(),
         'contractAccepted': true, // Sözleşme kabul edildi kaydı
       }, SetOptions(merge: true));
