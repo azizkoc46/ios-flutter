@@ -26,7 +26,6 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  // ✅ Her alan için ayrı obscure state
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool isLogin = true;
@@ -89,11 +88,53 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
       ..forward();
   }
 
+  Future<void> _signOutAnonymousBeforeRealAuth() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser != null && currentUser.isAnonymous) {
+      debugPrint("Anonim oturum kapatılıyor: ${currentUser.uid}");
+      await _auth.signOut();
+      await Future.delayed(const Duration(milliseconds: 250));
+    }
+  }
+
   Future<void> _saveUserAndNavigate(User user,
       {String? displayName, String? photoUrl, required String authType}) async {
-    final userDoc = await firebase.collection('customers').doc(user.uid).get();
-    if (!userDoc.exists) {
-      await firebase.collection('customers').doc(user.uid).set({
+    // Token'i zorla yeniliyoruz. Eger onceden anonim bir oturum vardiysa
+    // ve simdi gercek bir hesaba gecildiyse, Firestore'a istek atmadan once
+    // request.auth.uid'in guncel ve dogru kullaniciyi gostermesini garantiliyoruz.
+    try {
+      await user.getIdToken(true);
+    } catch (e) {
+      debugPrint("Token yenileme hatasi: $e");
+    }
+
+    final docRef = firebase.collection('customers').doc(user.uid);
+
+    // KRITIK DUZELTME:
+    // Auth durumu degistikten (signOut -> createUser/signIn) hemen sonra
+    // gelen ilk Firestore istegi bazen request.auth henuz tam senkronize
+    // olmadan gidebiliyor (token ve App Check tarafinda kisa bir
+    // senkronizasyon farki). Bu durumda permission-denied alinir, ama
+    // hemen ardindan tekrar denendiginde basarili olur. Bunu tolere etmek
+    // icin kisa bir retry mekanizmasi kullaniyoruz.
+    DocumentSnapshot<Map<String, dynamic>>? userDoc;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        userDoc = await docRef.get();
+        break;
+      } on FirebaseException catch (e) {
+        if (e.code == 'permission-denied' && attempt < 2) {
+          debugPrint(
+              "Firestore okuma yarış durumu, yeniden deneniyor (deneme ${attempt + 1})");
+          await Future.delayed(const Duration(milliseconds: 400));
+          continue;
+        }
+        rethrow;
+      }
+    }
+
+    if (userDoc != null && !userDoc.exists) {
+      final newUserData = {
         'fullname': displayName ?? 'Pazarcık Üyesi',
         'email': user.email ?? '',
         'image': photoUrl ?? '',
@@ -101,7 +142,22 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
         'isApproved': false,
         'auth-type': authType,
         'createdAt': Timestamp.now(),
-      });
+      };
+
+      for (var attempt = 0; attempt < 3; attempt++) {
+        try {
+          await docRef.set(newUserData);
+          break;
+        } on FirebaseException catch (e) {
+          if (e.code == 'permission-denied' && attempt < 2) {
+            debugPrint(
+                "Firestore yazma yarış durumu, yeniden deneniyor (deneme ${attempt + 1})");
+            await Future.delayed(const Duration(milliseconds: 400));
+            continue;
+          }
+          rethrow;
+        }
+      }
     }
     if (mounted) {
       Navigator.of(context).pushReplacement(
@@ -114,7 +170,6 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
     FocusScope.of(context).unfocus();
     if (!valid) return;
 
-    // ✅ Kayıt modunda şifre eşleşme kontrolü
     if (!isLogin &&
         _passwordController.text != _confirmPasswordController.text) {
       showSnackBar("Şifreler eşleşmiyor");
@@ -124,15 +179,41 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
     setState(() => isLoading = true);
 
     try {
+      // KRITIK DUZELTME:
+      // Uygulama acilisinda _ensureGuestSession() ile otomatik olarak
+      // anonim bir oturum aciliyor. Kullanici email/password ile
+      // giris ya da kayit yapmaya calistiginda, halen aktif olan bu
+      // anonim oturum bazi firebase_auth surumlerinde native taraftan
+      // donen kullanici verisinin Dart'a aktariminda tip hatasina
+      // (PigeonUserDetails cast hatasi) yol aciyor. Bu hata
+      // FirebaseAuthException olmadigi icin asagidaki genel catch
+      // blogunda yakalanip ekranda sadece "Bir hata olustu" gosteriliyor.
+      // Cozum: email/password islemine girmeden once, eger su an
+      // oturum acmis kullanici anonim ise, once o oturumu kapatiyoruz.
+      await _signOutAnonymousBeforeRealAuth();
+
       if (isLogin) {
         await _auth.signInWithEmailAndPassword(
             email: _emailController.text.trim(),
             password: _passwordController.text.trim());
+
+        // Giris sonrasi token'i tazeliyoruz
+        await _auth.currentUser!.getIdToken(true);
+
         await _saveUserAndNavigate(_auth.currentUser!, authType: 'email');
       } else {
         final credential = await _auth.createUserWithEmailAndPassword(
             email: _emailController.text.trim(),
             password: _passwordController.text.trim());
+
+        // Anonim oturumu yukarida zaten kapattigimiz icin artik
+        // credential.user, request.auth.uid ile uyumlu. Token'i
+        // yine de tazeleyerek Firestore kurallarinin guncel kullaniciyi
+        // gormesini garantiliyoruz.
+        await credential.user!.getIdToken(true);
+
+        debugPrint("Yeni kullanıcı UID: ${credential.user!.uid}");
+        debugPrint("currentUser UID: ${_auth.currentUser?.uid}");
 
         String imageUrl = "";
         if (profileImage != null) {
@@ -146,7 +227,10 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
           }
         }
 
-        await firebase.collection('customers').doc(credential.user!.uid).set({
+        // credential.user yerine guncel _auth.currentUser kullaniyoruz
+        final activeUser = _auth.currentUser ?? credential.user!;
+
+        final newCustomerData = {
           'fullname': _fullnameController.text.trim(),
           'email': _emailController.text.trim(),
           'image': imageUrl,
@@ -154,7 +238,30 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
           'isApproved': false,
           'auth-type': 'email',
           'createdAt': Timestamp.now(),
-        });
+        };
+
+        // KRITIK DUZELTME:
+        // signOut() -> createUserWithEmailAndPassword gecisinden hemen
+        // sonraki ilk Firestore istegi, auth/App Check tarafindaki kisa
+        // senkronizasyon farki nedeniyle permission-denied alabiliyor.
+        // Kisa bir retry mekanizmasi ile bu yarış durumunu tolere ediyoruz.
+        for (var attempt = 0; attempt < 3; attempt++) {
+          try {
+            await firebase
+                .collection('customers')
+                .doc(activeUser.uid)
+                .set(newCustomerData);
+            break;
+          } on FirebaseException catch (e) {
+            if (e.code == 'permission-denied' && attempt < 2) {
+              debugPrint(
+                  "Kayıt yazma yarış durumu, yeniden deneniyor (deneme ${attempt + 1})");
+              await Future.delayed(const Duration(milliseconds: 400));
+              continue;
+            }
+            rethrow;
+          }
+        }
 
         showSnackBar("Hoş Geldiniz!", isError: false);
         if (mounted) {
@@ -163,11 +270,22 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
         }
       }
     } on FirebaseAuthException catch (e) {
-      // ✅ Firebase hata mesajlarını Türkçe göster
       final msg = _firebaseErrorMessage(e.code);
       showSnackBar(msg);
+    } on FirebaseException catch (e) {
+      // Firestore hatalarini ayri yakalayip logluyoruz (teshis icin).
+      // Artik ekranda "Bir hata olustu" yerine gercek hata kodunu goreceksin.
+      debugPrint("Firestore hatası: ${e.code} - ${e.message}");
+      showSnackBar("Veritabanı hatası: ${e.code}");
     } catch (e) {
-      showSnackBar("Bir hata oluştu, tekrar deneyin.");
+      debugPrint("Bilinmeyen hata: $e");
+      // Debug modda gercek hatayi goruyoruz, release modda kullaniciya
+      // genel mesaj gosteriliyor (boylece teshis kolaylasiyor).
+      if (kDebugMode) {
+        showSnackBar("Hata: $e");
+      } else {
+        showSnackBar("Bir hata oluştu, tekrar deneyin.");
+      }
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -197,6 +315,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
   Future<void> _googleAuth() async {
     try {
       setState(() => isLoading = true);
+      await _signOutAnonymousBeforeRealAuth();
 
       if (kIsWeb) {
         final provider = GoogleAuthProvider()
@@ -247,6 +366,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
   Future<void> _appleAuth() async {
     try {
       setState(() => isLoading = true);
+      await _signOutAnonymousBeforeRealAuth();
 
       final provider = AppleAuthProvider()
         ..addScope('email')
@@ -282,16 +402,14 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Responsive boyut hesabı
     final size = MediaQuery.of(context).size;
-    final isCompact = size.height < 700; // iPhone SE gibi küçük ekranlar
-    final hPad = size.width > 430 ? 40.0 : 28.0; // Tablet/geniş ekran padding
+    final isCompact = size.height < 700;
+    final hPad = size.width > 430 ? 40.0 : 28.0;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       body: Stack(
         children: [
-          // Arka plan
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -305,7 +423,6 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
               ),
             ),
           ),
-
           SafeArea(
             child: FadeTransition(
               opacity: _fadeAnim,
@@ -315,12 +432,10 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                   padding: EdgeInsets.symmetric(
                       horizontal: hPad, vertical: isCompact ? 12 : 24),
                   child: ConstrainedBox(
-                    // ✅ Tablet'te içerik çok geniş olmasın
                     constraints: const BoxConstraints(maxWidth: 480),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // LOGO
                         Hero(
                           tag: 'logo',
                           child: Container(
@@ -338,7 +453,6 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                                 )
                               ],
                             ),
-                            // ✅ Yeni logo: assets/login.png
                             child: Image.asset(
                               'assets/login.png',
                               fit: BoxFit.cover,
@@ -349,9 +463,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                             ),
                           ),
                         ),
-
                         SizedBox(height: isCompact ? 16 : 22),
-
                         Text(
                           isLogin ? "Pazarcık Portal" : "Hesap Oluştur",
                           style: GoogleFonts.inter(
@@ -370,15 +482,11 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                               color: const Color(0xFF8E8E93),
                               fontWeight: FontWeight.w500),
                         ),
-
                         SizedBox(height: isCompact ? 20 : 30),
-
                         if (!isLogin) ...[
                           ProfileImagePicker(selectImage: _selectPhoto),
                           SizedBox(height: isCompact ? 16 : 22),
                         ],
-
-                        // FORM
                         Form(
                           key: _formKey,
                           child: Column(
@@ -448,7 +556,6 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                                   },
                                 ),
                               ],
-
                               if (isLogin)
                                 Align(
                                   alignment: Alignment.centerRight,
@@ -467,10 +574,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                                     ),
                                   ),
                                 ),
-
                               SizedBox(height: isCompact ? 18 : 22),
-
-                              // ANA BUTON
                               SizedBox(
                                 width: double.infinity,
                                 height: 54,
@@ -498,10 +602,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                             ],
                           ),
                         ),
-
                         SizedBox(height: isCompact ? 24 : 32),
-
-                        // AYIRICI
                         Row(
                           children: [
                             const Expanded(
@@ -521,10 +622,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                                 child: Divider(color: Color(0xFFD1D1D6))),
                           ],
                         ),
-
                         SizedBox(height: isCompact ? 18 : 24),
-
-                        // SOSYAL BUTONLAR
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -547,9 +645,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                             ],
                           ],
                         ),
-
                         SizedBox(height: isCompact ? 18 : 24),
-
                         TextButton(
                           onPressed: isLoading
                               ? null
@@ -565,10 +661,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                             ),
                           ),
                         ),
-
                         SizedBox(height: isCompact ? 18 : 24),
-
-                        // GEÇİŞ BUTONU
                         GestureDetector(
                           onTap: _switchLog,
                           child: RichText(
@@ -589,7 +682,6 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                             ),
                           ),
                         ),
-
                         SizedBox(height: isCompact ? 12 : 20),
                       ],
                     ),
@@ -603,7 +695,6 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
     );
   }
 
-  // ✅ Ayrı obscure parametresi ile yeniden yazıldı
   Widget _buildIOSField({
     required TextEditingController controller,
     required IconData icon,
@@ -663,7 +754,6 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
     );
   }
 
-  // ✅ Sosyal butonlar label ile daha anlaşılır
   Widget _buildSocialButton({
     required IconData icon,
     required Color color,
