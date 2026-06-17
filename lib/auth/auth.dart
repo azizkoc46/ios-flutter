@@ -146,7 +146,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
 
       for (var attempt = 0; attempt < 3; attempt++) {
         try {
-          await docRef.set(newUserData);
+          await docRef.set(newUserData, SetOptions(merge: true));
           break;
         } on FirebaseException catch (e) {
           if (e.code == 'permission-denied' && attempt < 2) {
@@ -250,7 +250,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
             await firebase
                 .collection('customers')
                 .doc(activeUser.uid)
-                .set(newCustomerData);
+                .set(newCustomerData, SetOptions(merge: true));
             break;
           } on FirebaseException catch (e) {
             if (e.code == 'permission-denied' && attempt < 2) {
@@ -276,7 +276,20 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
       // Firestore hatalarini ayri yakalayip logluyoruz (teshis icin).
       // Artik ekranda "Bir hata olustu" yerine gercek hata kodunu goreceksin.
       debugPrint("Firestore hatası: ${e.code} - ${e.message}");
-      showSnackBar("Veritabanı hatası: ${e.code}");
+      final signedUser = _auth.currentUser;
+      if (signedUser != null && !signedUser.isAnonymous) {
+        showSnackBar(
+          "Giriş yapıldı, profil bilgileri sonra tamamlanacak.",
+          isError: false,
+        );
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const PazarcikAnaEkran()),
+          );
+        }
+      } else {
+        showSnackBar("Veritabanı hatası: ${e.code}");
+      }
     } catch (e) {
       debugPrint("Bilinmeyen hata: $e");
       // Debug modda gercek hatayi goruyoruz, release modda kullaniciya

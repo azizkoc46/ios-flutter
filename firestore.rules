@@ -33,18 +33,31 @@ service cloud.firestore {
       ]);
     }
 
+    function safeSelfRole(data) {
+      return !('role' in data) ||
+        data.role in [
+          'customer',
+          'vendor_pending',
+          'seller_pending',
+          'satici_pending',
+          'emlakci_pending',
+          'kurumsal_satici_pending'
+        ];
+    }
+
+    function safeNewIdentity(data) {
+      return safeSelfRole(data) &&
+        data.isAdmin != true && data.admin != true;
+    }
+
     function adminIdentityUnchanged() {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'isAdmin',
         'admin'
       ]) &&
-      !(request.resource.data.role in ['admin', 'yonetici', 'yönetici']);
-    }
-
-    function safeNewIdentity(data) {
-      return (!('role' in data) || data.role is string) &&
-        !(data.role in ['admin', 'yonetici', 'yönetici']) &&
-        data.isAdmin != true && data.admin != true;
+      safeSelfRole(request.resource.data) &&
+      request.resource.data.isAdmin != true &&
+      request.resource.data.admin != true;
     }
 
     function safeSelfCustomerUpdate(userId) {
