@@ -116,11 +116,27 @@ Esnaf, bu sözleşmeyi okuduğunu, anladığını ve dijital onay kutucuğunu i�
 
       String uid = user.uid;
       String storeName = _storeNameController.text.trim();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('customers')
+          .doc(uid)
+          .get();
+      final userData = userDoc.data() ?? const <String, dynamic>{};
+      final fullName = (userData['fullname'] ??
+              userData['fullName'] ??
+              userData['name'] ??
+              user.displayName ??
+              '')
+          .toString()
+          .trim();
+      final email = (userData['email'] ?? user.email ?? '').toString().trim();
 
       await FirebaseFirestore.instance.collection('customers').doc(uid).set({
-        'fullname': user.displayName ?? '',
-        'email': user.email ?? '',
+        'fullname': fullName,
+        'fullName': fullName,
+        'name': fullName,
+        'email': email,
         'storeName': storeName,
+        'businessName': storeName,
         'taxNumber': _taxNumberController.text.trim(),
         'storePhone': _phoneController.text.trim(),
         'storeMapLink':

@@ -222,15 +222,15 @@ class _EditProfileState extends State<EditProfile> {
 
   Future<void> _fetchUserDetails() async {
     try {
+      final authUser = _auth.currentUser;
       final doc = await firebase.collection('customers').doc(userId).get();
       if (doc.exists) {
         userData = doc.data();
-        _emailController.text =
-            userData?['email'] ?? _auth.currentUser?.email ?? '';
+        _emailController.text = userData?['email'] ?? authUser?.email ?? '';
         _fullnameController.text = (userData?['fullname'] ??
                 userData?['fullName'] ??
                 userData?['name'] ??
-                _auth.currentUser?.displayName ??
+                authUser?.displayName ??
                 '')
             .toString();
         _phoneController.text = userData?['phone'] ?? '';
@@ -252,6 +252,17 @@ class _EditProfileState extends State<EditProfile> {
           _businessTypeController.text = userData?['businessType'] ?? '';
           _vknController.text = userData?['vkn'] ?? '';
         }
+      } else {
+        _emailController.text = authUser?.email ?? '';
+        _fullnameController.text = authUser?.displayName ?? '';
+        userData = {
+          'email': _emailController.text,
+          'fullname': _fullnameController.text,
+          'role': 'customer',
+          'auth-type': authUser?.providerData.isNotEmpty == true
+              ? authUser!.providerData.first.providerId
+              : 'email',
+        };
       }
     } finally {
       if (mounted) setState(() => isLoading = false);
