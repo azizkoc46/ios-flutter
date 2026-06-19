@@ -1,0 +1,15 @@
+[
+  {
+    "origin": [
+      "https://pazarcikportal.com",
+      "https://www.pazarcikportal.com",
+      "https://pazarcik-portal-7faf2.web.app",
+      "https://pazarcik-portal-7faf2.firebaseapp.com",
+      "http://localhost:8080",
+      "http://127.0.0.1:8080"
+    ],
+    "method": ["GET", "HEAD", "OPTIONS"],
+    "responseHeader": ["Content-Type", "Authorization", "x-goog-*"],
+    "maxAgeSeconds": 3600
+  }
+]

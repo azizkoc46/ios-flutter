@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
@@ -91,10 +91,35 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
   Future<void> _signOutAnonymousBeforeRealAuth() async {
     final currentUser = _auth.currentUser;
     if (currentUser != null && currentUser.isAnonymous) {
-      debugPrint("Anonim oturum kapatılıyor: ${currentUser.uid}");
+      debugPrint("Anonim oturum kapatiliyor: ${currentUser.uid}");
       await _auth.signOut();
       await Future.delayed(const Duration(milliseconds: 250));
     }
+  }
+
+  Future<bool> _navigateIfRealUserSignedIn({String? message}) async {
+    const delays = [
+      Duration(milliseconds: 100),
+      Duration(milliseconds: 350),
+      Duration(milliseconds: 700),
+    ];
+
+    for (final delay in delays) {
+      await Future.delayed(delay);
+      final signedUser = _auth.currentUser;
+      if (signedUser != null && !signedUser.isAnonymous) {
+        if (message != null && mounted) {
+          showSnackBar(message, isError: false);
+        }
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const PazarcikAnaEkran()),
+          );
+        }
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<void> _saveUserAndNavigate(User user,
@@ -117,49 +142,58 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
     // senkronizasyon farki). Bu durumda permission-denied alinir, ama
     // hemen ardindan tekrar denendiginde basarili olur. Bunu tolere etmek
     // icin kisa bir retry mekanizmasi kullaniyoruz.
-    DocumentSnapshot<Map<String, dynamic>>? userDoc;
-    for (var attempt = 0; attempt < 3; attempt++) {
-      try {
-        userDoc = await docRef.get();
-        break;
-      } on FirebaseException catch (e) {
-        if (e.code == 'permission-denied' && attempt < 2) {
-          debugPrint(
-              "Firestore okuma yarış durumu, yeniden deneniyor (deneme ${attempt + 1})");
-          await Future.delayed(const Duration(milliseconds: 400));
-          continue;
-        }
-        rethrow;
-      }
-    }
-
-    if (userDoc != null && !userDoc.exists) {
-      final newUserData = {
-        'fullname': displayName ?? 'Pazarcık Üyesi',
-        'fullName': displayName ?? user.displayName ?? 'Pazarcikli Uye',
-        'name': displayName ?? user.displayName ?? 'Pazarcikli Uye',
-        'email': user.email ?? '',
-        'image': photoUrl ?? '',
-        'role': 'customer',
-        'isApproved': false,
-        'auth-type': authType,
-        'createdAt': Timestamp.now(),
-      };
-
+    try {
+      DocumentSnapshot<Map<String, dynamic>>? userDoc;
       for (var attempt = 0; attempt < 3; attempt++) {
         try {
-          await docRef.set(newUserData, SetOptions(merge: true));
+          userDoc = await docRef.get();
           break;
         } on FirebaseException catch (e) {
           if (e.code == 'permission-denied' && attempt < 2) {
             debugPrint(
-                "Firestore yazma yarış durumu, yeniden deneniyor (deneme ${attempt + 1})");
+                "Firestore okuma yarış durumu, yeniden deneniyor (deneme ${attempt + 1})");
             await Future.delayed(const Duration(milliseconds: 400));
             continue;
           }
           rethrow;
         }
       }
+
+      if (userDoc != null && !userDoc.exists) {
+        final newUserData = {
+          'fullname': displayName ?? 'Pazarcık Üyesi',
+          'fullName': displayName ?? user.displayName ?? 'Pazarcıklı Üye',
+          'name': displayName ?? user.displayName ?? 'Pazarcıklı Üye',
+          'email': user.email ?? '',
+          'image': photoUrl ?? '',
+          'role': 'customer',
+          'isApproved': false,
+          'auth-type': authType,
+          'createdAt': Timestamp.now(),
+        };
+
+        for (var attempt = 0; attempt < 3; attempt++) {
+          try {
+            await docRef.set(newUserData, SetOptions(merge: true));
+            break;
+          } on FirebaseException catch (e) {
+            if (e.code == 'permission-denied' && attempt < 2) {
+              debugPrint(
+                  "Firestore yazma yarış durumu, yeniden deneniyor (deneme ${attempt + 1})");
+              await Future.delayed(const Duration(milliseconds: 400));
+              continue;
+            }
+            rethrow;
+          }
+        }
+      }
+    } on FirebaseException catch (e) {
+      // Kimlik doğrulama başarılıysa profil senkronizasyonundaki geçici bir
+      // Firestore/App Check sorunu kullanıcıyı tekrar giriş ekranına atmasın.
+      debugPrint(
+          'Giriş başarılı, profil eşitleme ertelendi [$authType]: ${e.code} - ${e.message}');
+    } catch (e) {
+      debugPrint('Giriş başarılı, profil eşitleme ertelendi [$authType]: $e');
     }
     if (mounted) {
       Navigator.of(context).pushReplacement(
@@ -395,25 +429,54 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
           : await _auth.signInWithProvider(provider);
       final user = credential.user;
 
-      if (user != null) {
-        final fallbackName = user.email?.split('@').first;
-        await _saveUserAndNavigate(
-          user,
-          displayName: user.displayName ?? fallbackName,
-          photoUrl: user.photoURL,
-          authType: 'apple',
+      if (user == null) {
+        throw FirebaseAuthException(
+          code: 'apple-user-missing',
+          message: 'Apple oturumu açıldı ancak kullanıcı bilgisi alınamadı.',
         );
       }
+
+      final fallbackName = user.email?.split('@').first;
+      await _saveUserAndNavigate(
+        user,
+        displayName: user.displayName ?? fallbackName,
+        photoUrl: user.photoURL,
+        authType: 'apple',
+      );
     } on FirebaseAuthException catch (e) {
       debugPrint('Apple giriş hatası: ${e.code} - ${e.message}');
-      if (e.code != 'web-context-cancelled' &&
-          e.code != 'popup-closed-by-user' &&
-          e.code != 'canceled') {
-        showSnackBar('Apple ile giriş başarısız: ${e.message ?? e.code}');
+      const cancelledCodes = {
+        'web-context-cancelled',
+        'popup-closed-by-user',
+        'canceled',
+        'cancelled',
+      };
+      // Apple kimligi basarili olup profil kaydi Firestore/App Check yuzunden
+      // aksarsa generic catch'e dusmeden kullaniciyi iceri alacagiz.
+      if (!cancelledCodes.contains(e.code)) {
+        final recovered = await _navigateIfRealUserSignedIn(
+          message: 'Apple girisi tamamlandi.',
+        );
+        if (!recovered) {
+          showSnackBar('Apple ile giriş yapılamadı (${e.code}). Tekrar deneyin.');
+        }
+      }
+    } on FirebaseException catch (e) {
+      debugPrint('Apple giris sonrasi Firebase hatasi: ${e.code} - ${e.message}');
+      final recovered = await _navigateIfRealUserSignedIn(
+        message: 'Apple girisi tamamlandi.',
+      );
+      if (!recovered) {
+        showSnackBar('Apple ile giris yapilamadi (${e.code}). Tekrar deneyin.');
       }
     } catch (e) {
-      debugPrint('Apple giriş hatası: $e');
-      showSnackBar('Apple ile giriş başarısız.');
+      debugPrint('Apple giris sonrasi hata: $e');
+      final recovered = await _navigateIfRealUserSignedIn(
+        message: 'Apple girisi tamamlandi.',
+      );
+      if (!recovered) {
+        showSnackBar('Apple ile giris yapilamadi. Tekrar deneyin.');
+      }
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -812,3 +875,4 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
     );
   }
 }
+
