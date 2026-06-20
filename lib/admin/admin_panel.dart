@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use
+﻿// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -16,7 +16,9 @@ import 'admin_restaurants_tab.dart';
 import 'admin_store_orders_tab.dart';
 import 'admin_settings_tab.dart';
 import 'admin_classified_ads_tab.dart';
+import 'admin_manual_classified_ad_tab.dart';
 import 'admin_activity_feed_tab.dart';
+import 'admin_pending_center_tab.dart';
 import 'package:pazarcik_portal/business/business_add_page.dart';
 import 'admin_notification_service.dart';
 
@@ -45,7 +47,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 13,
+      length: 15,
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: AppBar(
@@ -79,7 +81,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             ],
           ),
           actions: [
-            // BİLDİRİM ÇANI ARTIK TIKLANABİLİR! (İlgili sayfan varsa Navigator ekleyebilirsin)
+            // Bildirim zili. Bildirim sayfası hazır olduğunda buraya yönlendirme eklenebilir.
             _BadgeIcon(
               icon: CupertinoIcons.bell_fill,
               collection: 'admin_notifications_log',
@@ -87,13 +89,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               filterField: 'seen',
               filterValue: false,
               onTap: () {
-                // TODO: Yönetici bildirimlerini gösteren bir sayfa yaptıysan buraya Navigator ekle
+                // TODO: Yönetici bildirimlerini gösteren sayfaya yönlendir.
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('Bildirimler Sayfası Açılacak')));
+                    content: Text('Bildirimler sayfası açılacak')));
               },
             ),
             const SizedBox(width: 4),
-            // TELEFON İKONU BURADAN KALDIRILDI!
+            // Hızlı ekleme menüsü.
             _buildAddMenu(),
             const SizedBox(width: 10),
           ],
@@ -117,19 +119,21 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 unselectedLabelStyle: GoogleFonts.inter(
                     fontWeight: FontWeight.w600, fontSize: 12),
                 tabs: const [
-                  Tab(text: "📊 Özet"),
-                  Tab(text: "🔔 Aktivite"),
-                  Tab(text: "👥 Kullanıcılar"),
-                  Tab(text: "🍽️ Restoranlar"),
-                  Tab(text: "🛒 Siparişler"),
-                  Tab(text: "🏷️ İlanlar"),
-                  Tab(text: "✨ Öne Çıkanlar"),
-                  Tab(text: "🏢 Emlakçılar"),
-                  Tab(text: "🏪 İşletmeler"),
+                  Tab(text: "Özet"),
+                  Tab(text: "Bekleyenler"),
+                  Tab(text: "Aktivite"),
+                  Tab(text: "Kullanıcılar"),
+                  Tab(text: "Restoranlar"),
+                  Tab(text: "Siparişler"),
+                  Tab(text: "İlanlar"),
+                  Tab(text: "Manuel İlan"),
+                  Tab(text: "Öne Çıkanlar"),
+                  Tab(text: "Emlakçılar"),
+                  Tab(text: "İşletmeler"),
                   Tab(text: "Sahiplik"),
-                  Tab(text: "📸 Çek Gönder"),
-                  Tab(text: "📢 Duyurular"),
-                  Tab(text: "⚙️ Ayarlar"),
+                  Tab(text: "Çek Gönder"),
+                  Tab(text: "Duyurular"),
+                  Tab(text: "Ayarlar"),
                 ],
               ),
             ),
@@ -138,11 +142,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         body: const TabBarView(
           children: [
             AdminStatsTab(),
+            AdminPendingCenterTab(),
             AdminActivityFeedTab(),
             AdminUsersTab(),
             AdminRestaurantsTab(),
             AdminStoreOrdersTab(),
             AdminClassifiedAdsTab(),
+            AdminManualClassifiedAdTab(),
             AdminStoriesTab(),
             AdminBusinessTab(type: 'emlakci'),
             AdminBusinessTab(type: 'private'),
@@ -274,7 +280,7 @@ class _BadgeIcon extends StatelessWidget {
   final Color color;
   final String filterField;
   final dynamic filterValue;
-  final VoidCallback onTap; // TIKLAMA ÖZELLİĞİ EKLENDİ
+  final VoidCallback onTap;
 
   const _BadgeIcon({
     required this.icon,
@@ -300,7 +306,7 @@ class _BadgeIcon extends StatelessWidget {
           children: [
             IconButton(
               icon: Icon(icon, color: color, size: 22),
-              onPressed: onTap, // TIKLANINCA SAYFA AÇILACAK
+              onPressed: onTap,
             ),
             if (count > 0)
               Positioned(

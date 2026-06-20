@@ -30,9 +30,32 @@ class _DetailsScreenState extends State<DetailsScreen> {
   DocumentSnapshot? store;
   int quantity = 1;
 
-  // Ekstralar için state yönetimi
+  // Ekstralar iÃ§in state yÃ¶netimi
   Map<String, int> selectedExtras = {};
   double extrasTotalPrice = 0.0;
+
+  String _pickString(Map<String, dynamic>? data, List<String> keys,
+      {String fallback = ''}) {
+    if (data == null) return fallback;
+    for (final key in keys) {
+      final value = data[key];
+      if (value != null && value.toString().trim().isNotEmpty) {
+        return value.toString().trim();
+      }
+    }
+    return fallback;
+  }
+
+  double _asDouble(dynamic value, {double fallback = 0}) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString().replaceAll(',', '.') ?? '') ??
+        fallback;
+  }
+
+  int _asInt(dynamic value, {int fallback = 0}) {
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
 
   @override
   void initState() {
@@ -47,7 +70,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
     setState(() => isFav = data['isFav'] ?? false);
   }
 
-  // Favori durumunu değiştir
+  // Favori durumunu deÄŸiÅŸtir
   void toggleIsFav() {
     final db = FirebaseFirestore.instance
         .collection('products')
@@ -56,13 +79,14 @@ class _DetailsScreenState extends State<DetailsScreen> {
       isFav = !isFav;
       db.update({'isFav': isFav});
     });
-    HapticFeedback.mediumImpact(); // Titreşim desteği
+    HapticFeedback.mediumImpact(); // Titresim destegi
   }
 
-  // Mağaza verilerini çek
+  // MaÄŸaza verilerini Ã§ek
   _fetchStoreData() async {
     var data = widget.product.data() as Map<String, dynamic>? ?? {};
-    var vendorId = data['vendorId'] ?? data['seller_id'] ?? '';
+    var vendorId = _pickString(
+        data, ['vendorId', 'sellerId', 'seller_id', 'storeId', 'userId']);
     if (vendorId.isNotEmpty) {
       var details = await FirebaseFirestore.instance
           .collection('customers')
@@ -78,26 +102,32 @@ class _DetailsScreenState extends State<DetailsScreen> {
     var userId = FirebaseAuth.instance.currentUser?.uid ?? "";
     var data = widget.product.data() as Map<String, dynamic>? ?? {};
 
-    // Veri Atamaları
+    // Veri AtamalarÄ±
     String title = data['productName'] ?? data['title'] ?? 'İsimsiz Ürün';
-    double originalPrice = double.tryParse(data['price'].toString()) ?? 0.0;
-    int discount = data['discount'] ?? 0;
+    double originalPrice = _asDouble(data['price']);
+    int discount = _asInt(data['discount']);
     double currentPrice = discount > 0
         ? originalPrice - (originalPrice * discount / 100)
         : originalPrice;
     String desc =
         data['description'] ?? 'Ürün hakkında detaylı bilgi bulunmuyor.';
     String prepTime = data['prepTime']?.toString() ?? '20';
-    String imageUrl = data['productImage'] ?? 'https://via.placeholder.com/400';
-    String vendorId = data['vendorId'] ?? data['seller_id'] ?? 'unknown';
+    String imageUrl = _pickString(
+        data, ['productImage', 'imageUrl', 'image', 'photoUrl'],
+        fallback: 'https://via.placeholder.com/400');
+    String vendorId = _pickString(
+        data, ['vendorId', 'sellerId', 'seller_id', 'storeId', 'userId'],
+        fallback: 'unknown');
+    final isMonthlyDeal = data['isMonthlyDeal'] == true;
     final storeOpen = store != null &&
+        (store?.exists ?? false) &&
         StoreAvailability.isOpen(
             store!.data() as Map<String, dynamic>? ?? const {});
 
-    // Toplam Fiyat (Ürün x Adet + Ekstralar)
+    // Toplam Fiyat (ÃœrÃ¼n x Adet + Ekstralar)
     double finalTotalPrice = (currentPrice * quantity) + extrasTotalPrice;
 
-    // 🔥 SEPETE EKLEME MANTIĞI 🔥
+    // ğŸ”¥ SEPETE EKLEME MANTIÄI ğŸ”¥
     void handleCartAction() {
       if (!storeOpen) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -109,7 +139,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
         return;
       }
 
-      // 1. Ana Ürünü Ekle
+      // 1. Ana ÃœrÃ¼nÃ¼ Ekle
       cartData.addToCart(CartItem(
         id: widget.product.id,
         docId: widget.product.id,
@@ -119,15 +149,16 @@ class _DetailsScreenState extends State<DetailsScreen> {
         prodName: title,
         prodPrice: currentPrice,
         prodImgUrl: imageUrl,
+        isMonthlyDeal: isMonthlyDeal,
         totalPrice: currentPrice * quantity,
         quantity: quantity,
       ));
 
-      // 2. Seçili Ekstraları Ekle (Ayrı kalemler olarak)
+      // 2. SeÃ§ili EkstralarÄ± Ekle (AyrÄ± kalemler olarak)
       selectedExtras.forEach((extraId, qty) {
         if (qty > 0) {
-          // Ekstranın bilgilerini (isim ve fiyat) o anki Stream verisinden alıyoruz
-          // Basitleştirmek için burada genel bir isim kullanabilirsin veya
+          // EkstranÄ±n bilgilerini (isim ve fiyat) o anki Stream verisinden alÄ±yoruz
+          // BasitleÅŸtirmek iÃ§in burada genel bir isim kullanabilirsin veya
           // extras listesini state'de tutabilirsin.
         }
       });
@@ -161,8 +192,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
               SliverToBoxAdapter(
                 child: Container(
                   padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius:
                         BorderRadius.vertical(top: Radius.circular(30)),
                   ),
@@ -184,12 +215,12 @@ class _DetailsScreenState extends State<DetailsScreen> {
                               height: 1.6)),
                       const SizedBox(height: 25),
 
-                      // 🔥 ADET SEÇİCİ 🔥
+                      // ğŸ”¥ ADET SEÃ‡Ä°CÄ° ğŸ”¥
                       _buildMainQuantitySelector(),
 
                       const SizedBox(height: 30),
 
-                      // 🔥 YANINDA İYİ GİDER (EKSTRALAR) 🔥
+                      // ğŸ”¥ YANINDA Ä°YÄ° GÄ°DER (EKSTRALAR) ğŸ”¥
                       _buildExtrasSection(vendorId),
 
                       const SizedBox(height: 25),
@@ -357,8 +388,11 @@ class _DetailsScreenState extends State<DetailsScreen> {
               itemCount: extras.length,
               itemBuilder: (context, index) {
                 var extra = extras[index];
+                final extraData = extra.data() as Map<String, dynamic>? ?? {};
                 String eId = extra.id;
-                double ePrice = (extra['price'] ?? 0).toDouble();
+                double ePrice = _asDouble(extraData['price']);
+                String eName = _pickString(extraData, ['name', 'title'],
+                    fallback: 'Ekstra');
                 int currentQty = selectedExtras[eId] ?? 0;
 
                 return Container(
@@ -383,7 +417,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(extra['name'],
+                            Text(eName,
                                 style: GoogleFonts.inter(
                                     fontWeight: FontWeight.w700)),
                             Text("+₺${ePrice.toStringAsFixed(2)}",
@@ -431,9 +465,28 @@ class _DetailsScreenState extends State<DetailsScreen> {
   }
 
   Widget _buildStoreCard() {
+    final storeData = store?.data() as Map<String, dynamic>? ?? {};
+    final productData = widget.product.data() as Map<String, dynamic>? ?? {};
+    final storeName = _pickString(
+      storeData,
+      [
+        'storeName',
+        'businessName',
+        'restaurantName',
+        'fullname',
+        'fullName',
+        'name'
+      ],
+      fallback: _pickString(
+        productData,
+        ['storeName', 'businessName', 'restaurantName', 'sellerName'],
+        fallback: 'Pazarcik Esnafi',
+      ),
+    );
+
     return GestureDetector(
       onTap: () {
-        if (store != null)
+        if (store != null && (store?.exists ?? false))
           Navigator.push(
               context,
               MaterialPageRoute(
@@ -455,7 +508,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
                 children: [
                   const Text("Satan Esnaf",
                       style: TextStyle(color: Colors.grey, fontSize: 11)),
-                  Text(store?.get('storeName') ?? "Yükleniyor...",
+                  Text(storeName,
                       style: GoogleFonts.inter(
                           fontWeight: FontWeight.w800, fontSize: 15)),
                 ],

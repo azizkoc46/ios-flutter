@@ -260,6 +260,8 @@ class _StoreScreenState extends State<StoreScreen> {
                         Expanded(
                           child: Text(
                               store['storeName'] ??
+                                  store['businessName'] ??
+                                  store['restaurantName'] ??
                                   store['fullname'] ??
                                   "Pazarcık Esnafı",
                               maxLines: 1,
@@ -282,10 +284,12 @@ class _StoreScreenState extends State<StoreScreen> {
                             "${store['avgPrepTime'] ?? '30'} dk",
                             trendyolOrange),
                         const SizedBox(width: 15),
-                        _buildMiniInfo(
-                            CupertinoIcons.location_solid,
-                            store['address'] ?? "Pazarcık",
-                            const Color(0xFF007AFF)),
+                        Expanded(
+                          child: _buildMiniInfo(
+                              CupertinoIcons.location_solid,
+                              store['address'] ?? "Pazarcık",
+                              const Color(0xFF007AFF)),
+                        ),
                       ],
                     ),
                   ],
@@ -303,11 +307,17 @@ class _StoreScreenState extends State<StoreScreen> {
       children: [
         Icon(icon, size: 14, color: color),
         const SizedBox(width: 4),
-        Text(text,
+        Flexible(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(
                 color: Colors.black54,
                 fontSize: 12,
-                fontWeight: FontWeight.w600)),
+                fontWeight: FontWeight.w600),
+          ),
+        ),
       ],
     );
   }

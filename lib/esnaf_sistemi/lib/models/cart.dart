@@ -7,6 +7,7 @@ class CartItem {
   final String prodName;
   final String prodImgUrl;
   final double prodPrice;
+  final bool isMonthlyDeal;
   double totalPrice;
   int quantity;
 
@@ -19,6 +20,7 @@ class CartItem {
     required this.prodName,
     required this.prodPrice,
     required this.prodImgUrl,
+    this.isMonthlyDeal = false,
     this.quantity = 1,
     required this.totalPrice,
   });
@@ -48,6 +50,7 @@ class CartItem {
       'prodName': prodName,
       'prodImgUrl': prodImgUrl,
       'prodPrice': prodPrice,
+      'isMonthlyDeal': isMonthlyDeal,
       'totalPrice': totalPrice,
       'quantity': quantity,
     };
@@ -64,6 +67,7 @@ class CartItem {
       prodName: json['prodName'] ?? '',
       prodPrice: (json['prodPrice'] ?? 0).toDouble(),
       prodImgUrl: json['prodImgUrl'] ?? '',
+      isMonthlyDeal: json['isMonthlyDeal'] == true,
       quantity: json['quantity'] ?? 1,
       totalPrice: (json['totalPrice'] ?? 0).toDouble(),
     );

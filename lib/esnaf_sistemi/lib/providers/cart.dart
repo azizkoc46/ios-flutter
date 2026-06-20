@@ -68,6 +68,7 @@ class CartData extends ChangeNotifier {
         prodName: cart.prodName,
         prodPrice: cart.prodPrice,
         prodImgUrl: cart.prodImgUrl,
+        isMonthlyDeal: cart.isMonthlyDeal,
         quantity: cart.quantity,
         totalPrice: cart.prodPrice * cart.quantity,
       ));

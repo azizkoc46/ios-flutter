@@ -15,7 +15,6 @@ import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/product/details.dar
 
 const Color _orange = Color(0xFFFF6B35);
 const Color _orangeLight = Color(0xFFFFF3EE);
-const Color _cream = Color(0xFFFAF9F6);
 const Color _dark = Color(0xFF1A1A2E);
 const Color _textSub = Color(0xFF9B9BAA);
 
@@ -30,6 +29,62 @@ const List<Map<String, String>> _wheelItems = [
   {'label': 'Kokoreç', 'emoji': '🔥'},
 ];
 
+String _pickString(Map<String, dynamic>? data, List<String> keys,
+    {String fallback = ''}) {
+  if (data == null) return fallback;
+  for (final key in keys) {
+    final value = data[key];
+    if (value != null && value.toString().trim().isNotEmpty) {
+      return value.toString().trim();
+    }
+  }
+  return fallback;
+}
+
+double _asDouble(dynamic value, {double fallback = 0}) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString().replaceAll(',', '.') ?? '') ??
+      fallback;
+}
+
+int _asInt(dynamic value, {int fallback = 0}) {
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+DateTime? _asDate(dynamic value) {
+  if (value is Timestamp) return value.toDate();
+  if (value is DateTime) return value;
+  return DateTime.tryParse(value?.toString() ?? '');
+}
+
+bool _isMonthlyDealActive(Map<String, dynamic> data) {
+  if (data['isMonthlyDeal'] != true ||
+      data['monthlyDealEnabled'] == false ||
+      data['dealStatus'] == 'passive') {
+    return false;
+  }
+
+  final limit = _asInt(data['dealLimit'], fallback: 0);
+  final sold = _asInt(data['dealSoldCount'], fallback: 0);
+  if (limit > 0 && sold >= limit) return false;
+
+  final now = DateTime.now();
+  if (data['dealRepeatMonthly'] == true) {
+    final startDay = _asInt(data['dealRepeatStartDay'], fallback: 1);
+    final endDay = _asInt(data['dealRepeatEndDay'], fallback: startDay);
+    final day = now.day;
+    if (startDay <= endDay) return day >= startDay && day <= endDay;
+    return day >= startDay || day <= endDay;
+  }
+
+  final start = _asDate(data['dealStartsAt']);
+  final end = _asDate(data['dealEndsAt']);
+  if (start != null && now.isBefore(start)) return false;
+  if (end != null && now.isAfter(end)) return false;
+  return true;
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
@@ -41,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String selectedCategory = "Tümü";
   String userName = "Pazarcıklı";
 
-  // ✅ Arama için tek controller — her yerden güncellenebilir
+  // Arama icin tek controller, her yerden guncellenebilir.
   final TextEditingController _searchCtrl = TextEditingController();
   String get searchQuery => _searchCtrl.text.trim().toLowerCase();
 
@@ -49,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _fetchUserName();
-    // Arama değişince ekranı rebuild et
+    // Arama degisince ekrani yenile.
     _searchCtrl.addListener(() => setState(() {}));
   }
 
@@ -67,8 +122,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         .doc(user.uid)
         .get();
     if (doc.exists && mounted) {
-      setState(() =>
-          userName = doc['fullname']?.toString().split(' ')[0] ?? "Kullanıcı");
+      final data = doc.data() ?? {};
+      final displayName = _pickString(
+        data,
+        ['fullname', 'fullName', 'name', 'displayName', 'email'],
+        fallback: 'Kullanıcı',
+      );
+      setState(() => userName = displayName.split(' ')[0]);
     }
   }
 
@@ -79,14 +139,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return "İyi Akşamlar";
   }
 
-  // ✅ Çarktaki seçimi arama kutusuna yaz — controller üzerinden
+  // Carktaki secimi arama kutusuna yaz.
   void _applyWheelResult(String label) {
     _searchCtrl.text = label;
-    // Cursor'u sona götür
+    // Cursor'u sona gotur.
     _searchCtrl.selection = TextSelection.collapsed(offset: label.length);
   }
 
-  // Çark modalını aç
+  // Cark modalini ac.
   void _openWheelModal() {
     showGeneralDialog(
       context: context,
@@ -132,6 +192,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               children: [
                 const SizedBox(height: 8),
                 _buildCarousel(),
+                _buildMonthlyDealsSection(),
                 const SizedBox(height: 28),
                 _buildSectionHeader("Kategoriler"),
                 const SizedBox(height: 14),
@@ -151,12 +212,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ],
       ),
 
-      // ✅ Çark butonu — sağ alt köşe FAB
+      // Cark butonu, sag alt kose FAB.
       floatingActionButton: _WheelFab(onTap: _openWheelModal),
     );
   }
 
-  // ─── APP BAR ─────────────────────────────────────────────────
+  // APP BAR
   Widget _buildAppBar(BuildContext context) {
     final cartData = Provider.of<CartData>(context);
     return SliverAppBar(
@@ -165,13 +226,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       elevation: 0,
       backgroundColor: Theme.of(context).colorScheme.surface,
       surfaceTintColor: Theme.of(context).colorScheme.surface,
-      expandedHeight: 130,
-      toolbarHeight: 68,
+      expandedHeight: 152,
+      toolbarHeight: 76,
       title: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text("${_getGreeting()}, $userName 👋",
+            Text("${_getGreeting()}, $userName",
                 style: GoogleFonts.nunito(
                     fontSize: 12,
                     color: _textSub,
@@ -200,9 +261,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ],
       ),
       bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(54),
+        preferredSize: const Size.fromHeight(62),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
           color: Theme.of(context).colorScheme.surface,
           child: _SearchBar(controller: _searchCtrl),
         ),
@@ -334,6 +395,180 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildMonthlyDealsSection() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('products')
+          .where('isMonthlyDeal', isEqualTo: true)
+          .limit(40)
+          .snapshots(),
+      builder: (context, snap) {
+        if (!snap.hasData || snap.data!.docs.isEmpty) {
+          return const SizedBox(height: 8);
+        }
+
+        final deals = snap.data!.docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>? ?? {};
+          return _isMonthlyDealActive(data);
+        }).toList();
+
+        if (deals.isEmpty) return const SizedBox(height: 8);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 22),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF2D55),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(CupertinoIcons.sparkles,
+                        color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text("Ayın İndirimleri",
+                        style: GoogleFonts.nunito(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            color: Theme.of(context).colorScheme.onSurface)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 214,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: deals.length,
+                itemBuilder: (context, index) {
+                  final doc = deals[index];
+                  final data = doc.data() as Map<String, dynamic>? ?? {};
+                  final name = _pickString(
+                      data, ['productName', 'title', 'name'],
+                      fallback: 'Ayın menüsü');
+                  final image = _pickString(
+                      data, ['productImage', 'imageUrl', 'image', 'photoUrl']);
+                  final price = _asDouble(data['price']);
+                  final discount = _asInt(data['discount']);
+                  final current =
+                      discount > 0 ? price - (price * discount / 100) : price;
+
+                  return GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => DetailsScreen(product: doc)),
+                    ),
+                    child: Container(
+                      width: 180,
+                      margin: const EdgeInsets.only(right: 14),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 18,
+                              offset: const Offset(0, 8))
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Stack(
+                              children: [
+                                Positioned.fill(
+                                  child: ClipRRect(
+                                    borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(20)),
+                                    child: PortalNetworkImage(
+                                        url: image, fit: BoxFit.cover),
+                                  ),
+                                ),
+                                Positioned(
+                                  left: 10,
+                                  top: 10,
+                                  child: _dealBadge("Ayın Menüsü"),
+                                ),
+                                if (discount > 0)
+                                  Positioned(
+                                    right: 10,
+                                    top: 10,
+                                    child: _dealBadge("%$discount"),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.nunito(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w900)),
+                                const SizedBox(height: 5),
+                                Row(
+                                  children: [
+                                    if (discount > 0)
+                                      Text("₺${price.toStringAsFixed(0)}",
+                                          style: GoogleFonts.nunito(
+                                              color: _textSub,
+                                              decoration:
+                                                  TextDecoration.lineThrough,
+                                              fontWeight: FontWeight.w700)),
+                                    if (discount > 0) const SizedBox(width: 6),
+                                    Text("₺${current.toStringAsFixed(1)}",
+                                        style: GoogleFonts.nunito(
+                                            color: const Color(0xFFFF2D55),
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 16)),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          )
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _dealBadge(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFF2D55),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(text,
+          style: GoogleFonts.nunito(
+              color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900)),
+    );
+  }
+
   Widget _buildCategoriesStream() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('cateogries').snapshots(),
@@ -427,8 +662,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (!snap.hasData || snap.data!.docs.isEmpty) return _noResult();
 
         final list = snap.data!.docs.where((p) {
-          return p['productName']
-              .toString()
+          final data = p.data() as Map<String, dynamic>? ?? {};
+          if (data['isMonthlyDeal'] == true && !_isMonthlyDealActive(data)) {
+            return false;
+          }
+          return _pickString(data, ['productName', 'title', 'name'])
               .toLowerCase()
               .contains(searchQuery);
         }).toList();
@@ -447,7 +685,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           itemCount: list.length,
           itemBuilder: (_, i) {
             final product = list[i];
-            final vendorId = (product['vendorId'] ?? '').toString();
+            final productData = product.data() as Map<String, dynamic>? ?? {};
+            final vendorId = _pickString(
+                productData, ['vendorId', 'sellerId', 'seller_id', 'storeId']);
+            if (vendorId.isEmpty) {
+              return _ProductCard(
+                  prod: product, cartData: cartData, userId: userId);
+            }
             return StreamBuilder<DocumentSnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('customers')
@@ -488,7 +732,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 }
 
-// ─── ÇARK FAB ────────────────────────────────────────────────────
+// â”€â”€â”€ Ã‡ARK FAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _WheelFab extends StatefulWidget {
   final VoidCallback onTap;
   const _WheelFab({required this.onTap});
@@ -555,7 +799,7 @@ class _WheelFabState extends State<_WheelFab>
   }
 }
 
-// ─── ÇARK MODAL ──────────────────────────────────────────────────
+// â”€â”€â”€ Ã‡ARK MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _WheelModal extends StatefulWidget {
   final ValueChanged<String> onResult;
   const _WheelModal({required this.onResult});
@@ -598,7 +842,7 @@ class _WheelModalState extends State<_WheelModal>
     final rand = Random();
     final target = rand.nextInt(_wheelItems.length);
     final sliceDeg = 360.0 / _wheelItems.length;
-    // Okun tam tepede (270° başlangıç) durması için:
+    // Okun tam tepede (270Â° baÅŸlangÄ±Ã§) durmasÄ± iÃ§in:
     final targetDeg = 270 - (target * sliceDeg + sliceDeg / 2);
     final totalRot = 1440 + ((targetDeg - (_currentAngle % 360)) % 360);
 
@@ -613,9 +857,10 @@ class _WheelModalState extends State<_WheelModal>
   }
 
   void _onStop() {
-    // Kaçıncı dilimde durduğumuzu gerçek açıdan hesapla
+    // KaÃ§Ä±ncÄ± dilimde durduÄŸumuzu gerÃ§ek aÃ§Ä±dan hesapla
     final sliceDeg = 360.0 / _wheelItems.length;
-    final normalized = (360 - (_currentAngle % 360)) % 360; // ok 0°, çark ters
+    final normalized =
+        (360 - (_currentAngle % 360)) % 360; // ok 0 derece, cark ters
     final idx = (normalized / sliceDeg).floor() % _wheelItems.length;
 
     setState(() {
@@ -642,7 +887,7 @@ class _WheelModalState extends State<_WheelModal>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Başlık
+            // BaÅŸlÄ±k
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -675,11 +920,11 @@ class _WheelModalState extends State<_WheelModal>
 
             const SizedBox(height: 24),
 
-            // ÇARK
+            // Ã‡ARK
             SizedBox(
               height: 240,
               child: Stack(alignment: Alignment.center, children: [
-                // Dış parlama
+                // DÄ±ÅŸ parlama
                 Container(
                   width: 220,
                   height: 220,
@@ -693,7 +938,7 @@ class _WheelModalState extends State<_WheelModal>
                     ],
                   ),
                 ),
-                // Çark
+                // Ã‡ark
                 Transform.rotate(
                   angle: _currentAngle * pi / 180,
                   child: CustomPaint(
@@ -727,7 +972,7 @@ class _WheelModalState extends State<_WheelModal>
 
             const SizedBox(height: 20),
 
-            // Sonuç rozeti
+            // SonuÃ§ rozeti
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 400),
               child: picked != null
@@ -785,7 +1030,7 @@ class _WheelModalState extends State<_WheelModal>
                 ),
               ),
               const SizedBox(height: 10),
-              // Tekrar çevir
+              // Tekrar Ã§evir
               SizedBox(
                 width: double.infinity,
                 height: 48,
@@ -805,7 +1050,7 @@ class _WheelModalState extends State<_WheelModal>
                 ),
               ),
             ] else
-              // İlk çevirme butonu
+              // Ä°lk Ã§evirme butonu
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -835,8 +1080,8 @@ class _WheelModalState extends State<_WheelModal>
   }
 }
 
-// ─── ARAMA ÇUBUĞU ────────────────────────────────────────────────
-// ✅ Artık dışarıdan controller alıyor — hiçbir sync sorunu yok
+// â”€â”€â”€ ARAMA Ã‡UBUÄU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âœ… ArtÄ±k dÄ±ÅŸarÄ±dan controller alÄ±yor â€” hiÃ§bir sync sorunu yok
 class _SearchBar extends StatelessWidget {
   final TextEditingController controller;
   const _SearchBar({required this.controller});
@@ -870,7 +1115,7 @@ class _SearchBar extends StatelessWidget {
             ),
           ),
         ),
-        // ✅ X butonu ile temizleme
+        // âœ… X butonu ile temizleme
         ValueListenableBuilder<TextEditingValue>(
           valueListenable: controller,
           builder: (_, val, __) => val.text.isNotEmpty
@@ -889,7 +1134,7 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
-// ─── ÜRÜN KARTI ──────────────────────────────────────────────────
+// â”€â”€â”€ ÃœRÃœN KARTI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _ProductCard extends StatelessWidget {
   final DocumentSnapshot prod;
   final CartData cartData;
@@ -899,9 +1144,17 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double price = (prod['price'] ?? 0).toDouble();
-    final int disc = prod['discount'] ?? 0;
+    final data = prod.data() as Map<String, dynamic>? ?? {};
+    final double price = _asDouble(data['price']);
+    final int disc = _asInt(data['discount']);
     final double cur = disc > 0 ? price - (price * disc / 100) : price;
+    final productName =
+        _pickString(data, ['productName', 'title', 'name'], fallback: 'Ürün');
+    final productImage =
+        _pickString(data, ['productImage', 'imageUrl', 'image', 'photoUrl']);
+    final vendorId = _pickString(
+        data, ['vendorId', 'sellerId', 'seller_id', 'storeId', 'userId']);
+    final isMonthlyDeal = _isMonthlyDealActive(data);
 
     return GestureDetector(
       onTap: () => Navigator.push(context,
@@ -925,7 +1178,7 @@ class _ProductCard extends StatelessWidget {
                   borderRadius:
                       const BorderRadius.vertical(top: Radius.circular(22)),
                   child: PortalNetworkImage(
-                    url: (prod['productImage'] ?? '').toString(),
+                    url: productImage,
                     fit: BoxFit.cover,
                     placeholder: Container(
                         color: Theme.of(context)
@@ -959,13 +1212,31 @@ class _ProductCard extends StatelessWidget {
                             fontWeight: FontWeight.w800)),
                   ),
                 ),
+              if (isMonthlyDeal)
+                Positioned(
+                  right: 8,
+                  bottom: 8,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF2D55),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text("Ayın Menüsü",
+                        style: GoogleFonts.nunito(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900)),
+                  ),
+                ),
             ]),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(11, 9, 11, 11),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(prod['productName'],
+              Text(productName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.nunito(
@@ -999,10 +1270,11 @@ class _ProductCard extends StatelessWidget {
                           docId: prod.id,
                           prodId: prod.id,
                           userId: userId,
-                          sellerId: prod['vendorId'],
-                          prodName: prod['productName'],
+                          sellerId: vendorId,
+                          prodName: productName,
                           prodPrice: cur,
-                          prodImgUrl: prod['productImage'],
+                          prodImgUrl: productImage,
+                          isMonthlyDeal: isMonthlyDeal,
                           totalPrice: cur,
                           quantity: 1));
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1037,7 +1309,7 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
-// ─── ÇARK PAINTER ────────────────────────────────────────────────
+// â”€â”€â”€ Ã‡ARK PAINTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _WheelPainter extends CustomPainter {
   final List<Map<String, String>> items;
   _WheelPainter({required this.items});
@@ -1122,7 +1394,7 @@ class _WheelPainter extends CustomPainter {
   bool shouldRepaint(_WheelPainter old) => false;
 }
 
-// ─── POINTER PAINTER ─────────────────────────────────────────────
+// â”€â”€â”€ POINTER PAINTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _PointerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
