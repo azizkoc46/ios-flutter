@@ -150,8 +150,11 @@ Esnaf, bu sözleşmeyi okuduğunu, anladığını ve dijital onay kutucuğunu i�
         'role': 'vendor_pending',
         'isApproved': false,
         'applicationType': 'vendor',
+        'status': 'pending',
         'applicationStatus': 'pending',
         'applicationDate': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
         'contractAccepted': true, // Sözleşme kabul edildi kaydı
       };
 
@@ -318,7 +321,7 @@ Esnaf, bu sözleşmeyi okuduğunu, anladığını ve dijital onay kutucuğunu i�
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: primaryColor.withOpacity(0.1),
+        color: primaryColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -373,7 +376,7 @@ Esnaf, bu sözleşmeyi okuduğunu, anladığını ve dijital onay kutucuğunu i�
             : null,
         decoration: InputDecoration(
           prefixIcon:
-              Icon(icon, color: primaryColor.withOpacity(0.5), size: 20),
+              Icon(icon, color: primaryColor.withValues(alpha: 0.5), size: 20),
           hintText: hint,
           border: InputBorder.none,
           contentPadding: const EdgeInsets.all(18),

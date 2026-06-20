@@ -340,6 +340,21 @@ kb0f8Vu/zXfNM/ySHgIVv7EYnkWuIdWaQ8cgMvygT0C7HIdroJ77KKwTNA2vSMjH
         'items': widget.cartItems.map((e) => e.toJson()).toList(),
       });
 
+      final dealBatch = FirebaseFirestore.instance.batch();
+      var hasDealCounterUpdate = false;
+      for (final item in widget.cartItems) {
+        if (item.isMonthlyDeal && item.prodId.isNotEmpty) {
+          dealBatch.update(
+            FirebaseFirestore.instance.collection('products').doc(item.prodId),
+            {'dealSoldCount': FieldValue.increment(item.quantity)},
+          );
+          hasDealCounterUpdate = true;
+        }
+      }
+      if (hasDealCounterUpdate) {
+        await dealBatch.commit();
+      }
+
       // 3. ESNAF PANELİNE UYGULAMA İÇİ BİLDİRİM DÜŞÜR
       await FirebaseFirestore.instance.collection('notifications').add({
         'to': vendorId,

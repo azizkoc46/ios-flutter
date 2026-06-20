@@ -350,19 +350,53 @@ class NotificationService {
 
   // --- TOKEN YÖNETİMİ ---
   Future<void> _saveToken() async {
-    String? token = await FirebaseMessaging.instance.getToken();
-    if (token != null) _updateTokenInFirestore(token);
+    try {
+      String? token = await FirebaseMessaging.instance.getToken();
+      if (token != null) await _updateTokenInFirestore(token);
+    } catch (e) {
+      debugPrint("FCM token alma hatası: $e");
+    }
   }
 
   Future<void> _updateTokenInFirestore(String token) async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
+    if (user == null) return;
+
+    // KRITIK DUZELTME:
+    // _ensureGuestSession() (main.dart) uygulama acilisinda otomatik
+    // olarak anonim bir oturum aciyor. Bu fonksiyon o anonim kullanici
+    // icin de tetikleniyordu ve customers/{uid} dokumani henuz mevcut
+    // olmadigindan set(merge:true) cagrisi Firestore tarafindan bir
+    // "create" islemi olarak degerlendiriliyordu. Guvenlik kurallarindaki
+    // create sarti ise 'role' alaninin string olmasini istiyor (admin
+    // olamayacak sekilde), ama burada sadece fcmToken/lastActive
+    // gonderiliyordu. Sonuc: PERMISSION_DENIED, ve bu hata yakalanmadigi
+    // icin uygulama acilisi tamamen patliyordu.
+    // Anonim kullanicinin zaten kendi customers belgesi olmayacagi icin
+    // (gercek hesaba gecince zaten yeni token kaydedilecek) bu kullanici
+    // turunde islemi tamamen atliyoruz.
+    if (user.isAnonymous) {
+      debugPrint("Anonim kullanıcı için FCM token kaydı atlandı.");
+      return;
+    }
+
+    try {
       await FirebaseMessaging.instance.subscribeToTopic("customer_${user.uid}");
 
       final userDoc = await FirebaseFirestore.instance
           .collection('customers')
           .doc(user.uid)
           .get();
+
+      // Doküman henüz oluşmamışsa (örn. kayıt akışı henüz tamamlanmadan
+      // token güncellemesi tetiklendiyse) burada da yazmayı atlıyoruz;
+      // aksi halde aynı PERMISSION_DENIED senaryosuna düşeriz.
+      if (!userDoc.exists) {
+        debugPrint(
+            "customers/${user.uid} henüz oluşmamış, FCM token kaydı atlandı.");
+        return;
+      }
+
       final role = (userDoc.data()?['role'] ?? '').toString();
       if (role == 'satici' || role == 'seller' || role == 'kurumsal_satici') {
         await FirebaseMessaging.instance.subscribeToTopic("seller_${user.uid}");
@@ -382,6 +416,10 @@ class NotificationService {
         'fcmToken': token,
         'lastActive': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+    } catch (e) {
+      // Bu islem arka planda calisiyor; basarisiz olsa bile uygulama
+      // acilisini ya da kullanici akisini bloklamamali.
+      debugPrint("FCM token Firestore güncelleme hatası: $e");
     }
   }
 

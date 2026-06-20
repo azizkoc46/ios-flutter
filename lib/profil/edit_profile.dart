@@ -274,7 +274,8 @@ class _EditProfileState extends State<EditProfile> {
     final formatted = _formatTurkishPhoneNumber(_phoneController.text.trim());
 
     if (formatted == null) {
-      _showError("Geçerli bir telefon numarası girin (Örn: 5xx xxx xx xx)");
+      _showError("Geçerli bir telefon numarası girin (Örn: 5xx xxx xx xx). "
+          "Numara 05 veya 5 ile başlamalı, 10 haneli olmalıdır.");
       return;
     }
 
@@ -286,6 +287,10 @@ class _EditProfileState extends State<EditProfile> {
       return;
     }
 
+    // FIX #5: Her yeni SMS isteğinde eski oturumu temizle
+    _verificationId = "";
+    _webConfirmationResult = null;
+
     setState(() => isSmsSending = true);
 
     try {
@@ -296,6 +301,39 @@ class _EditProfileState extends State<EditProfile> {
         if (user == null) {
           throw FirebaseAuthException(code: 'user-not-found');
         }
+
+        // FIX #1: Web'de provider zaten bağlıysa linkWithPhoneNumber hata fırlatır.
+        // Bu durumda kullanıcının numarasını güncellemek için önce unlink edip
+        // yeniden link ediyoruz; ya da sadece Firestore'u güncelliyoruz (numara aynıysa).
+        final hasPhone = user.providerData.any((p) => p.providerId == 'phone');
+
+        if (hasPhone) {
+          // Telefon provider'ı zaten bağlı — numarayı değiştirmek için
+          // önce unlink edip ardından yeniden linkWithPhoneNumber çağırıyoruz.
+          try {
+            await user.unlink('phone');
+          } on FirebaseAuthException catch (unlinkErr) {
+            // unlink başarısız olursa (örn. tek provider) direkt Firestore'u güncelle
+            if (unlinkErr.code == 'no-such-provider' ||
+                unlinkErr.code == 'requires-recent-login') {
+              await firebase.collection('customers').doc(user.uid).set({
+                'phoneVerified': true,
+                'phone': _phoneController.text.trim(),
+              }, SetOptions(merge: true));
+              if (!mounted) return;
+              setState(() {
+                isSmsSending = false;
+                isPhoneVerified = true;
+                _originalPhone = _phoneController.text.trim();
+                _isEditingPhone = false;
+              });
+              _showSuccess("Telefon numaranız güncellendi!");
+              return;
+            }
+            rethrow;
+          }
+        }
+
         _webConfirmationResult = await user.linkWithPhoneNumber(formatted);
         await _rememberSmsSent();
         if (!mounted) return;
@@ -403,7 +441,10 @@ class _EditProfileState extends State<EditProfile> {
 
       switch (e.code) {
         case 'provider-already-linked':
-          await firebase.collection('customers').doc(userId).set(
+          // FIX #3: catch scope'unda user yok, currentUser'dan al
+          final currentUser = FirebaseAuth.instance.currentUser;
+          if (currentUser == null) break;
+          await firebase.collection('customers').doc(currentUser.uid).set(
               {'phoneVerified': true, 'phone': _phoneController.text.trim()},
               SetOptions(merge: true));
           if (mounted) {
@@ -439,7 +480,14 @@ class _EditProfileState extends State<EditProfile> {
       throw FirebaseAuthException(code: 'session-expired');
     }
 
-    await confirmation.confirm(smsCode);
+    // FIX #4: Hataları burada yakala, yukarıya fırlatmak yerine
+    try {
+      await confirmation.confirm(smsCode);
+    } on FirebaseAuthException catch (e) {
+      _webConfirmationResult = null;
+      rethrow; // OTP dialog'daki catch'e ilet
+    }
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     await firebase.collection('customers').doc(user.uid).set({
@@ -598,9 +646,11 @@ class _EditProfileState extends State<EditProfile> {
                   ),
                 ),
                 TextButton(
-                  onPressed: () {
+                  onPressed: () async {
+                    // FIX #2: async/await ile güvenli kapanış ve yeniden gönderim
                     Navigator.pop(sheetContext);
-                    Future.delayed(const Duration(milliseconds: 300), _sendSms);
+                    await Future.delayed(const Duration(milliseconds: 300));
+                    if (mounted) _sendSms();
                   },
                   child: Text("Kodu almadım, tekrar gönder",
                       style: TextStyle(color: maviRenk, fontSize: 13)),
@@ -810,41 +860,63 @@ class _EditProfileState extends State<EditProfile> {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // BUILD
+  // ─────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF2F2F7);
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: bg,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        systemOverlayStyle: Theme.of(context).brightness == Brightness.dark
-            ? SystemUiOverlayStyle.light
-            : SystemUiOverlayStyle.dark,
-        title: Text(widget.editPasswordOnly ? "Şifre Değiştir" : "Profilim",
-            style: TextStyle(
-                fontWeight: FontWeight.w900,
-                color: Theme.of(context).colorScheme.onSurface)),
+        scrolledUnderElevation: 0,
+        backgroundColor: bg,
+        systemOverlayStyle:
+            isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+        title: Text(
+          widget.editPasswordOnly ? "Şifre Değiştir" : "Profili Düzenle",
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.4,
+            color: isDark ? Colors.white : Colors.black,
+          ),
+        ),
         centerTitle: true,
-        leading: IconButton(
-            icon: Icon(Icons.arrow_back_ios_new,
-                color: Theme.of(context).colorScheme.onSurface),
-            onPressed: () => Navigator.pop(context)),
+        leading: GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Row(
+              children: [
+                Icon(Icons.arrow_back_ios, size: 17, color: maviRenk),
+                Text("Geri", style: TextStyle(fontSize: 17, color: maviRenk)),
+              ],
+            ),
+          ),
+        ),
+        leadingWidth: 80,
       ),
-      bottomNavigationBar: _buildSaveButton(),
+      bottomNavigationBar: _buildSaveButton(isDark: isDark),
       body: isLoading
           ? Center(child: CircularProgressIndicator(color: maviRenk))
           : SafeArea(
               child: Center(
-                // ✅ EKLENDİ: Formun geniş ekranlarda (tablet vb.) çok yayılmasını engellemek için Center + ConstrainedBox
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 600),
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
                     child: Form(
                       key: _formKey,
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // ── Profil fotoğrafı ──────────────────
                           if (!widget.editPasswordOnly) ...[
                             Center(
                               child: ProfileImagePicker(
@@ -854,35 +926,45 @@ class _EditProfileState extends State<EditProfile> {
                                 imgUrl: userData?['image'] ?? '',
                               ),
                             ),
-                            const SizedBox(height: 30),
+                            const SizedBox(height: 32),
                           ],
+
+                          // ── Kişisel bilgiler ──────────────────
+                          _iosLabel("KİŞİSEL BİLGİLER"),
                           _buildSection([
                             _buildField(
                                 controller: _fullnameController,
-                                icon: Icons.person_outline,
+                                icon: Icons.person_outline_rounded,
                                 hint: "Ad Soyad",
                                 field: Field.fullname),
                             _buildField(
                                 controller: _emailController,
-                                icon: Icons.mail_outline,
+                                icon: Icons.mail_outline_rounded,
                                 hint: "E-Posta",
                                 field: Field.email),
                             _buildPhoneField(),
-                          ]),
-                          const SizedBox(height: 25),
+                          ], isDark: isDark),
+                          const SizedBox(height: 28),
+
+                          // ── Teslimat adresi ───────────────────
+                          _iosLabel("TESLİMAT ADRESİ"),
                           _buildSection([
                             _buildDisabledRow(
                                 icon: Icons.location_on_outlined,
-                                val: "Kahramanmaraş / Pazarcık"),
-                            _buildNeighborhoodDropdown(), // 🚀 Düzenlenen Kısım
+                                val: "Kahramanmaraş / Pazarcık",
+                                isDark: isDark),
+                            _buildNeighborhoodDropdown(isDark: isDark),
                             _buildField(
                                 controller: _openAddressController,
                                 icon: Icons.home_outlined,
                                 hint: "Sokak, Bina, Kapı No",
                                 field: Field.openAddress),
-                          ], title: "TESLİMAT ADRESİ"),
+                          ], isDark: isDark),
+                          const SizedBox(height: 28),
+
+                          // ── İşletme bilgileri (seller) ────────
                           if (role == 'seller') ...[
-                            const SizedBox(height: 25),
+                            _iosLabel("İŞLETME BİLGİLERİ"),
                             _buildSection([
                               _buildField(
                                   controller: _businessNameController,
@@ -899,13 +981,17 @@ class _EditProfileState extends State<EditProfile> {
                                   icon: Icons.assignment_outlined,
                                   hint: "VKN",
                                   field: Field.vkn),
-                            ], title: "İŞLETME BİLGİLERİ"),
+                            ], isDark: isDark),
+                            const SizedBox(height: 28),
                           ],
-                          const SizedBox(height: 25),
-                          _buildPasswordSection(),
+
+                          // ── Şifre ─────────────────────────────
+                          _buildPasswordSection(isDark: isDark),
+
+                          // ── Hesabı sil ────────────────────────
                           if (!widget.editPasswordOnly) ...[
-                            const SizedBox(height: 25),
-                            _buildDangerZone(),
+                            const SizedBox(height: 28),
+                            _buildDangerZone(isDark: isDark),
                           ],
                           const SizedBox(height: 40),
                         ],
@@ -918,55 +1004,92 @@ class _EditProfileState extends State<EditProfile> {
     );
   }
 
-  Widget _buildSaveButton() {
+  // ─────────────────────────────────────────────────────────────
+  // SHARED HELPERS
+  // ─────────────────────────────────────────────────────────────
+
+  /// iOS ayarlar tarzı gri section başlığı
+  Widget _iosLabel(String text) {
     return Padding(
-      padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).padding.bottom + 10,
-          left: 20,
-          right: 20),
-      child: ElevatedButton(
-        onPressed: isLoading ? null : _saveDetails,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: maviRenk,
-          minimumSize: const Size(double.infinity, 56),
-          elevation: 0,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      padding: const EdgeInsets.only(left: 16, bottom: 6),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.4,
+          color: Colors.grey.shade500,
         ),
-        child: const Text("Bilgileri Güncelle",
-            style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white)),
       ),
     );
   }
 
-  Widget _buildSection(List<Widget> children, {String? title}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (title != null)
-          Padding(
-            padding: const EdgeInsets.only(left: 10, bottom: 8),
-            child: Text(title,
-                style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold)),
+  Color _cardColor(bool isDark) =>
+      isDark ? const Color(0xFF2C2C2E) : Colors.white;
+
+  // ─────────────────────────────────────────────────────────────
+  // KAYDET BUTONU
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildSaveButton({required bool isDark}) {
+    return Container(
+      color: isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF2F2F7),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).padding.bottom + 12,
+        left: 16,
+        right: 16,
+        top: 10,
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 54,
+        child: ElevatedButton(
+          onPressed: isLoading ? null : _saveDetails,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: maviRenk,
+            disabledBackgroundColor: maviRenk.withValues(alpha: 0.4),
+            elevation: 0,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
-        Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: Column(children: children),
+          child: isLoading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                      color: Colors.white, strokeWidth: 2.5))
+              : const Text(
+                  "Kaydet",
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.3,
+                    color: Colors.white,
+                  ),
+                ),
         ),
-      ],
+      ),
     );
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // SECTION KAPSAYICISI
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildSection(List<Widget> children, {required bool isDark}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _cardColor(isDark),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Column(children: children),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // METİN ALANI
+  // ─────────────────────────────────────────────────────────────
   Widget _buildField({
     required TextEditingController controller,
     required IconData icon,
@@ -974,60 +1097,84 @@ class _EditProfileState extends State<EditProfile> {
     required Field field,
     bool isPassword = false,
   }) {
+    final isDisabled = field == Field.email;
     return Container(
       decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
+        border: Border(
+            bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.15))),
+      ),
       child: TextFormField(
         controller: controller,
-        enabled: field != Field.email,
+        enabled: !isDisabled,
         obscureText: isPassword && obscure,
         style: TextStyle(
-          color: field == Field.email
-              ? Colors.grey.shade600
-              : Theme.of(context).colorScheme.onSurface,
-          fontSize: 15,
+          fontSize: 16,
+          letterSpacing: -0.2,
+          color: isDisabled ? Colors.grey : null,
         ),
         decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: maviRenk, size: 22),
+          prefixIcon: Padding(
+            padding: const EdgeInsets.only(left: 14, right: 10),
+            child: Icon(icon,
+                color: isDisabled ? Colors.grey.shade400 : maviRenk, size: 20),
+          ),
+          prefixIconConstraints:
+              const BoxConstraints(minWidth: 44, minHeight: 44),
           hintText: hint,
-          hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 16),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 15),
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
           suffixIcon: isPassword
               ? IconButton(
-                  icon: Icon(obscure ? Icons.visibility_off : Icons.visibility,
-                      color: maviRenk),
+                  icon: Icon(
+                      obscure
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      color: Colors.grey.shade400,
+                      size: 20),
                   onPressed: () => setState(() => obscure = !obscure))
-              : field == Field.email
-                  ? const Icon(Icons.lock_outline, color: Colors.grey, size: 18)
+              : isDisabled
+                  ? Padding(
+                      padding: const EdgeInsets.only(right: 14),
+                      child: Icon(Icons.lock_outline_rounded,
+                          color: Colors.grey.shade400, size: 16))
                   : null,
         ),
         validator: (v) => (field == Field.fullname && (v == null || v.isEmpty))
-            ? "Boş bırakılamaz"
+            ? "Ad Soyad boş bırakılamaz"
             : null,
       ),
     );
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // TELEFON ALANI
+  // ─────────────────────────────────────────────────────────────
   Widget _buildPhoneField() {
     return Container(
       decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
+        border: Border(
+            bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.15))),
+      ),
       child: Row(children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 14, right: 10),
+          child: Icon(Icons.phone_outlined, color: maviRenk, size: 20),
+        ),
         Expanded(
           child: TextFormField(
             controller: _phoneController,
             enabled: _isEditingPhone || _originalPhone.isEmpty,
             keyboardType: TextInputType.phone,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface, fontSize: 15),
+            style: const TextStyle(fontSize: 16, letterSpacing: -0.2),
             decoration: InputDecoration(
-              prefixIcon: Icon(Icons.phone_outlined, color: maviRenk, size: 22),
               hintText: "5xx xxx xx xx",
-              hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+              hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 16),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 15),
+              contentPadding:
+                  const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
             ),
             onChanged: (_) {
               if (isPhoneVerified) setState(() => isPhoneVerified = false);
@@ -1035,50 +1182,49 @@ class _EditProfileState extends State<EditProfile> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.only(right: 12),
+          padding: const EdgeInsets.only(right: 14),
           child: !_isEditingPhone && _originalPhone.isNotEmpty
-              ? TextButton(
-                  onPressed: () => setState(() {
+              ? GestureDetector(
+                  onTap: () => setState(() {
                     _isEditingPhone = true;
                     isPhoneVerified = false;
                   }),
-                  child: const Text("Değiştir"),
+                  child: Text("Değiştir",
+                      style: TextStyle(
+                          color: maviRenk,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500)),
                 )
               : isPhoneVerified
-                  ? Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(10)),
-                      child: const Row(children: [
-                        Icon(Icons.check_circle, color: Colors.green, size: 14),
-                        SizedBox(width: 4),
-                        Text("Doğrulandı",
-                            style: TextStyle(
-                                color: Colors.green,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold)),
-                      ]))
+                  ? Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.check_circle_rounded,
+                          color: Colors.green.shade500, size: 16),
+                      const SizedBox(width: 4),
+                      Text("Doğrulandı",
+                          style: TextStyle(
+                              color: Colors.green.shade500,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600)),
+                    ])
                   : isSmsSending
                       ? SizedBox(
-                          width: 20,
-                          height: 20,
+                          width: 18,
+                          height: 18,
                           child: CircularProgressIndicator(
                               strokeWidth: 2, color: maviRenk))
                       : GestureDetector(
                           onTap: _sendSms,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
+                                horizontal: 12, vertical: 5),
                             decoration: BoxDecoration(
-                                color: Colors.red.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(10)),
-                            child: const Text("Doğrula",
+                                color: maviRenk.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20)),
+                            child: Text("Doğrula",
                                 style: TextStyle(
-                                    color: Colors.red,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold)),
+                                    color: maviRenk,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600)),
                           ),
                         ),
         ),
@@ -1086,46 +1232,75 @@ class _EditProfileState extends State<EditProfile> {
     );
   }
 
-  Widget _buildDisabledRow({required IconData icon, required String val}) {
+  // ─────────────────────────────────────────────────────────────
+  // DEĞİŞTİRİLEMEZ SATIR (şehir/ilçe)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildDisabledRow(
+      {required IconData icon, required String val, required bool isDark}) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
       decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
+        border: Border(
+            bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.15))),
+      ),
       child: Row(children: [
-        Icon(icon, color: maviRenk, size: 22),
-        const SizedBox(width: 12),
-        Text(val, style: TextStyle(color: Colors.grey.shade700, fontSize: 15)),
+        Padding(
+          padding: const EdgeInsets.only(left: 14, right: 10),
+          child: Icon(icon, color: Colors.grey.shade400, size: 20),
+        ),
+        Text(val,
+            style: TextStyle(
+                fontSize: 16,
+                letterSpacing: -0.2,
+                color: Colors.grey.shade500)),
+        const Spacer(),
+        Padding(
+          padding: const EdgeInsets.only(right: 14),
+          child: Icon(Icons.lock_outline_rounded,
+              color: Colors.grey.shade400, size: 14),
+        ),
       ]),
     );
   }
 
-  // 🚀 EKLENEN ANA ÇÖZÜM BURASI
-  Widget _buildNeighborhoodDropdown() {
+  // ─────────────────────────────────────────────────────────────
+  // MAHALLE DROPDOWN
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildNeighborhoodDropdown({required bool isDark}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
+        border: Border(
+            bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.15))),
+      ),
       child: DropdownButtonFormField<String>(
-        isExpanded:
-            true, // ✅ EKLENDİ: Dropdown'un sağa taşmasını engeller (sığdırır)
+        isExpanded: true,
         value: _selectedNeighborhood,
-        icon: Icon(Icons.arrow_drop_down, color: maviRenk),
-        style: const TextStyle(color: Colors.black, fontSize: 15),
+        dropdownColor: _cardColor(isDark),
+        icon: Icon(Icons.chevron_right_rounded,
+            color: Colors.grey.shade400, size: 20),
+        style: TextStyle(
+            fontSize: 16,
+            letterSpacing: -0.2,
+            color: isDark ? Colors.white : Colors.black87),
         decoration: InputDecoration(
-          prefixIcon:
-              Icon(Icons.location_city_outlined, color: maviRenk, size: 22),
+          prefixIcon: Padding(
+            padding: const EdgeInsets.only(left: 14, right: 10),
+            child:
+                Icon(Icons.location_city_outlined, color: maviRenk, size: 20),
+          ),
+          prefixIconConstraints:
+              const BoxConstraints(minWidth: 44, minHeight: 44),
           hintText: "Mahalle / Köy seçin",
-          hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 16),
           border: InputBorder.none,
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
         ),
         items: pazarcikMahalleleri
             .map((m) => DropdownMenuItem(
                   value: m,
-                  child: Text(
-                    m,
-                    overflow: TextOverflow
-                        .ellipsis, // ✅ EKLENDİ: Uzun metinlerde sondan "..." ekler
-                  ),
+                  child: Text(m, overflow: TextOverflow.ellipsis),
                 ))
             .toList(),
         onChanged: (v) => setState(() => _selectedNeighborhood = v),
@@ -1133,61 +1308,101 @@ class _EditProfileState extends State<EditProfile> {
     );
   }
 
-  Widget _buildPasswordSection() {
-    return Column(children: [
-      if (!widget.editPasswordOnly && authType == 'email')
+  // ─────────────────────────────────────────────────────────────
+  // ŞİFRE BÖLÜMÜ
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildPasswordSection({required bool isDark}) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (!widget.editPasswordOnly && authType == 'email') ...[
+        _iosLabel("GÜVENLİK"),
         _buildSection([
-          CheckboxListTile(
-            title: const Text("Şifremi Değiştir",
-                style: TextStyle(color: Colors.black, fontSize: 15)),
+          _buildIosToggleRow(
+            icon: Icons.lock_outline_rounded,
+            label: "Şifremi Değiştir",
             value: changePassword,
-            activeColor: maviRenk,
-            onChanged: (v) => setState(() => changePassword = v!),
-          )
-        ]),
+            onChanged: (v) => setState(() => changePassword = v),
+            isDark: isDark,
+            showDivider: false,
+          ),
+        ], isDark: isDark),
+      ],
       if (changePassword || widget.editPasswordOnly) ...[
-        const SizedBox(height: 15),
+        const SizedBox(height: 14),
+        if (widget.editPasswordOnly) _iosLabel("GÜVENLİK"),
         _buildSection([
           _buildField(
               controller: _passwordController,
-              icon: Icons.lock_outline,
+              icon: Icons.lock_outline_rounded,
               hint: "Yeni Şifre",
               field: Field.password,
               isPassword: true),
-        ]),
+        ], isDark: isDark),
       ],
     ]);
   }
 
-  Widget _buildDangerZone() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.only(left: 10, bottom: 8),
-          child: Text(
-            "HESAP",
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        OutlinedButton.icon(
-          onPressed: isLoading ? null : _confirmDeleteAccount,
-          icon: const Icon(Icons.delete_outline),
-          label: const Text("Hesabımı Sil"),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.red,
-            side: const BorderSide(color: Colors.red),
-            minimumSize: const Size(double.infinity, 52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
-            ),
-          ),
-        ),
-      ],
+  /// iOS Switch satırı
+  Widget _buildIosToggleRow({
+    required IconData icon,
+    required String label,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    required bool isDark,
+    bool showDivider = true,
+  }) {
+    return Container(
+      decoration: showDivider
+          ? BoxDecoration(
+              border: Border(
+                  bottom:
+                      BorderSide(color: Colors.grey.withValues(alpha: 0.15))))
+          : null,
+      child: SwitchListTile.adaptive(
+        value: value,
+        onChanged: onChanged,
+        activeColor: maviRenk,
+        title: Text(label,
+            style: const TextStyle(fontSize: 16, letterSpacing: -0.2)),
+        secondary: Icon(icon, color: maviRenk, size: 20),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+      ),
     );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // HESAP SİL
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildDangerZone({required bool isDark}) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _iosLabel("HESAP"),
+      _buildSection([
+        ListTile(
+          onTap: isLoading ? null : _confirmDeleteAccount,
+          leading: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.delete_outline_rounded,
+                color: Colors.red, size: 18),
+          ),
+          title: const Text(
+            "Hesabımı Sil",
+            style: TextStyle(
+              color: Colors.red,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              letterSpacing: -0.2,
+            ),
+          ),
+          trailing:
+              Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        ),
+      ], isDark: isDark),
+    ]);
   }
 }

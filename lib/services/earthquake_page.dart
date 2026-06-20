@@ -99,16 +99,47 @@ class EarthquakeModel {
   }
 
   /// orhanaydogdu (Kandilli ara katman) → Model
+  ///
+  /// Gerçek API yanıtı (https://api.orhanaydogdu.com.tr/deprem/kandilli/live)
+  /// üç farklı zaman alanı içerir, hepsi de TR yerel saatidir (UTC+3):
+  ///   - "date"       → "2024.01.08 11:45:23"  (NOKTA ile ayrılmış, ISO formatı DEĞİL)
+  ///   - "date_time"  → "2024-01-08 11:45:23"  (TİRE ile ayrılmış, ISO benzeri)
+  ///   - "created_at" → 1704710723              (epoch SANİYE, UTC)
+  ///
+  /// Eski kod `date` alanını okuyup sonuna 'Z' ekleyerek parse etmeye
+  /// çalışıyordu. Ancak "2024.01.08 11:45:23Z" formatı Dart'ın
+  /// DateTime.parse'ı için GEÇERSİZDİR (nokta ayraçlı tarih ISO 8601 değil),
+  /// bu yüzden her zaman istisna fırlatıp catch bloğunda DateTime.now()'a
+  /// düşülüyordu — yani uygulama her zaman "şu anki saat"i gösteriyordu.
+  ///
+  /// Çözüm: doğrudan parse edilebilen `date_time` alanını (tire formatlı)
+  /// önceliklendir; o da yoksa epoch `created_at` alanını kullan; en son
+  /// çare olarak nokta formatlı `date` alanını manuel parse et.
   factory EarthquakeModel.fromKandilli(Map<String, dynamic> json) {
-    final rawDate = json['date'] as String?;
     DateTime dt;
+
+    final dateTimeStr = json['date_time'] as String?; // "2024-01-08 11:45:23"
+    final dateStr = json['date'] as String?; // "2024.01.08 11:45:23"
+    final createdAt = json['created_at']; // epoch seconds (UTC)
+
     try {
-      if (rawDate == null) {
-        dt = DateTime.now();
-      } else if (rawDate.endsWith('Z') || rawDate.contains('+')) {
-        dt = DateTime.parse(rawDate).toLocal();
+      if (dateTimeStr != null && dateTimeStr.isNotEmpty) {
+        // Tire formatlı, zaten TR yerel saati — Z eklemeden, toLocal()
+        // çağırmadan OLDUĞU GİBİ parse et.
+        dt = DateTime.parse(dateTimeStr);
+      } else if (dateStr != null && dateStr.isNotEmpty) {
+        // Nokta formatını tire formatına çevirip parse et:
+        // "2024.01.08 11:45:23" → "2024-01-08 11:45:23"
+        final normalized = dateStr.replaceAll('.', '-');
+        dt = DateTime.parse(normalized);
+      } else if (createdAt != null) {
+        final epochSec =
+            createdAt is int ? createdAt : int.tryParse(createdAt.toString());
+        if (epochSec == null) throw FormatException('created_at geçersiz');
+        dt = DateTime.fromMillisecondsSinceEpoch(epochSec * 1000, isUtc: true)
+            .toLocal();
       } else {
-        dt = DateTime.parse('${rawDate}Z').toLocal();
+        dt = DateTime.now();
       }
     } catch (_) {
       dt = DateTime.now();
@@ -122,7 +153,10 @@ class EarthquakeModel {
     }
 
     return EarthquakeModel(
-      id: json['earthquake_id']?.toString() ?? rawDate ?? '',
+      id: json['earthquake_id']?.toString() ??
+          dateTimeStr ??
+          dateStr ??
+          dt.toIso8601String(),
       title: json['title'] as String? ?? 'Konum Belirsiz',
       magnitude:
           double.tryParse((json['mag'] ?? json['magnitude'] ?? 0).toString()) ??
@@ -175,7 +209,7 @@ class EarthquakeService {
 
     final response = await http.get(uri, headers: {
       'Accept': 'application/json'
-    }).timeout(const Duration(seconds: 10));
+    }).timeout(const Duration(seconds: 6));
 
     if (response.statusCode != 200) {
       throw Exception('AFAD ${response.statusCode}');
@@ -200,7 +234,7 @@ class EarthquakeService {
 
     final response = await http.get(uri, headers: {
       'Accept': 'application/json'
-    }).timeout(const Duration(seconds: 10));
+    }).timeout(const Duration(seconds: 6));
 
     if (response.statusCode != 200) {
       throw Exception('EMSC ${response.statusCode}');
@@ -219,7 +253,7 @@ class EarthquakeService {
   static Future<List<EarthquakeModel>> fetchKandilli() async {
     final response = await http
         .get(Uri.parse('https://api.orhanaydogdu.com.tr/deprem/kandilli/live'))
-        .timeout(const Duration(seconds: 10));
+        .timeout(const Duration(seconds: 6));
 
     if (response.statusCode != 200) {
       throw Exception('Kandilli ${response.statusCode}');
@@ -287,9 +321,9 @@ class _EarthquakePageState extends State<EarthquakePage> {
   void initState() {
     super.initState();
     _fetch(initial: true);
-    // 30 saniyede bir arka planda güncelle
+    // 15 saniyede bir arka planda güncelle (daha hızlı yenileme)
     _pollingTimer =
-        Timer.periodic(const Duration(seconds: 30), (_) => _fetch());
+        Timer.periodic(const Duration(seconds: 15), (_) => _fetch());
     // Her saniye "X sn önce" yazısını güncelle
     _clockTimer =
         Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));

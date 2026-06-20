@@ -38,13 +38,56 @@ service cloud.firestore {
         ];
     }
 
-    function safeSelfCustomerWrite(userId) {
+    function safeSelfCustomerCreate(userId) {
       return signedIn() &&
-      request.auth.uid == userId &&
-      safeSelfRole(request.resource.data) &&
-      request.resource.data.isAdmin != true &&
-      request.resource.data.admin != true &&
-      request.resource.data.tableServiceEnabled != true;
+        request.auth.uid == userId &&
+        safeSelfRole(request.resource.data) &&
+        request.resource.data.isAdmin != true &&
+        request.resource.data.admin != true &&
+        request.resource.data.isApproved != true &&
+        request.resource.data.sellerApproved != true &&
+        request.resource.data.corporateSellerApproved != true &&
+        request.resource.data.tableServiceEnabled != true;
+    }
+
+    function sensitiveCustomerFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'role',
+        'isAdmin',
+        'admin',
+        'isApproved',
+        'sellerApproved',
+        'corporateSellerApproved',
+        'sellerStatus',
+        'corporateSellerStatus',
+        'allowedCorporateCategories',
+        'tableServiceEnabled',
+        'tableServiceUpdatedAt'
+      ]);
+    }
+
+    function safeSelfCustomerUpdate(userId) {
+      return signedIn() &&
+        request.auth.uid == userId &&
+        sensitiveCustomerFieldsUnchanged();
+    }
+
+    function safeSelfPendingApplicationUpdate(userId) {
+      return signedIn() &&
+        request.auth.uid == userId &&
+        request.resource.data.role in [
+          'vendor_pending',
+          'seller_pending',
+          'satici_pending',
+          'emlakci_pending',
+          'kurumsal_satici_pending'
+        ] &&
+        request.resource.data.isApproved != true &&
+        request.resource.data.isAdmin != true &&
+        request.resource.data.admin != true &&
+        request.resource.data.sellerApproved != true &&
+        request.resource.data.corporateSellerApproved != true &&
+        request.resource.data.tableServiceEnabled != true;
     }
     function validTable(data) {
       return data.name is string &&
@@ -63,7 +106,10 @@ service cloud.firestore {
 
     match /customers/{userId} {
       allow read: if true;
-      allow create, update: if isAdmin() || safeSelfCustomerWrite(userId);
+      allow create: if isAdmin() || safeSelfCustomerCreate(userId);
+      allow update: if isAdmin() ||
+                      safeSelfCustomerUpdate(userId) ||
+                      safeSelfPendingApplicationUpdate(userId);
       allow delete: if isAdmin() ||
                        (signedIn() && request.auth.uid == userId);
 

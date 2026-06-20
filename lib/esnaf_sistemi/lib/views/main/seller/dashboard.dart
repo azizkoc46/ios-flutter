@@ -53,6 +53,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       'page': const UploadProduct()
     },
     {
+      'title': 'Ayın İndirimli Menü',
+      'icon': CupertinoIcons.tag_fill,
+      'color': const Color(0xFFFF2D55),
+      'page': const UploadProduct(monthlyDealMode: true)
+    },
+    {
       'title': 'Ürün Yönetimi',
       'icon': CupertinoIcons.doc_text_viewfinder,
       'color': const Color(0xFF007AFF),

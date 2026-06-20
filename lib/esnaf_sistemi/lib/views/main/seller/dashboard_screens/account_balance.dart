@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 
 import 'dart:ui';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -15,123 +16,212 @@ class AccountBalanceScreen extends StatefulWidget {
 }
 
 class _AccountBalanceScreenState extends State<AccountBalanceScreen> {
-  final userId = FirebaseAuth.instance.currentUser?.uid ?? "";
-  String _selectedPeriod = "Bugün"; // Bugün, Bu Hafta, Bu Ay
+  final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+  String _selectedPeriod = 'Bugün';
 
-  // Filtreye göre başlangıç tarihini al
-  DateTime _getStartDate() {
-    DateTime now = DateTime.now();
-    if (_selectedPeriod == "Bugün")
+  DateTime get _startDate {
+    final now = DateTime.now();
+    if (_selectedPeriod == 'Bugün')
       return DateTime(now.year, now.month, now.day);
-    if (_selectedPeriod == "Bu Hafta")
+    if (_selectedPeriod == 'Bu Hafta') {
       return now.subtract(const Duration(days: 7));
-    return DateTime(now.year, now.month, 1); // Bu Ay başı
+    }
+    return DateTime(now.year, now.month);
   }
+
+  DateTime get _endDate => DateTime.now();
+
+  double _numValue(Map<String, dynamic> data, String key) {
+    return (data[key] as num?)?.toDouble() ?? 0;
+  }
+
+  DateTime? _dateValue(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+    }
+    return null;
+  }
+
+  bool _inPeriod(Map<String, dynamic> data, List<String> dateKeys) {
+    final date = _dateValue(data, dateKeys);
+    if (date == null) return false;
+    return !date.isBefore(_startDate) && !date.isAfter(_endDate);
+  }
+
+  bool _isCompletedFoodOrder(Map<String, dynamic> data) {
+    final status = (data['status'] ?? '').toString();
+    return status == 'Teslim Edildi';
+  }
+
+  bool _isClosedTableOrder(Map<String, dynamic> data) {
+    final status = (data['status'] ?? '').toString();
+    return status == 'closed';
+  }
+
+  String _money(double value) => '₺${value.toStringAsFixed(2)}';
 
   @override
   Widget build(BuildContext context) {
+    if (userId.isEmpty) {
+      return const Scaffold(
+        body: Center(child: Text('Kasa bilgileri için giriş yapmalısınız.')),
+      );
+    }
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        title: const Text("Kasa ve Kazanç",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Kasa ve Kazanç',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
       ),
       body: Stack(
         children: [
-          // 1. ARKA PLAN
           Container(
             height: double.infinity,
             width: double.infinity,
             decoration: const BoxDecoration(
-                image: DecorationImage(
-                    image: AssetImage('assets/images/bg.jpg'),
-                    fit: BoxFit.cover)),
+              image: DecorationImage(
+                image: AssetImage('assets/images/bg.jpg'),
+                fit: BoxFit.cover,
+              ),
+            ),
           ),
           BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(color: Colors.black.withOpacity(0.7))),
-
-          // 2. İÇERİK
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(color: Colors.black.withOpacity(0.72)),
+          ),
           SafeArea(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('orders')
                   .where('sellerId', isEqualTo: userId)
-                  .where('status', isEqualTo: 'Teslim Edildi')
-                  .where('orderDate', isGreaterThanOrEqualTo: _getStartDate())
                   .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError)
-                  return const Center(
-                      child: Text("Veri yüklenemedi",
-                          style: TextStyle(color: Colors.white)));
-                if (!snapshot.hasData)
-                  return const Center(
-                      child:
-                          CircularProgressIndicator(color: Colors.greenAccent));
+              builder: (context, foodSnapshot) {
+                return StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('customers')
+                      .doc(userId)
+                      .collection('table_orders')
+                      .snapshots(),
+                  builder: (context, tableSnapshot) {
+                    final loading = !foodSnapshot.hasData &&
+                        !foodSnapshot.hasError &&
+                        !tableSnapshot.hasData &&
+                        !tableSnapshot.hasError;
 
-                // Finansal Verileri Hesapla
-                double currentCiro = 0;
-                var docs = snapshot.data!.docs;
-                for (var doc in docs) {
-                  currentCiro += (doc['totalAmount'] ?? 0.0).toDouble();
-                }
-
-                return Column(
-                  children: [
-                    // 📅 DÖNEM SEÇİCİ (Filtre)
-                    _buildPeriodSelector(),
-
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          children: [
-                            // 🔥 ANA KASA KARTI 🔥
-                            _buildMainBalanceCard(currentCiro, docs.length),
-
-                            const SizedBox(height: 25),
-
-                            // 🏦 ÖDEME YÖNTEMİ HATIRLATICI
-                            _buildInfoTile(),
-
-                            const SizedBox(height: 30),
-
-                            // 📑 SON KAZANÇLAR (Liste)
-                            const Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text("Son Başarılı Teslimatlar",
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold)),
-                            ),
-                            const SizedBox(height: 15),
-
-                            if (docs.isEmpty)
-                              _buildEmptyState()
-                            else
-                              ListView.builder(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: docs.length > 10
-                                    ? 10
-                                    : docs.length, // Son 10 işlemi göster
-                                itemBuilder: (context, index) {
-                                  var order = docs[index].data()
-                                      as Map<String, dynamic>;
-                                  return _buildTransactionItem(order);
-                                },
-                              ),
-                            const SizedBox(height: 50),
-                          ],
+                    if (loading) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: Colors.greenAccent,
                         ),
-                      ),
-                    ),
-                  ],
+                      );
+                    }
+
+                    final foodDocs = foodSnapshot.data?.docs ?? const [];
+                    final tableDocs = tableSnapshot.data?.docs ?? const [];
+
+                    final foodOrders = foodDocs
+                        .map((doc) => doc.data() as Map<String, dynamic>)
+                        .where(_isCompletedFoodOrder)
+                        .where((data) =>
+                            _inPeriod(data, ['orderDate', 'createdAt']))
+                        .toList();
+
+                    final tableOrders = tableDocs
+                        .map((doc) => doc.data() as Map<String, dynamic>)
+                        .where(_isClosedTableOrder)
+                        .where((data) =>
+                            _inPeriod(data, ['closedAt', 'updatedAt']))
+                        .toList();
+
+                    final foodTotal = foodOrders.fold<double>(
+                      0,
+                      (sum, data) => sum + _numValue(data, 'totalAmount'),
+                    );
+                    final tableTotal = tableOrders.fold<double>(
+                      0,
+                      (sum, data) =>
+                          sum +
+                          (_numValue(data, 'paidTotal') > 0
+                              ? _numValue(data, 'paidTotal')
+                              : _numValue(data, 'grandTotal')),
+                    );
+                    final total = foodTotal + tableTotal;
+
+                    final tablePermissionIssue =
+                        tableSnapshot.hasError && !tableSnapshot.hasData;
+
+                    return Column(
+                      children: [
+                        _buildPeriodSelector(),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildMainBalanceCard(total),
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildMiniCard(
+                                        title: 'Yemek Siparişleri',
+                                        value: _money(foodTotal),
+                                        subtitle:
+                                            '${foodOrders.length} teslimat',
+                                        icon: Icons.delivery_dining,
+                                        color: Colors.orangeAccent,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildMiniCard(
+                                        title: 'Masa Adisyonları',
+                                        value: _money(tableTotal),
+                                        subtitle:
+                                            '${tableOrders.length} kapalı masa',
+                                        icon: Icons.table_restaurant,
+                                        color: Colors.lightBlueAccent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (tablePermissionIssue) ...[
+                                  const SizedBox(height: 14),
+                                  _buildWarningTile(
+                                    'Masa sistemi yetkisi kapalı görünüyor. Online sipariş kazancı gösterildi, masa toplamı 0 TL kabul edildi.',
+                                  ),
+                                ],
+                                const SizedBox(height: 24),
+                                _buildInfoTile(),
+                                const SizedBox(height: 24),
+                                const Text(
+                                  'Son Kazanç Hareketleri',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                ..._recentItems(foodOrders, tableOrders),
+                                const SizedBox(height: 40),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 );
               },
             ),
@@ -141,6 +231,36 @@ class _AccountBalanceScreenState extends State<AccountBalanceScreen> {
     );
   }
 
+  List<Widget> _recentItems(
+    List<Map<String, dynamic>> foodOrders,
+    List<Map<String, dynamic>> tableOrders,
+  ) {
+    final items = <_RevenueItem>[
+      ...foodOrders.map((data) => _RevenueItem(
+            title: (data['customerName'] ?? 'Müşteri').toString(),
+            subtitle: 'Yemek siparişi',
+            amount: _numValue(data, 'totalAmount'),
+            date: _dateValue(data, ['orderDate', 'createdAt']),
+          )),
+      ...tableOrders.map((data) => _RevenueItem(
+            title: (data['tableName'] ?? 'Masa').toString(),
+            subtitle: 'Masa adisyonu',
+            amount: _numValue(data, 'paidTotal') > 0
+                ? _numValue(data, 'paidTotal')
+                : _numValue(data, 'grandTotal'),
+            date: _dateValue(data, ['closedAt', 'updatedAt']),
+          )),
+    ]..sort((a, b) {
+        final aDate = a.date ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = b.date ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bDate.compareTo(aDate);
+      });
+
+    if (items.isEmpty) return [_buildEmptyState()];
+
+    return items.take(10).map(_buildTransactionItem).toList();
+  }
+
   Widget _buildPeriodSelector() {
     return Container(
       height: 45,
@@ -148,10 +268,10 @@ class _AccountBalanceScreenState extends State<AccountBalanceScreen> {
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        children: ["Bugün", "Bu Hafta", "Bu Ay"].map((p) {
-          bool isSelected = _selectedPeriod == p;
+        children: ['Bugün', 'Bu Hafta', 'Bu Ay'].map((period) {
+          final isSelected = _selectedPeriod == period;
           return GestureDetector(
-            onTap: () => setState(() => _selectedPeriod = p),
+            onTap: () => setState(() => _selectedPeriod = period),
             child: Container(
               margin: const EdgeInsets.only(right: 10),
               padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
@@ -159,10 +279,13 @@ class _AccountBalanceScreenState extends State<AccountBalanceScreen> {
                 color: isSelected ? Colors.greenAccent : Colors.white10,
                 borderRadius: BorderRadius.circular(25),
               ),
-              child: Text(p,
-                  style: TextStyle(
-                      color: isSelected ? Colors.black : Colors.white,
-                      fontWeight: FontWeight.bold)),
+              child: Text(
+                period,
+                style: TextStyle(
+                  color: isSelected ? Colors.black : Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           );
         }).toList(),
@@ -170,13 +293,13 @@ class _AccountBalanceScreenState extends State<AccountBalanceScreen> {
     );
   }
 
-  Widget _buildMainBalanceCard(double amount, int count) {
+  Widget _buildMainBalanceCard(double amount) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(35),
+      padding: const EdgeInsets.all(30),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(35),
+        borderRadius: BorderRadius.circular(30),
         border: Border.all(color: Colors.white.withOpacity(0.15)),
         boxShadow: [
           BoxShadow(color: Colors.greenAccent.withOpacity(0.05), blurRadius: 30)
@@ -184,25 +307,76 @@ class _AccountBalanceScreenState extends State<AccountBalanceScreen> {
       ),
       child: Column(
         children: [
-          Text("$_selectedPeriod Toplam Kazanç",
-              style: const TextStyle(color: Colors.white60, fontSize: 16)),
+          Text(
+            '$_selectedPeriod Toplam Getiri',
+            style: const TextStyle(color: Colors.white60, fontSize: 16),
+          ),
           const SizedBox(height: 10),
-          Text("₺${amount.toStringAsFixed(2)}",
+          FittedBox(
+            child: Text(
+              _money(amount),
               style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 48,
-                  fontWeight: FontWeight.w900)),
-          const SizedBox(height: 15),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.check_circle,
-                  color: Colors.greenAccent, size: 18),
-              const SizedBox(width: 8),
-              Text("$count Sipariş Tamamlandı",
-                  style: const TextStyle(
-                      color: Colors.greenAccent, fontWeight: FontWeight.w500)),
-            ],
+                color: Colors.white,
+                fontSize: 48,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Teslim edilen siparişler ve kapanan masa adisyonları',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniCard({
+    required String title,
+    required String value,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 26),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          FittedBox(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 21,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: const TextStyle(color: Colors.white38, fontSize: 11),
           ),
         ],
       ),
@@ -211,19 +385,20 @@ class _AccountBalanceScreenState extends State<AccountBalanceScreen> {
 
   Widget _buildInfoTile() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-          color: Colors.blueAccent.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(25),
-          border: Border.all(color: Colors.blueAccent.withOpacity(0.15))),
+        color: Colors.blueAccent.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.blueAccent.withOpacity(0.18)),
+      ),
       child: const Row(
         children: [
           Icon(Icons.account_balance_wallet_outlined,
-              color: Colors.blueAccent, size: 30),
-          SizedBox(width: 15),
+              color: Colors.blueAccent, size: 28),
+          SizedBox(width: 14),
           Expanded(
             child: Text(
-              "Bu ekrandaki tutarlar 'Teslim Edildi' olarak işaretlediğiniz siparişlerin toplamıdır. Ödemeler kapıda doğrudan size yapılmaktadır.",
+              'Bu ekran gerçek tahsilat kaydı değildir; işletmenin uygulama içindeki tamamlanan sipariş ve kapanan masa adisyonlarını özetler.',
               style: TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ),
@@ -232,44 +407,101 @@ class _AccountBalanceScreenState extends State<AccountBalanceScreen> {
     );
   }
 
-  Widget _buildTransactionItem(Map<String, dynamic> order) {
-    DateTime date = (order['orderDate'] as Timestamp).toDate();
+  Widget _buildWarningTile(String message) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.amber.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.amber.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: Colors.amberAccent, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTransactionItem(_RevenueItem item) {
+    final dateText = item.date == null
+        ? 'Tarih yok'
+        : DateFormat('dd MMM, HH:mm', 'tr_TR').format(item.date!);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(20)),
+        color: Colors.white.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(order['customerName'] ?? "Müşteri",
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold)),
-              Text(DateFormat('dd MMM, HH:mm').format(date),
-                  style: const TextStyle(color: Colors.white54, fontSize: 12)),
-            ],
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${item.subtitle} • $dateText',
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+              ],
+            ),
           ),
-          Text("+ ₺${(order['totalAmount'] ?? 0).toStringAsFixed(2)}",
-              style: const TextStyle(
-                  color: Colors.greenAccent,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold)),
+          const SizedBox(width: 12),
+          Text(
+            '+ ${_money(item.amount)}',
+            style: const TextStyle(
+              color: Colors.greenAccent,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildEmptyState() {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.only(top: 30),
-        child: Text("Seçilen dönemde henüz bir kazanç bulunmuyor.",
-            style: TextStyle(color: Colors.white30)),
+    return const Padding(
+      padding: EdgeInsets.only(top: 20),
+      child: Center(
+        child: Text(
+          'Seçilen dönemde henüz tamamlanan kazanç yok.',
+          style: TextStyle(color: Colors.white38),
+        ),
       ),
     );
   }
+}
+
+class _RevenueItem {
+  const _RevenueItem({
+    required this.title,
+    required this.subtitle,
+    required this.amount,
+    required this.date,
+  });
+
+  final String title;
+  final String subtitle;
+  final double amount;
+  final DateTime? date;
 }

@@ -1,6 +1,12 @@
 class StoreAvailability {
   static const _days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 
+  static double rating(Map<String, dynamic> store) {
+    final value = store['rating'];
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString().replaceAll(',', '.') ?? '') ?? 0.0;
+  }
+
   static bool isOpen(Map<String, dynamic> store, {DateTime? now}) {
     if (store['isApproved'] == false || store['sellerApproved'] == false) {
       return false;

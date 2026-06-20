@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'admin_notification_service.dart';
 
 /// Bu dosyayı BusinessAddPage'de işletme eklenirken de çağırın:
 ///
@@ -25,41 +24,109 @@ class AdminPendingCenterTab extends StatelessWidget {
   static const String classifiedAdsCollection = 'classified_ads';
   static const String cekGonderCollection = 'cek_gonder_reports';
 
+  bool _isPendingApplication(Map<String, dynamic> data) {
+    final status = (data['status'] ?? data['applicationStatus'] ?? 'pending')
+        .toString()
+        .toLowerCase();
+    final approved = data['isApproved'] == true ||
+        data['sellerApproved'] == true ||
+        data['corporateSellerApproved'] == true;
+
+    return !approved && status != 'approved' && status != 'rejected';
+  }
+
+  bool _isVendorApplication(Map<String, dynamic> data) {
+    final applicationType = (data['applicationType'] ?? '').toString();
+    final role = (data['role'] ?? '').toString();
+    return applicationType == 'vendor' ||
+        role == 'vendor_pending' ||
+        role == 'seller_pending';
+  }
+
   Future<void> _approveCorporateSeller(BuildContext context,
       String applicationId, Map<String, dynamic> data) async {
     final uid = (data['uid'] ?? data['userId'] ?? '').toString();
     final categories = data['requestedCategories'] ?? ['Emlak', 'Sıfır Ürün'];
+    final isVendor = _isVendorApplication(data);
+    final storeName = _pick(data, [
+      'storeName',
+      'businessName',
+      'companyName',
+      'restaurantName',
+      'applicantName',
+      'fullName',
+      'fullname',
+      'name'
+    ]);
+    final storePhone =
+        _pick(data, ['storePhone', 'phone', 'phoneNumber', 'officePhone']);
+    final storeAddress =
+        _pick(data, ['storeAddress', 'address', 'businessAddress']);
+    final storeMapLink =
+        _pick(data, ['storeMapLink', 'mapLink', 'googleMapsLink']);
+    final taxNumber = _pick(data, ['taxNumber', 'taxId', 'taxNo']);
 
     final batch = FirebaseFirestore.instance.batch();
 
-    batch.update(
+    batch.set(
       FirebaseFirestore.instance
           .collection(corporateApplicationsCollection)
           .doc(applicationId),
       {
         'status': 'approved',
+        'applicationStatus': 'approved',
+        'isApproved': true,
         'approvedAt': FieldValue.serverTimestamp(),
       },
+      SetOptions(merge: true),
     );
 
     if (uid.isNotEmpty) {
       batch.set(
         FirebaseFirestore.instance.collection(usersCollection).doc(uid),
-        {
-          'role': 'kurumsal_satici',
-          'isApproved': true,
-          'sellerApproved': true,
-          'corporateSellerApproved': true,
-          'corporateSellerStatus': 'approved',
-          'allowedCorporateCategories': categories,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
+        isVendor
+            ? {
+                'role': 'satici',
+                'isSeller': true,
+                'isApproved': true,
+                'sellerApproved': true,
+                'sellerStatus': 'approved',
+                'applicationStatus': 'approved',
+                if (storeName.isNotEmpty) 'storeName': storeName,
+                if (storeName.isNotEmpty) 'businessName': storeName,
+                if (storePhone.isNotEmpty) 'storePhone': storePhone,
+                if (storePhone.isNotEmpty) 'phone': storePhone,
+                if (storeAddress.isNotEmpty) 'storeAddress': storeAddress,
+                if (storeAddress.isNotEmpty) 'address': storeAddress,
+                if (storeMapLink.isNotEmpty) 'storeMapLink': storeMapLink,
+                if (taxNumber.isNotEmpty) 'taxNumber': taxNumber,
+                'restaurantStatus': data['restaurantStatus'] ?? 'active',
+                'isStoreOpen': data['isStoreOpen'] ?? true,
+                'workingDays': data['workingDays'] ??
+                    ['Pzt', 'Sal', 'Car', 'Per', 'Cum', 'Cmt', 'Paz'],
+                'avgPrepTime': data['avgPrepTime'] ?? 30,
+                'approvedAt': FieldValue.serverTimestamp(),
+                'updatedAt': FieldValue.serverTimestamp(),
+              }
+            : {
+                'role': 'kurumsal_satici',
+                'isSeller': true,
+                'isApproved': true,
+                'sellerApproved': true,
+                'corporateSellerApproved': true,
+                'corporateSellerStatus': 'approved',
+                'allowedCorporateCategories': categories,
+                'updatedAt': FieldValue.serverTimestamp(),
+              },
         SetOptions(merge: true),
       );
     }
 
     await batch.commit();
-    _toast(context, 'Kurumsal satıcı onaylandı.', Colors.green);
+    _toast(
+        context,
+        isVendor ? 'Esnaf onaylandı.' : 'Kurumsal satıcı onaylandı.',
+        Colors.green);
   }
 
   Future<void> _rejectCorporateSeller(BuildContext context,
@@ -68,14 +135,17 @@ class AdminPendingCenterTab extends StatelessWidget {
 
     final batch = FirebaseFirestore.instance.batch();
 
-    batch.update(
+    batch.set(
       FirebaseFirestore.instance
           .collection(corporateApplicationsCollection)
           .doc(applicationId),
       {
         'status': 'rejected',
+        'applicationStatus': 'rejected',
+        'isApproved': false,
         'rejectedAt': FieldValue.serverTimestamp(),
       },
+      SetOptions(merge: true),
     );
 
     if (uid.isNotEmpty) {
@@ -86,7 +156,9 @@ class AdminPendingCenterTab extends StatelessWidget {
           'isApproved': false,
           'sellerApproved': false,
           'corporateSellerApproved': false,
+          'sellerStatus': 'rejected',
           'corporateSellerStatus': 'rejected',
+          'applicationStatus': 'rejected',
           'updatedAt': FieldValue.serverTimestamp(),
         },
         SetOptions(merge: true),
@@ -157,7 +229,6 @@ class AdminPendingCenterTab extends StatelessWidget {
       child: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection(corporateApplicationsCollection)
-            .where('status', isEqualTo: 'pending')
             .snapshots(),
         builder: (ctx, snapshot) {
           return _buildSnapshotList(
@@ -175,12 +246,20 @@ class AdminPendingCenterTab extends StatelessWidget {
                     'fullName'
                   ],
                   fallback: 'Başvuru');
-              final subtitle = _pick(data, ['phone', 'phoneNumber', 'taxId']);
+              final subtitle = _pick(data, [
+                'storePhone',
+                'phone',
+                'phoneNumber',
+                'officePhone',
+                'taxNumber',
+                'taxId'
+              ]);
+              final badge = _isVendorApplication(data) ? 'Esnaf' : 'Kurumsal';
 
               return _PendingTile(
                 title: title,
                 subtitle: subtitle,
-                badge: 'Kurumsal',
+                badge: badge,
                 onApprove: () => _approveCorporateSeller(ctx, doc.id, data),
                 onReject: () => _rejectCorporateSeller(ctx, doc.id, data),
               );
@@ -319,7 +398,13 @@ class AdminPendingCenterTab extends StatelessWidget {
       );
     }
 
-    final docs = snapshot.data?.docs ?? [];
+    var docs = snapshot.data?.docs ?? [];
+
+    if (emptyText.contains('kurumsal')) {
+      docs = docs.where((doc) {
+        return _isPendingApplication(doc.data() as Map<String, dynamic>);
+      }).toList();
+    }
 
     if (docs.isEmpty) {
       return Padding(

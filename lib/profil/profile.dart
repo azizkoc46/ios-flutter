@@ -500,8 +500,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           backgroundColor: Colors.grey[300],
                           backgroundImage: imageUrl.isNotEmpty
                               ? NetworkImage(imageUrl)
-                              : const AssetImage('assets/images/user.png')
-                                  as ImageProvider,
+                              : null,
+                          child: imageUrl.isEmpty
+                              ? const Icon(Icons.person,
+                                  size: 58, color: Colors.white)
+                              : null,
                         ),
                       ),
                       if (_isUploadingImage)

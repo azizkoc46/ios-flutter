@@ -6,6 +6,7 @@ import 'package:flutter/material.dart' hide Badge;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:pazarcik_portal/widgets/portal_network_image.dart';
 import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/store/store_details.dart';
+import '../../../utils/store_availability.dart';
 
 // Tema Renkleri
 const Color trendyolOrange = Color(0xfff27a1a);
@@ -71,7 +72,13 @@ class _StoreScreenState extends State<StoreScreen> {
                   final data = doc.data() as Map<String, dynamic>;
                   final status =
                       (data['restaurantStatus'] ?? 'active').toString();
-                  return status == 'active' && data['isBlocked'] != true;
+                  if (status != 'active' || data['isBlocked'] == true) {
+                    return false;
+                  }
+                  if (selectedFilter == "Açık Olanlar") {
+                    return StoreAvailability.isOpen(data);
+                  }
+                  return true;
                 }).toList();
 
                 // En Hızlı filtresi seçildiyse (Client-Side sıralama yapıyoruz, Firestore'da string olduğu için)
@@ -149,8 +156,8 @@ class _StoreScreenState extends State<StoreScreen> {
         store['image'] ??
         store['profileImage'] ??
         "";
-    bool isOpen = store['isStoreOpen'] ?? true;
-    double rating = (store['rating'] ?? 5.0).toDouble();
+    final isOpen = StoreAvailability.isOpen(store);
+    final rating = StoreAvailability.rating(store);
 
     return Opacity(
       opacity: isOpen ? 1.0 : 0.6, // Kapalı olanlar soluk görünür
@@ -277,19 +284,15 @@ class _StoreScreenState extends State<StoreScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Row(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildMiniInfo(
                             CupertinoIcons.stopwatch_fill,
                             "${store['avgPrepTime'] ?? '30'} dk",
                             trendyolOrange),
-                        const SizedBox(width: 15),
-                        Expanded(
-                          child: _buildMiniInfo(
-                              CupertinoIcons.location_solid,
-                              store['address'] ?? "Pazarcık",
-                              const Color(0xFF007AFF)),
-                        ),
+                        const SizedBox(height: 6),
+                        _buildAddressInfo(store['address'] ?? "Pazarcık"),
                       ],
                     ),
                   ],
@@ -302,12 +305,31 @@ class _StoreScreenState extends State<StoreScreen> {
     );
   }
 
-  Widget _buildMiniInfo(IconData icon, String text, Color color) {
+  Widget _buildMiniInfo(IconData icon, String text, Color color,
+      {bool expandText = false}) {
+    final textWidget = Text(text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: GoogleFonts.inter(
+            color: Colors.black54, fontSize: 12, fontWeight: FontWeight.w600));
+
     return Row(
+      mainAxisSize: expandText ? MainAxisSize.max : MainAxisSize.min,
       children: [
         Icon(icon, size: 14, color: color),
         const SizedBox(width: 4),
-        Flexible(
+        if (expandText) Expanded(child: textWidget) else textWidget,
+      ],
+    );
+  }
+
+  Widget _buildAddressInfo(String text) {
+    return Row(
+      children: [
+        const Icon(CupertinoIcons.location_solid,
+            size: 14, color: Color(0xFF007AFF)),
+        const SizedBox(width: 4),
+        Expanded(
           child: Text(
             text,
             maxLines: 1,

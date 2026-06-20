@@ -29,7 +29,7 @@ class _StoreDetailsState extends State<StoreDetails> {
   final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? "";
   String selectedCategory = "Hepsi";
 
-  // 🔥 SPAM KORUMASI İÇİN YENİ DEĞİŞKEN
+  //  SPAM KORUMASI İÇİN YENİ DEĞİŞKEN
   bool _hasReviewed = false;
 
   String get storeId => (widget.store is DocumentSnapshot)
@@ -42,7 +42,7 @@ class _StoreDetailsState extends State<StoreDetails> {
     _checkIfUserAlreadyReviewed();
   }
 
-  // 🔥 SAYFA AÇILDIĞINDA KULLANICININ YORUMU VAR MI KONTROL ET
+  //  SAYFA AÇILDIĞINDA KULLANICININ YORUMU VAR MI KONTROL ET
   Future<void> _checkIfUserAlreadyReviewed() async {
     if (currentUserId.isEmpty || storeId.isEmpty) return;
 
@@ -60,16 +60,19 @@ class _StoreDetailsState extends State<StoreDetails> {
     }
   }
 
-  // 🔥 MAĞAZA PAYLAŞMA FONKSİYONU
   void _shareStore(Map<String, dynamic> data) {
-    String name = data['storeName'] ?? "Pazarcık Esnafı";
+    String name = data['storeName'] ??
+        data['businessName'] ??
+        data['restaurantName'] ??
+        data['fullname'] ??
+        "Pazarcık Esnafı";
     String shareUrl =
         "https://pazarcik-portal-7faf2.web.app/magaza?id=$storeId";
 
-    String shareText = "🛍️ Pazarcık Portal'da Harika Bir Mağaza!\n\n"
-        "🏪 Mağaza: $name\n"
-        "📍 Adres: ${data['storeAddress'] ?? 'Pazarcık'}\n\n"
-        "🔗 Ürünleri İncelemek İçin Tıkla:\n$shareUrl";
+    String shareText = "Pazarcık Portal'da harika bir mağaza!\n\n"
+        "Mağaza: $name\n"
+        "Adres: ${data['storeAddress'] ?? 'Pazarcık'}\n\n"
+        "Ürünleri incelemek için tıkla:\n$shareUrl";
 
     Share.share(shareText);
   }
@@ -114,7 +117,7 @@ class _StoreDetailsState extends State<StoreDetails> {
     if (user == null) return;
 
     try {
-      // 🔥 Ekstra Güvenlik: Göndermeden önce tekrar kontrol et
+      //  Ekstra Güvenlik: Göndermeden önce tekrar kontrol et
       var existingCheck = await FirebaseFirestore.instance
           .collection('reviews')
           .where('storeId', isEqualTo: storeId)
@@ -264,11 +267,29 @@ class _StoreDetailsState extends State<StoreDetails> {
 
   @override
   Widget build(BuildContext context) {
-    final Map<String, dynamic> storeData = (widget.store is DocumentSnapshot)
-        ? (widget.store as DocumentSnapshot).data() as Map<String, dynamic>? ??
-            {}
-        : (widget.store as Map<String, dynamic>? ?? {});
+    if (widget.store is DocumentSnapshot) {
+      return StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('customers')
+            .doc(storeId)
+            .snapshots(),
+        builder: (context, snapshot) {
+          final initial = (widget.store as DocumentSnapshot).data()
+                  as Map<String, dynamic>? ??
+              {};
+          final live =
+              snapshot.data?.data() as Map<String, dynamic>? ?? initial;
+          return _buildStoreScaffold(context, live);
+        },
+      );
+    }
 
+    return _buildStoreScaffold(
+        context, widget.store as Map<String, dynamic>? ?? {});
+  }
+
+  Widget _buildStoreScaffold(
+      BuildContext context, Map<String, dynamic> storeData) {
     String coverImg = storeData['storeCoverImage'] ?? storeData['image'] ?? '';
     final storeOpen = StoreAvailability.isOpen(storeData);
 
@@ -344,7 +365,11 @@ class _StoreDetailsState extends State<StoreDetails> {
                     children: [
                       Expanded(
                           child: Text(
-                              storeData['storeName'] ?? "Pazarcık Esnafı",
+                              storeData['storeName'] ??
+                                  storeData['businessName'] ??
+                                  storeData['restaurantName'] ??
+                                  storeData['fullname'] ??
+                                  "Pazarcık Esnafı",
                               style: GoogleFonts.inter(
                                   fontSize: 24, fontWeight: FontWeight.w900))),
                       _buildRatingBadge(storeData),
@@ -490,7 +515,7 @@ class _StoreDetailsState extends State<StoreDetails> {
 
   // --- Meta ve İstatistik ---
   Widget _buildRatingBadge(Map<String, dynamic> data) {
-    double rating = (data['rating'] ?? 0.0).toDouble();
+    double rating = StoreAvailability.rating(data);
     return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
@@ -541,7 +566,7 @@ class _StoreDetailsState extends State<StoreDetails> {
     ]);
   }
 
-  // 🔥 YORUM GİRİŞ KARTI (EĞER DAHA ÖNCE YORUM YAPTIYSA GİZLENİR VEYA BİLGİ VERİR)
+  //  YORUM GİRİŞ KARTI (EĞER DAHA ÖNCE YORUM YAPTIYSA GİZLENİR VEYA BİLGİ VERİR)
   Widget _buildReviewInputCard() {
     if (_hasReviewed) {
       return SliverToBoxAdapter(
@@ -621,7 +646,7 @@ class _StoreDetailsState extends State<StoreDetails> {
     );
   }
 
-  // 🔥 YORUMLARI LİSTELEME ALANI
+  //  YORUMLARI LİSTELEME ALANI
   Widget _buildCommentsSection() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -675,7 +700,7 @@ class _StoreDetailsState extends State<StoreDetails> {
     );
   }
 
-  // 🔥 TEKİL YORUM KARTI VE DÜZENLE/SİL AKSİYONU
+  //  TEKİL YORUM KARTI VE DÜZENLE/SİL AKSİYONU
   Widget _buildSingleReview(QueryDocumentSnapshot doc,
       {List<QueryDocumentSnapshot> replies = const [], bool isReply = false}) {
     var review = doc.data() as Map<String, dynamic>;

@@ -85,11 +85,13 @@ class AdminStatsTab extends StatelessWidget {
               field: "status",
               value: "pending",
               onTap: () => _openPending(context)),
-          _pendingTile(
-              "Onay Bekleyen Esnaf", "customers", Icons.store, warningColor,
-              field: "role",
-              value: "vendor_pending",
-              onTap: () => _openPending(context)),
+          _pendingApplicationsTile(
+            "Onay Bekleyen Esnaf",
+            Icons.store,
+            warningColor,
+            applicationType: "vendor",
+            onTap: () => _openPending(context),
+          ),
         ],
       ),
     );
@@ -213,6 +215,70 @@ class AdminStatsTab extends StatelessWidget {
             onTap: onTap, // TIKLAMA BURAYA EKLENDİ
             leading: Icon(i is IconData ? i : Icons.info, color: col),
             title: Text(t),
+            trailing: count > 0
+                ? Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text('$count',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12)),
+                  )
+                : const Icon(Icons.chevron_right),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _pendingApplicationsTile(
+    String title,
+    dynamic icon,
+    Color color, {
+    String? applicationType,
+    VoidCallback? onTap,
+  }) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('corporate_seller_applications')
+          .limit(99)
+          .snapshots(),
+      builder: (context, snap) {
+        final count = (snap.data?.docs ?? []).where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final type = (data['applicationType'] ?? '').toString();
+          final role = (data['role'] ?? '').toString();
+          final status =
+              (data['status'] ?? data['applicationStatus'] ?? 'pending')
+                  .toString();
+          final approved = data['isApproved'] == true ||
+              data['sellerApproved'] == true ||
+              data['corporateSellerApproved'] == true;
+
+          final typeMatches = applicationType == null ||
+              type == applicationType ||
+              (applicationType == 'vendor' &&
+                  (role == 'vendor_pending' || role == 'seller_pending'));
+
+          return typeMatches &&
+              !approved &&
+              status != 'approved' &&
+              status != 'rejected';
+        }).length;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+              color: Colors.white, borderRadius: BorderRadius.circular(12)),
+          child: ListTile(
+            onTap: onTap,
+            leading: Icon(icon is IconData ? icon : Icons.info, color: color),
+            title: Text(title),
             trailing: count > 0
                 ? Container(
                     padding:

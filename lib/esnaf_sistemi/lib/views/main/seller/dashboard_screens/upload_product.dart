@@ -14,7 +14,9 @@ const Color iosBg = Color(0xFFF2F2F7);
 
 class UploadProduct extends StatefulWidget {
   static const String routeName = 'UploadProduct';
-  const UploadProduct({Key? key}) : super(key: key);
+  final bool monthlyDealMode;
+  const UploadProduct({Key? key, this.monthlyDealMode = false})
+      : super(key: key);
 
   @override
   State<UploadProduct> createState() => _UploadProductState();
@@ -29,17 +31,31 @@ class _UploadProductState extends State<UploadProduct> {
   final _discountController = TextEditingController();
   final _prepTimeController = TextEditingController();
   final _descController = TextEditingController();
+  final _dealLimitController = TextEditingController();
 
   String? selectedCategory;
   File? _image;
   bool isLoading = false;
   bool isAvailable = true;
+  bool repeatMonthly = false;
+  DateTime dealStart = DateTime.now();
+  DateTime dealEnd = DateTime.now().add(const Duration(days: 30));
 
-  // 🔥 YENİ: Seçmeli Alan Değişkenleri
   String? selectedPortion;
   List<String> selectedSides = [];
 
-  // Porsiyon Seçenekleri
+  String _pickString(Map<String, dynamic>? data, List<String> keys,
+      {String fallback = ''}) {
+    if (data == null) return fallback;
+    for (final key in keys) {
+      final value = data[key];
+      if (value != null && value.toString().trim().isNotEmpty) {
+        return value.toString().trim();
+      }
+    }
+    return fallback;
+  }
+
   final List<String> portionOptions = [
     "Standart / 1 Porsiyon",
     "1.5 Porsiyon",
@@ -52,7 +68,6 @@ class _UploadProductState extends State<UploadProduct> {
     "Kilogram"
   ];
 
-  // Çok Geniş İkram/Ekstra Seçenekleri
   final List<String> sideOptions = [
     "Salata",
     "Ezme",
@@ -75,7 +90,6 @@ class _UploadProductState extends State<UploadProduct> {
     "Tatlı İkramı"
   ];
 
-  // Görsel Seçici
   Future _pickImage(ImageSource source) async {
     final pickedFile =
         await ImagePicker().pickImage(source: source, imageQuality: 70);
@@ -168,6 +182,13 @@ class _UploadProductState extends State<UploadProduct> {
           behavior: SnackBarBehavior.floating));
       return;
     }
+    if (widget.monthlyDealMode && dealEnd.isBefore(dealStart)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Bitiş tarihi başlangıçtan önce olamaz."),
+          backgroundColor: Color(0xFFFF3B30),
+          behavior: SnackBarBehavior.floating));
+      return;
+    }
 
     setState(() => isLoading = true);
 
@@ -177,11 +198,32 @@ class _UploadProductState extends State<UploadProduct> {
           .collection('customers')
           .doc(uid)
           .get();
-      String storeName = userDoc.data()?['storeName'] ?? "Pazarcık Esnafı";
+      final userData = userDoc.data() ?? {};
+      String storeName = _pickString(
+        userData,
+        [
+          'storeName',
+          'businessName',
+          'restaurantName',
+          'fullname',
+          'fullName',
+          'name'
+        ],
+        fallback: "Pazarcık Esnafı",
+      );
+      if (uid.isNotEmpty &&
+          (userData['storeName'] == null || userData['businessName'] == null)) {
+        await FirebaseFirestore.instance.collection('customers').doc(uid).set({
+          'storeName': storeName,
+          'businessName': storeName,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
 
       String imageUrl = await _uploadImageToFirebase(_image!);
       double parsedPrice =
           double.tryParse(_priceController.text.replaceAll(',', '.')) ?? 0.0;
+      final limit = int.tryParse(_dealLimitController.text.trim());
 
       await FirebaseFirestore.instance.collection('products').add({
         'productName': _nameController.text.trim(),
@@ -198,23 +240,34 @@ class _UploadProductState extends State<UploadProduct> {
         'createdAt': FieldValue.serverTimestamp(),
         'rating': 5.0,
         'salesCount': 0,
-
-        // 🔥 YENİ: Listeden seçilen veriler kaydediliyor
+        'isMonthlyDeal': widget.monthlyDealMode,
+        if (widget.monthlyDealMode) 'monthlyDealEnabled': true,
+        if (widget.monthlyDealMode) 'dealStatus': 'active',
+        if (widget.monthlyDealMode)
+          'dealStartsAt': Timestamp.fromDate(dealStart),
+        if (widget.monthlyDealMode) 'dealEndsAt': Timestamp.fromDate(dealEnd),
+        if (widget.monthlyDealMode && limit != null && limit > 0)
+          'dealLimit': limit,
+        if (widget.monthlyDealMode) 'dealSoldCount': 0,
+        if (widget.monthlyDealMode) 'dealRepeatMonthly': repeatMonthly,
+        if (widget.monthlyDealMode) 'dealRepeatStartDay': dealStart.day,
+        if (widget.monthlyDealMode) 'dealRepeatEndDay': dealEnd.day,
         'portion': selectedPortion ?? "Standart / 1 Porsiyon",
-        'sideDishes': selectedSides
-            .join(', '), // Listeyi metne çevirip kaydeder (Örn: Lavaş, Ayran)
+        'sideDishes': selectedSides.join(', '),
         'description': _descController.text.trim(),
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("Ürün Başarıyla Yayına Alındı!"),
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(widget.monthlyDealMode
+              ? "Ayın indirimli menüsü yayına alındı!"
+              : "Ürün başarıyla yayına alındı!"),
           backgroundColor: Color(0xFF34C759),
           behavior: SnackBarBehavior.floating));
       Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("Yükleme Hatası: $e"),
+          content: Text("Yükleme Hatası: " + e.toString()),
           backgroundColor: Colors.redAccent));
     } finally {
       if (mounted) setState(() => isLoading = false);
@@ -229,7 +282,8 @@ class _UploadProductState extends State<UploadProduct> {
         elevation: 0,
         backgroundColor: Colors.white,
         centerTitle: true,
-        title: Text("Yeni Ürün Ekle",
+        title: Text(
+            widget.monthlyDealMode ? "Ayın İndirimli Menüsü" : "Yeni Ürün Ekle",
             style: GoogleFonts.inter(
                 color: Colors.black,
                 fontSize: 17,
@@ -250,7 +304,6 @@ class _UploadProductState extends State<UploadProduct> {
               _sectionHeader("ÜRÜN GÖRSELİ"),
               _buildImagePicker(),
               const SizedBox(height: 25),
-
               _sectionHeader("TEMEL BİLGİLER"),
               _buildInputCard([
                 _buildField(_nameController, "Ürün Adı (Örn: İskender)",
@@ -261,20 +314,17 @@ class _UploadProductState extends State<UploadProduct> {
                 _buildPriceAndStatusRow(),
               ]),
               const SizedBox(height: 25),
-
-              // 🔥 YENİ SEÇMELİ İÇERİK BÖLÜMÜ
               _sectionHeader("ÜRÜN İÇERİĞİ VE İKRAMLAR"),
               _buildInputCard([
-                _buildPortionPicker(), // Porsiyon Seçici
+                _buildPortionPicker(),
                 const Divider(height: 1, indent: 50, color: iosBg),
-                _buildSidesSelector(), // İkramlar Çoklu Seçici
+                _buildSidesSelector(),
                 const Divider(height: 1, indent: 50, color: iosBg),
                 _buildField(_descController, "Genel Açıklama (İsteğe Bağlı)",
                     CupertinoIcons.text_alignleft, false,
                     maxLines: 2),
               ]),
               const SizedBox(height: 25),
-
               _sectionHeader("KAMPANYA & SÜRE"),
               _buildInputCard([
                 Row(
@@ -289,6 +339,11 @@ class _UploadProductState extends State<UploadProduct> {
                   ],
                 ),
               ]),
+              if (widget.monthlyDealMode) ...[
+                const SizedBox(height: 25),
+                _sectionHeader("AYIN İNDİRİMLİ MENÜ AYARLARI"),
+                _buildMonthlyDealSettings(),
+              ],
               const SizedBox(height: 40),
             ],
           ),
@@ -317,6 +372,73 @@ class _UploadProductState extends State<UploadProduct> {
           ]),
       child: Column(children: children),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    return "${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}";
+  }
+
+  Future<void> _pickDealDate({required bool isStart}) async {
+    final current = isStart ? dealStart : dealEnd;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 730)),
+      helpText: isStart ? "Başlangıç tarihi" : "Bitiş tarihi",
+    );
+    if (picked == null) return;
+    setState(() {
+      if (isStart) {
+        dealStart = DateTime(picked.year, picked.month, picked.day);
+        if (dealEnd.isBefore(dealStart)) {
+          dealEnd = dealStart.add(const Duration(days: 30));
+        }
+      } else {
+        dealEnd = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+      }
+    });
+  }
+
+  Widget _buildMonthlyDealSettings() {
+    return _buildInputCard([
+      ListTile(
+        leading: const Icon(CupertinoIcons.calendar_badge_plus,
+            color: trendyolOrange, size: 22),
+        title: Text("Bitiş", style: GoogleFonts.inter(fontSize: 13)),
+        subtitle: Text(_formatDate(dealStart),
+            style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
+        trailing:
+            const Icon(CupertinoIcons.chevron_right, color: Colors.black26),
+        onTap: () => _pickDealDate(isStart: true),
+      ),
+      const Divider(height: 1, indent: 56, color: iosBg),
+      ListTile(
+        leading: const Icon(CupertinoIcons.calendar_badge_minus,
+            color: trendyolOrange, size: 22),
+        title: Text("Başlangıç", style: GoogleFonts.inter(fontSize: 13)),
+        subtitle: Text(_formatDate(dealEnd),
+            style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
+        trailing:
+            const Icon(CupertinoIcons.chevron_right, color: Colors.black26),
+        onTap: () => _pickDealDate(isStart: false),
+      ),
+      const Divider(height: 1, indent: 56, color: iosBg),
+      _buildField(_dealLimitController, "Adet sınırı (isteğe bağlı)",
+          CupertinoIcons.number_circle_fill, true),
+      const Divider(height: 1, indent: 56, color: iosBg),
+      SwitchListTile.adaptive(
+        value: repeatMonthly,
+        activeColor: trendyolOrange,
+        onChanged: (v) => setState(() => repeatMonthly = v),
+        title: Text("Her ay aynı günlerde tekrarla",
+            style:
+                GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700)),
+        subtitle: Text(
+            "Örn. 15-20 arası seçilirse her ay bu günlerde otomatik görünür.",
+            style: GoogleFonts.inter(fontSize: 12, color: Colors.black45)),
+      ),
+    ]);
   }
 
   Widget _buildImagePicker() {
@@ -363,7 +485,6 @@ class _UploadProductState extends State<UploadProduct> {
     );
   }
 
-  // 🔥 PORSİYON AÇILIR MENÜSÜ (DROPDOWN)
   Widget _buildPortionPicker() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -392,7 +513,6 @@ class _UploadProductState extends State<UploadProduct> {
     );
   }
 
-  // 🔥 İKRAMLAR SEÇİCİ TETİKLEYİCİ (MODAL AÇAR)
   Widget _buildSidesSelector() {
     return ListTile(
       leading: Icon(CupertinoIcons.gift_fill,
@@ -415,7 +535,6 @@ class _UploadProductState extends State<UploadProduct> {
     );
   }
 
-  // 🔥 İKRAMLAR ÇOKLU SEÇİM EKRANI (BOTTOM SHEET)
   void _showSidesModal() {
     showModalBottomSheet(
       context: context,
@@ -478,7 +597,7 @@ class _UploadProductState extends State<UploadProduct> {
                                   selectedSides.remove(side);
                                 }
                               });
-                              // Ana ekranı da güncelle
+
                               setState(() {});
                             },
                           );
@@ -624,7 +743,10 @@ class _UploadProductState extends State<UploadProduct> {
           onPressed: isLoading ? null : _uploadProduct,
           child: isLoading
               ? const CupertinoActivityIndicator(color: Colors.white)
-              : Text("ÜRÜNÜ YAYINLA",
+              : Text(
+                  widget.monthlyDealMode
+                      ? "AYIN MENÜSÜNÜ YAYINLA"
+                      : "ÜRÜNÜ YAYINLA",
                   style: GoogleFonts.inter(
                       fontWeight: FontWeight.w900,
                       fontSize: 16,

@@ -733,7 +733,7 @@ class _AdminUsersTabState extends State<AdminUsersTab> {
         if (_busy) const LinearProgressIndicator(minHeight: 2),
         Expanded(
             child: StreamBuilder<QuerySnapshot>(
-          stream: query.limit(500).snapshots(),
+          stream: query.snapshots(),
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
               return const Center(child: CupertinoActivityIndicator());

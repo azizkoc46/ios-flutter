@@ -118,7 +118,19 @@ void main() async {
   isDarkModeNotifier.value = prefs.getBool('darkMode') ?? false;
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  await NotificationService().initialize(navigatorKey);
+
+  // KRITIK DUZELTME:
+  // Bildirim servisi baslatma adimi (FCM token kaydi gibi) arka plan
+  // islevselligi icindir ve basarisiz olsa bile kullanicinin uygulamayi
+  // acabilmesini engellememelidir. Daha once burada firlatilan bir hata
+  // (ornegin Firestore permission-denied) runApp() cagrisina hic
+  // ulasilamamasina ve uygulamanin acilis ekraninda donup kalmasina
+  // sebep oluyordu.
+  try {
+    await NotificationService().initialize(navigatorKey);
+  } catch (e) {
+    debugPrint("Bildirim servisi başlatma hatası: $e");
+  }
 
   runApp(const MyApp());
 }
