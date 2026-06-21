@@ -63,6 +63,10 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Pazarcık Portal; profil, ilan, işletme ve başvuru görselleri çekebilmeniz için kameraya erişim ister.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Pazarcık Portal; video içeriklerini sesli kaydedebilmeniz ve uygulamadaki ses gerektiren özellikleri kullanabilmeniz için mikrofona erişim ister.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Pazarcık Portal; konuma bağlı yerel bilgileri ve önemli uyarıları doğru bölge için sunabilmek amacıyla konumunuzu uygulama kullanımdayken ve gerektiğinde arka planda kullanır.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Pazarcık Portal; yakınınızdaki işletmeleri, nöbetçi eczaneleri ve konuma bağlı yerel bilgileri göstermek için konumunuzu kullanır.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
