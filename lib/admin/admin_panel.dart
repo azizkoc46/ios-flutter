@@ -1,4 +1,4 @@
-﻿// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -19,6 +19,7 @@ import 'admin_classified_ads_tab.dart';
 import 'admin_manual_classified_ad_tab.dart';
 import 'admin_activity_feed_tab.dart';
 import 'admin_pending_center_tab.dart';
+import 'admin_taxi_tab.dart';
 import 'package:pazarcik_portal/business/business_add_page.dart';
 import 'admin_notification_service.dart';
 
@@ -47,7 +48,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 15,
+      length: 16,
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: AppBar(
@@ -132,6 +133,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   Tab(text: "İşletmeler"),
                   Tab(text: "Sahiplik"),
                   Tab(text: "Çek Gönder"),
+                  Tab(text: "Taksiler"),
                   Tab(text: "Duyurular"),
                   Tab(text: "Ayarlar"),
                 ],
@@ -154,6 +156,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             AdminBusinessTab(type: 'private'),
             AdminBusinessTab(type: 'claims'),
             AdminCekGonderTab(),
+            AdminTaxiTab(),
             AdminAnnouncementsTab(),
             AdminSettingsTab(),
           ],

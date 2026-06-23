@@ -144,64 +144,172 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // --- BİLDİRİM AYARLARI ---
   void _showNotificationCategoryDialog() {
-    showAdaptiveDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog.adaptive(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Haber Bildirim Bölgesi"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildDialogTile("🇹🇷 Türkiye Gündemi", () {
-              Navigator.pop(context);
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _NotificationBottomSheet(
+        title: "Haber Bildirim Bölgesi",
+        subtitle: "Hangi bölgeden haber bildirimi almak istediğinizi seçin.",
+        children: [
+          _buildNotificationSheetTile(
+            title: "Türkiye Gündemi",
+            subtitle: "Ülke gündemindeki önemli haberler",
+            leading: "🇹🇷",
+            onTap: () {
+              Navigator.pop(sheetContext);
               _showNotificationFrequencyDialog("Türkiye Gündemi", "gundem");
-            }),
-            _buildDialogTile("🌶️ Kahramanmaraş", () {
-              Navigator.pop(context);
+            },
+          ),
+          _buildNotificationSheetTile(
+            title: "Kahramanmaraş",
+            subtitle: "Şehir geneli duyuru ve haberleri",
+            leading: "🌶️",
+            onTap: () {
+              Navigator.pop(sheetContext);
               _showNotificationFrequencyDialog("Kahramanmaraş", "maras");
-            }),
-            _buildDialogTile("📍 Pazarcık", () {
-              Navigator.pop(context);
+            },
+          ),
+          _buildNotificationSheetTile(
+            title: "Pazarcık",
+            subtitle: "İlçe haberleri, duyurular ve acil bilgiler",
+            leading: "📍",
+            onTap: () {
+              Navigator.pop(sheetContext);
               _showNotificationFrequencyDialog("Pazarcık", "pazarcik");
-            }),
-          ],
-        ),
+            },
+          ),
+        ],
       ),
     );
   }
 
   void _showNotificationFrequencyDialog(String category, String prefix) {
-    showAdaptiveDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog.adaptive(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(category),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildDialogTile(
-                "⚡ Anında",
-                () => _bildirimAyariniKaydet(
-                    category, prefix, "Anında", "_aninda"),
-                icon: Icons.flash_on,
-                color: Colors.orange),
-            _buildDialogTile(
-                "🕒 Saatlik",
-                () => _bildirimAyariniKaydet(
-                    category, prefix, "Saatlik", "_saatlik"),
-                icon: Icons.access_time,
-                color: Colors.blue),
-            _buildDialogTile(
-                "📅 Günlük",
-                () => _bildirimAyariniKaydet(
-                    category, prefix, "Günlük", "_gunluk"),
-                icon: Icons.calendar_today,
-                color: Colors.green),
-            const Divider(),
-            _buildDialogTile("🔕 Kapat",
-                () => _bildirimAyariniKaydet(category, prefix, "Kapalı", ""),
-                icon: Icons.notifications_off, color: Colors.grey),
-          ],
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _NotificationBottomSheet(
+        title: category,
+        subtitle: "Bu bölgeden haberleri hangi sıklıkta almak istersiniz?",
+        children: [
+          _buildNotificationSheetTile(
+            title: "Anında",
+            subtitle: "Önemli haberleri gelir gelmez bildir",
+            icon: Icons.flash_on,
+            color: Colors.orange,
+            onTap: () =>
+                _bildirimAyariniKaydet(category, prefix, "Anında", "_aninda"),
+          ),
+          _buildNotificationSheetTile(
+            title: "Saatlik",
+            subtitle: "Bildirimleri saatlik özet halinde al",
+            icon: Icons.access_time,
+            color: Colors.blue,
+            onTap: () =>
+                _bildirimAyariniKaydet(category, prefix, "Saatlik", "_saatlik"),
+          ),
+          _buildNotificationSheetTile(
+            title: "Günlük",
+            subtitle: "Günde bir kez özet bildirim al",
+            icon: Icons.calendar_today,
+            color: Colors.green,
+            onTap: () =>
+                _bildirimAyariniKaydet(category, prefix, "Günlük", "_gunluk"),
+          ),
+          const Divider(height: 18),
+          _buildNotificationSheetTile(
+            title: "Kapat",
+            subtitle: "Bu bölge için haber bildirimi alma",
+            icon: Icons.notifications_off,
+            color: Colors.grey,
+            onTap: () => _bildirimAyariniKaydet(category, prefix, "Kapalı", ""),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotificationSheetTile({
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    String? leading,
+    IconData? icon,
+    Color? color,
+  }) {
+    final isDark = isDarkModeNotifier.value;
+    final tileColor = isDark ? const Color(0xFF2C2C2E) : Colors.white;
+    final borderColor = isDark ? Colors.white10 : const Color(0xFFE5E7EB);
+    final iconColor = color ?? const Color(0xFFFF7A00);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: tileColor,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: borderColor),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: leading != null
+                      ? Text(leading, style: const TextStyle(fontSize: 21))
+                      : Icon(icon, color: iconColor, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: isDark ? Colors.white60 : Colors.black54,
+                          fontSize: 12,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  CupertinoIcons.chevron_right,
+                  size: 18,
+                  color: isDark ? Colors.white38 : Colors.black26,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -320,15 +428,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // --- YARDIMCI METOTLAR ---
-  Widget _buildDialogTile(String title, VoidCallback onTap,
-      {IconData? icon, Color? color}) {
-    return ListTile(
-      leading: icon != null ? Icon(icon, color: color) : null,
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
-      onTap: onTap,
-    );
-  }
-
   void _showInAppNotificationDialog(String title, String message) {
     NotificationService().showSimpleDetail(title, message);
   }
@@ -581,7 +680,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (role == 'customer')
                     _menuItem(
                       Icons.storefront,
-                      "Esnaf Hesabı Aç",
+                      "Restoran&cafe Hesabı Aç",
                       isDark: isDark,
                       color: Colors.orange,
                       onTap: () => Navigator.push(
@@ -796,6 +895,108 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   fontWeight: FontWeight.w600))
           : const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
       onTap: onTap,
+    );
+  }
+}
+
+class _NotificationBottomSheet extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final List<Widget> children;
+
+  const _NotificationBottomSheet({
+    required this.title,
+    required this.subtitle,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = isDarkModeNotifier.value;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.78;
+
+    return SafeArea(
+      top: false,
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: Container(
+            width: double.infinity,
+            padding: EdgeInsets.only(
+              left: 18,
+              right: 18,
+              top: 12,
+              bottom: bottomInset + 18,
+            ),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF121212) : const Color(0xFFF8F9FA),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(26),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.black12,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            subtitle,
+                            style: TextStyle(
+                              color: isDark ? Colors.white60 : Colors.black54,
+                              fontSize: 13,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: "Kapat",
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(CupertinoIcons.xmark_circle_fill),
+                      color: isDark ? Colors.white54 : Colors.black38,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Flexible(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(children: children),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

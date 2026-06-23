@@ -526,6 +526,79 @@ class _PazarcikAnaEkranState extends State<PazarcikAnaEkran> {
     }
   }
 
+  List<Map<String, dynamic>> _defaultTaxiItems() {
+    return [
+      {
+        'name': 'TAKSI CRAZY',
+        'phone': '0543 569 46 58',
+        'telUrl': 'tel:+905435694658',
+        'isActive': true,
+      },
+      {
+        'name': 'Otogar Taksi',
+        'phone': '(0344) 311 20 30',
+        'telUrl': 'tel:+903443112030',
+        'isActive': true,
+      },
+      {
+        'name': 'Merkez Taksi',
+        'phone': '(0344) 311 44 05',
+        'telUrl': 'tel:+903443114405',
+        'isActive': true,
+      },
+      {
+        'name': 'Narlı Taksi',
+        'phone': '0533 438 84 51',
+        'telUrl': 'tel:+905334388451',
+        'isActive': true,
+      },
+    ];
+  }
+
+  String _taxiTelUrl(Map<String, dynamic> item) {
+    final existing = (item['telUrl'] ?? '').toString().trim();
+    if (existing.startsWith('tel:')) return existing;
+
+    final phone = (item['phone'] ?? '').toString();
+    var digits = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (digits.startsWith('+')) return 'tel:$digits';
+    digits = digits.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.startsWith('0')) {
+      digits = '90${digits.substring(1)}';
+    } else if (digits.length == 10) {
+      digits = '90$digits';
+    }
+    return digits.isEmpty ? '' : 'tel:+$digits';
+  }
+
+  List<Map<String, dynamic>> _parseTaxiItems(DocumentSnapshot snapshot) {
+    final data = snapshot.data() as Map<String, dynamic>?;
+    final rawItems = data?['items'];
+    if (rawItems is! List) return _defaultTaxiItems();
+
+    final items = rawItems
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .where((item) =>
+            item['isActive'] != false &&
+            (item['name'] ?? '').toString().trim().isNotEmpty &&
+            (item['phone'] ?? '').toString().trim().isNotEmpty)
+        .toList();
+
+    items.sort((a, b) {
+      final aOrder = a['sortOrder'];
+      final bOrder = b['sortOrder'];
+      if (aOrder is num && bOrder is num) {
+        return aOrder.compareTo(bOrder);
+      }
+      return (a['name'] ?? '')
+          .toString()
+          .compareTo((b['name'] ?? '').toString());
+    });
+
+    return items.isEmpty ? _defaultTaxiItems() : items;
+  }
+
   void _showTaxiMenu(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -559,14 +632,35 @@ class _PazarcikAnaEkranState extends State<PazarcikAnaEkran> {
               ),
             ),
             const SizedBox(height: 20),
-            _buildTaxiOption(
-                "TAKSİ CRAZY", "0543 569 46 58", "tel:+905435694658"),
-            _buildTaxiOption(
-                "Otogar Taksi", "(0344) 311 20 30", "tel:+903443112030"),
-            _buildTaxiOption(
-                "Merkez Taksi", "(0344) 311 44 05", "tel:+903443114405"),
-            _buildTaxiOption(
-                "Narlı Taksi", "0533 438 84 51", "tel:+905334388451"),
+            StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('app_settings')
+                  .doc('taxi_numbers')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData && !snapshot.hasError) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 18),
+                    child: CupertinoActivityIndicator(),
+                  );
+                }
+
+                final items = snapshot.hasError
+                    ? _defaultTaxiItems()
+                    : _parseTaxiItems(snapshot.data!);
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: items
+                      .map((item) => _buildTaxiOption(
+                            (item['name'] ?? '').toString(),
+                            (item['phone'] ?? '').toString(),
+                            _taxiTelUrl(item),
+                          ))
+                      .toList(),
+                );
+              },
+            ),
             const SizedBox(height: 10),
           ],
         ),
