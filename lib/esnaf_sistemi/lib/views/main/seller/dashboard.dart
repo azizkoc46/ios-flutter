@@ -2,6 +2,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart' hide Badge;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/cupertino.dart';
@@ -37,6 +38,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // 🔥 Bildirim Durumu
   bool isNotificationEnabled = false;
+  bool _notificationWarningShown = false;
 
   // Menü Listesi
   final List<Map<String, dynamic>> menuList = [
@@ -110,29 +112,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .collection('sellers')
           .doc(currentUserId)
           .get();
+      var enabled = false;
       if (doc.exists &&
           doc.data() != null &&
           doc.data()!.containsKey('sellerNotificationEnabled')) {
+        enabled = doc.data()!['sellerNotificationEnabled'] == true;
         if (mounted) {
           setState(() {
-            isNotificationEnabled =
-                doc.data()!['sellerNotificationEnabled'] ?? false;
+            isNotificationEnabled = enabled;
           });
         }
       }
+      if (!enabled) _showNotificationWarningOnce();
     } catch (e) {
       debugPrint("Bildirim durumu çekilemedi: $e");
+      _showNotificationWarningOnce();
     }
+  }
+
+  void _showNotificationWarningOnce() {
+    if (_notificationWarningShown || !mounted) return;
+    _notificationWarningShown = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || isNotificationEnabled) return;
+      showCupertinoDialog(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('Sipariş Bildirimleri Kapalı'),
+          content: const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text(
+              'Yeni sipariş geldiğinde sesli uyarı almak için bildirimleri aktif etmelisiniz. Bildirim kapalı kalırsa siparişleri yalnızca panele girince görebilirsiniz.',
+            ),
+          ),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('Sonra'),
+              onPressed: () => Navigator.pop(context),
+            ),
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              child: const Text('Aktif Et'),
+              onPressed: () {
+                Navigator.pop(context);
+                _toggleNotification(true);
+              },
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   // 🔥 BİLDİRİM AÇMA/KAPATMA FONKSİYONU
   void _toggleNotification(bool value) async {
-    setState(() {
-      isNotificationEnabled = value;
-    });
-
     try {
       if (value) {
+        final settings = await FirebaseMessaging.instance.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+
+        if (settings.authorizationStatus == AuthorizationStatus.denied) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                    "Bildirim izni kapalı. Telefon ayarlarından Pazarcık Portal bildirimlerini açın."),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+          return;
+        }
+
         // 1. Firebase Messaging Kalıcı Aboneliği
         await NotificationService().subscribeAsSeller(currentUserId);
 
@@ -171,8 +225,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
           );
         }
       }
+      if (mounted) {
+        setState(() {
+          isNotificationEnabled = value;
+        });
+      }
     } catch (e) {
       debugPrint("Bildirim ayarı değişirken hata: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Bildirim ayarı değiştirilemedi: $e"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
   }
 
@@ -287,6 +354,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
 
+                if (!isNotificationEnabled)
+                  SliverPadding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    sliver: SliverToBoxAdapter(
+                      child: _buildNotificationWarningCard(),
+                    ),
+                  ),
+
                 // Özet Kartı (Ciro & Sipariş)
                 SliverPadding(
                   padding:
@@ -385,6 +461,76 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildNotificationWarningCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFFED7AA)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: trendyolOrange.withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(CupertinoIcons.bell_slash_fill,
+                color: trendyolOrange, size: 19),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Sipariş bildirimleri kapalı',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xFF7C2D12),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Aktif etmezseniz yeni sipariş geldiğinde sesli uyarı alamazsınız.',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    height: 1.3,
+                    color: const Color(0xFF9A3412),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 34,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _toggleNotification(true),
+                    icon: const Icon(CupertinoIcons.bell_fill, size: 16),
+                    label: const Text('Bildirimleri Aktif Et'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: trendyolOrange,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

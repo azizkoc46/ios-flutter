@@ -306,6 +306,15 @@ kb0f8Vu/zXfNM/ySHgIVv7EYnkWuIdWaQ8cgMvygT0C7HIdroJ77KKwTNA2vSMjH
             'Restoran şu anda kapalı veya çalışma saati dışında. Sipariş alınamıyor.');
         return;
       }
+      final storeData = storeDoc.data() ?? const <String, dynamic>{};
+      final storeName = (storeData['restaurantName'] ??
+              storeData['storeName'] ??
+              storeData['businessName'] ??
+              storeData['companyName'] ??
+              storeData['fullname'] ??
+              '')
+          .toString()
+          .trim();
       var userDoc = await FirebaseFirestore.instance
           .collection('customers')
           .doc(userId)
@@ -334,8 +343,12 @@ kb0f8Vu/zXfNM/ySHgIVv7EYnkWuIdWaQ8cgMvygT0C7HIdroJ77KKwTNA2vSMjH
             "$selectedMahalle Mah. - ${_addressDescController.text.trim()}",
         'orderNote': _orderNoteController.text.trim(),
         'sellerId': vendorId,
+        if (storeName.isNotEmpty) 'restaurantName': storeName,
+        if (storeName.isNotEmpty) 'storeName': storeName,
         'totalAmount': widget.totalAmount,
         'orderDate': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
         'status': 'Onay Bekliyor',
         'items': widget.cartItems.map((e) => e.toJson()).toList(),
       });
@@ -468,7 +481,8 @@ kb0f8Vu/zXfNM/ySHgIVv7EYnkWuIdWaQ8cgMvygT0C7HIdroJ77KKwTNA2vSMjH
           color: Colors.white,
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03), blurRadius: 10)
           ]),
       child: TextField(
         controller: controller,
@@ -496,7 +510,8 @@ kb0f8Vu/zXfNM/ySHgIVv7EYnkWuIdWaQ8cgMvygT0C7HIdroJ77KKwTNA2vSMjH
           color: Colors.white,
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03), blurRadius: 10)
           ]),
       child: ListTile(
         contentPadding: EdgeInsets.zero,
