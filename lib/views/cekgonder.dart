@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:pazarcik_portal/admin/admin_notification_service.dart';
 import 'package:path/path.dart' as p; // Dosya uzantısını bulmak için eklendi
 
 class CekGonderPage extends StatefulWidget {
@@ -68,7 +69,8 @@ class _CekGonderPageState extends State<CekGonderPage> {
       }
 
       // 2. Veriyi Firestore'a kaydet (ADMİN PANELİ İLE BİREBİR UYUMLU ALANLAR)
-      await FirebaseFirestore.instance.collection('cek_gonder_reports').add({
+      final reportRef =
+          await FirebaseFirestore.instance.collection('cek_gonder_reports').add({
         'uid': FirebaseAuth.instance.currentUser?.uid,
         // KOLEKSİYON ADI DÜZELTİLDİ
         'title': _titleController.text.isNotEmpty
@@ -83,6 +85,20 @@ class _CekGonderPageState extends State<CekGonderPage> {
         'adminReply': '',
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      await AdminNotificationService.instance.notifyAdmin(
+        title: 'Yeni Çek Gönder',
+        body: _titleController.text.trim().isNotEmpty
+            ? _titleController.text.trim()
+            : 'Yeni bir vatandaş bildirimi geldi.',
+        type: AdminNotifType.cekGonder,
+        docId: reportRef.id,
+        extra: {
+          'uid': FirebaseAuth.instance.currentUser?.uid ?? '',
+          'hasMedia': (_mediaFile != null).toString(),
+          'mediaType': _isVideo ? 'video' : 'image',
+        },
+      );
 
       if (mounted) {
         Navigator.pop(context);

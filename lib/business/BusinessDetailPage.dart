@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pazarcik_portal/widgets/comment_identity.dart';
 import 'package:pazarcik_portal/utils/map_launcher.dart';
+import 'package:pazarcik_portal/admin/admin_notification_service.dart';
 
 class BusinessDetailPage extends StatefulWidget {
   final DocumentSnapshot doc;
@@ -219,7 +220,8 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
     }
 
     try {
-      await FirebaseFirestore.instance.collection('business_claims').add({
+      final claimRef =
+          await FirebaseFirestore.instance.collection('business_claims').add({
         'businessId': widget.doc.id,
         'businessName': widget.doc['businessName'],
         'userId': _currentUserId,
@@ -229,6 +231,18 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
         'status': 'pending',
         'timestamp': FieldValue.serverTimestamp(),
       });
+
+      await AdminNotificationService.instance.notifyAdmin(
+        title: 'Yeni sahiplik başvurusu',
+        body: '$name, ${widget.doc['businessName']} için sahiplik talebi gönderdi.',
+        type: AdminNotifType.ownershipClaim,
+        docId: claimRef.id,
+        extra: {
+          'businessId': widget.doc.id,
+          'userId': _currentUserId ?? '',
+          'phone': phone,
+        },
+      );
 
       Navigator.pop(context);
       _showToast("Talebiniz başarıyla alındı. Yönetim inceleyecektir.");

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:cloudinary_public/cloudinary_public.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:pazarcik_portal/admin/admin_notification_service.dart';
 import 'package:pazarcik_portal/main.dart';
 import 'package:pazarcik_portal/auth/forgot_password.dart';
 import 'package:pazarcik_portal/esnaf_sistemi/lib/helpers/image_picker.dart';
@@ -302,6 +303,17 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
             rethrow;
           }
         }
+
+        await AdminNotificationService.instance.notifyAdmin(
+          title: 'Yeni kullanıcı kaydı',
+          body: '${_fullnameController.text.trim()} uygulamaya kayıt oldu.',
+          type: AdminNotifType.userRegister,
+          docId: activeUser.uid,
+          extra: {
+            'uid': activeUser.uid,
+            'email': _emailController.text.trim(),
+          },
+        );
 
         showSnackBar("Hoş Geldiniz!", isError: false);
         if (mounted) {

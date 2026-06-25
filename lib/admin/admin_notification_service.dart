@@ -19,6 +19,12 @@ class AdminNotificationService {
         sound: true,
       );
 
+      try {
+        await messaging.subscribeToTopic('portal_admins');
+      } catch (e) {
+        print('[AdminNotif] Topic aboneligi atlandi: $e');
+      }
+
       final token = await messaging.getToken();
       if (token == null) return;
 
@@ -29,6 +35,8 @@ class AdminNotificationService {
         'token': token,
         'uid': adminUid,
         'platform': 'mobile',
+        'topics': ['portal_admins'],
+        'enabled': true,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -84,6 +92,8 @@ class AdminNotifType {
   static const String storeOrder = 'store_order';
   static const String comment = 'comment';
   static const String corporateApply = 'corporate_apply';
+  static const String userRegister = 'user_register';
+  static const String ownershipClaim = 'ownership_claim';
   static const String general = 'general';
 
   static String emoji(String type) {
@@ -104,6 +114,10 @@ class AdminNotifType {
         return 'Y';
       case corporateApply:
         return 'K';
+      case userRegister:
+        return 'U';
+      case ownershipClaim:
+        return 'S';
       default:
         return 'N';
     }

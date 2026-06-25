@@ -352,16 +352,7 @@ exports.sendAdminNotification = onDocumentCreated(
             .map((doc) => doc.get("token"))
             .filter((token) => typeof token === "string" && token.length > 0);
 
-        if (tokens.length === 0) {
-          await snap.ref.set({
-            status: "no_tokens",
-            finishedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, {merge: true});
-          return;
-        }
-
-        const response = await admin.messaging().sendEachForMulticast({
-          tokens,
+        const baseMessage = {
           notification: {
             title: request.title || "Yonetici bildirimi",
             body: request.body || "",
@@ -386,7 +377,25 @@ exports.sendAdminNotification = onDocumentCreated(
               },
             },
           },
-        });
+        };
+
+        let response = {successCount: 0, failureCount: 0};
+        let topicFallback = false;
+
+        if (tokens.length > 0) {
+          response = await admin.messaging().sendEachForMulticast({
+            tokens,
+            ...baseMessage,
+          });
+        }
+
+        if (tokens.length === 0 || response.successCount === 0) {
+          await admin.messaging().send({
+            topic: "portal_admins",
+            ...baseMessage,
+          });
+          topicFallback = true;
+        }
 
         await db.collection("admin_notifications_log").add({
           title: request.title || "",
@@ -397,6 +406,7 @@ exports.sendAdminNotification = onDocumentCreated(
           tokenCount: tokens.length,
           successCount: response.successCount,
           failureCount: response.failureCount,
+          topicFallback,
         });
 
         await snap.ref.set({
@@ -404,6 +414,7 @@ exports.sendAdminNotification = onDocumentCreated(
           tokenCount: tokens.length,
           successCount: response.successCount,
           failureCount: response.failureCount,
+          topicFallback,
           sentAt: admin.firestore.FieldValue.serverTimestamp(),
         }, {merge: true});
       } catch (error) {

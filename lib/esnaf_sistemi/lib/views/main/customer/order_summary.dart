@@ -12,6 +12,7 @@ import '../../../providers/cart.dart';
 import '../../../models/cart.dart';
 import '../../../utils/delivery_neighborhoods.dart';
 import '../../../utils/store_availability.dart';
+import 'package:pazarcik_portal/admin/admin_notification_service.dart';
 import 'package:pazarcik_portal/auth/auth.dart';
 
 // Tema Renkleri
@@ -383,6 +384,20 @@ kb0f8Vu/zXfNM/ySHgIVv7EYnkWuIdWaQ8cgMvygT0C7HIdroJ77KKwTNA2vSMjH
       // 🔥 4. SENİN YENİ MOTORUNLA ESNAFIN TELEFONUNU ZİL SESİYLE ÇALDIR!
       await _sendOrderPushNotification(
           vendorId, customerName, widget.totalAmount);
+
+      await AdminNotificationService.instance.notifyAdmin(
+        title: 'Yeni yemek siparişi',
+        body:
+            '${storeName.isNotEmpty ? storeName : 'Restoran'} - $customerName - ₺${widget.totalAmount.toStringAsFixed(2)}',
+        type: AdminNotifType.storeOrder,
+        docId: newOrderRef.id,
+        extra: {
+          'orderId': newOrderRef.id,
+          'sellerId': vendorId,
+          'customerId': userId,
+          'restaurantName': storeName,
+        },
+      );
 
       // 5. Sepeti Temizle ve Başarı Diyaloğunu Göster
       Provider.of<CartData>(context, listen: false).clearCart();

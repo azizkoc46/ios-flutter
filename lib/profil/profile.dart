@@ -13,6 +13,7 @@ import 'package:pazarcik_portal/esnaf_sistemi/lib/components/loading.dart';
 import 'package:pazarcik_portal/esnaf_sistemi/lib/constants/colors.dart';
 import 'package:pazarcik_portal/auth/auth.dart';
 import 'package:pazarcik_portal/admin/request_complaint_page.dart';
+import 'package:pazarcik_portal/admin/admin_notification_service.dart';
 import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/seller/dashboard.dart';
 import 'package:pazarcik_portal/admin/admin_panel.dart';
 import 'package:pazarcik_portal/business/business_add_page.dart';
@@ -39,6 +40,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isNamazNotificationOn = true;
   bool _isUploadingImage = false;
   bool _hasAdminClaim = false;
+  bool _adminTokenRegistered = false;
 
   @override
   void initState() {
@@ -66,6 +68,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           claimRole == 'admin' ||
           claimRole == 'yonetici' ||
           claimRole == 'yönetici';
+      if (hasAdminClaim) {
+        _ensureAdminNotificationsRegistered();
+      }
       if (mounted && hasAdminClaim != _hasAdminClaim) {
         setState(() => _hasAdminClaim = hasAdminClaim);
       }
@@ -75,6 +80,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // Sürüm bilgisini dinamik çeken fonksiyon
+  Future<void> _ensureAdminNotificationsRegistered() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (_adminTokenRegistered || uid == null || uid.isEmpty) return;
+    _adminTokenRegistered = true;
+    await AdminNotificationService.instance.registerAdminToken(uid);
+  }
+
   Future<void> _getAppVersion() async {
     try {
       final packageInfo = await PackageInfo.fromPlatform();
@@ -572,6 +584,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               userData['isAdmin'] == true ||
               userData['admin'] == true ||
               _hasAdminClaim;
+          if (isAdmin) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _ensureAdminNotificationsRegistered();
+            });
+          }
           bool isApproved = userData['isApproved'] ?? false;
           String imageUrl = userData['image'] ?? "";
           String fullname = userData['fullname'] ?? "Pazarcıklı";
