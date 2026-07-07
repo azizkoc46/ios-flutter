@@ -416,7 +416,9 @@ class _PazarcikAnaEkranState extends State<PazarcikAnaEkran> {
   }
 
   void _handleDeepLink(Uri uri) async {
-    if (uri.host == 'pazarcik-portal-7faf2.web.app') {
+    if (uri.host == 'pazarcik-portal-7faf2.web.app' ||
+        uri.host == 'pazarcikportal.com' ||
+        uri.host == 'www.pazarcikportal.com') {
       String? id = uri.queryParameters['id'];
       if (id == null) return;
 
@@ -467,16 +469,6 @@ class _PazarcikAnaEkranState extends State<PazarcikAnaEkran> {
         }
       }
     }
-  }
-
-  void _showSnackBar(String msg, Color color) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content: Text(msg),
-          backgroundColor: color,
-          behavior: SnackBarBehavior.floating),
-    );
   }
 
   void _ayarlariYukle() async {

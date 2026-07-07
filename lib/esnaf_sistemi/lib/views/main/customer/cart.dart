@@ -86,7 +86,7 @@ class _CartScreenState extends State<CartScreen>
                     itemBuilder: (context, index) {
                       var item = cartData.cartItems[index];
                       // Firebase'den gelen ürün nesnesi gönderilir
-                      return _buildModernCartItem(item, cartData);
+                      return _buildModernCartItem(item, cartData, index);
                     },
                   ),
                 ),
@@ -96,7 +96,7 @@ class _CartScreenState extends State<CartScreen>
     );
   }
 
-  Widget _buildModernCartItem(item, CartData cartData) {
+  Widget _buildModernCartItem(item, CartData cartData, int index) {
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.all(12),
@@ -154,13 +154,12 @@ class _CartScreenState extends State<CartScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                        "₺${(item.prodPrice * item.quantity).toStringAsFixed(2)}",
+                    Text("₺${item.totalPrice.toStringAsFixed(2)}",
                         style: GoogleFonts.inter(
                             color: trendyolOrange,
                             fontWeight: FontWeight.w800,
                             fontSize: 17)),
-                    _buildQuantityController(item, cartData),
+                    _buildQuantityController(item, cartData, index),
                   ],
                 ),
               ],
@@ -171,7 +170,7 @@ class _CartScreenState extends State<CartScreen>
     );
   }
 
-  Widget _buildQuantityController(item, CartData cartData) {
+  Widget _buildQuantityController(item, CartData cartData, int index) {
     return Container(
       decoration: BoxDecoration(
           color: Colors.grey[100],
@@ -180,7 +179,7 @@ class _CartScreenState extends State<CartScreen>
       child: Row(
         children: [
           _qtyActionBtn(CupertinoIcons.minus, () {
-            cartData.decrementProductQuantity(item.prodId);
+            cartData.decrementLineAt(index);
           }),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -189,7 +188,7 @@ class _CartScreenState extends State<CartScreen>
                     fontWeight: FontWeight.w800, fontSize: 15)),
           ),
           _qtyActionBtn(CupertinoIcons.plus, () {
-            cartData.incrementProductQuantity(item.prodId);
+            cartData.incrementLineAt(index);
           }),
         ],
       ),

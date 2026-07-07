@@ -8,6 +8,9 @@ class CartItem {
   final String prodImgUrl;
   final double prodPrice;
   final bool isMonthlyDeal;
+  final List<String> removedIngredients;
+  final List<String> addedIngredients;
+  final int? estimatedCalories;
   double totalPrice;
   int quantity;
 
@@ -21,6 +24,9 @@ class CartItem {
     required this.prodPrice,
     required this.prodImgUrl,
     this.isMonthlyDeal = false,
+    this.removedIngredients = const [],
+    this.addedIngredients = const [],
+    this.estimatedCalories,
     this.quantity = 1,
     required this.totalPrice,
   });
@@ -51,6 +57,9 @@ class CartItem {
       'prodImgUrl': prodImgUrl,
       'prodPrice': prodPrice,
       'isMonthlyDeal': isMonthlyDeal,
+      'removedIngredients': removedIngredients,
+      'addedIngredients': addedIngredients,
+      'estimatedCalories': estimatedCalories,
       'totalPrice': totalPrice,
       'quantity': quantity,
     };
@@ -68,6 +77,13 @@ class CartItem {
       prodPrice: (json['prodPrice'] ?? 0).toDouble(),
       prodImgUrl: json['prodImgUrl'] ?? '',
       isMonthlyDeal: json['isMonthlyDeal'] == true,
+      removedIngredients:
+          List<String>.from(json['removedIngredients'] as List? ?? const []),
+      addedIngredients:
+          List<String>.from(json['addedIngredients'] as List? ?? const []),
+      estimatedCalories: json['estimatedCalories'] is num
+          ? (json['estimatedCalories'] as num).toInt()
+          : null,
       quantity: json['quantity'] ?? 1,
       totalPrice: (json['totalPrice'] ?? 0).toDouble(),
     );

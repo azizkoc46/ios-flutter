@@ -186,6 +186,10 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
     String title = data['productName'] ?? 'İsimsiz Ürün';
     double price = (data['price'] ?? 0.0).toDouble();
     String imgUrl = data['productImage'] ?? '';
+    final hasCompliance = (data['ingredients'] is List &&
+            (data['ingredients'] as List).isNotEmpty) ||
+        (data['calorieText']?.toString().trim().isNotEmpty ?? false);
+    final approved = data['complianceApprovedBySeller'] == true;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -244,6 +248,35 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                         color: trendyolOrange,
                         fontWeight: FontWeight.w800,
                         fontSize: 16)),
+                const SizedBox(height: 5),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: approved
+                        ? Colors.green.withOpacity(0.1)
+                        : hasCompliance
+                            ? Colors.orange.withOpacity(0.1)
+                            : Colors.redAccent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    approved
+                        ? "Beyan onaylı"
+                        : hasCompliance
+                            ? "Beyan onayı bekliyor"
+                            : "Beyan eksik",
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: approved
+                          ? Colors.green
+                          : hasCompliance
+                              ? Colors.orange
+                              : Colors.redAccent,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

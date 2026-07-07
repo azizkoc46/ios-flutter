@@ -66,8 +66,7 @@ class _StoreDetailsState extends State<StoreDetails> {
         data['restaurantName'] ??
         data['fullname'] ??
         "Pazarcık Esnafı";
-    String shareUrl =
-        "https://pazarcik-portal-7faf2.web.app/magaza?id=$storeId";
+    String shareUrl = "https://www.pazarcikportal.com/magaza?id=$storeId";
 
     String shareText = "Pazarcık Portal'da harika bir mağaza!\n\n"
         "Mağaza: $name\n"

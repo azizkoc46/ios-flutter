@@ -17,6 +17,7 @@ import 'admin_store_orders_tab.dart';
 import 'admin_settings_tab.dart';
 import 'admin_classified_ads_tab.dart';
 import 'admin_manual_classified_ad_tab.dart';
+import 'admin_manual_job_tab.dart';
 import 'admin_activity_feed_tab.dart';
 import 'admin_pending_center_tab.dart';
 import 'admin_taxi_tab.dart';
@@ -48,7 +49,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 16,
+      length: 17,
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: AppBar(
@@ -128,6 +129,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   Tab(text: "Siparişler"),
                   Tab(text: "İlanlar"),
                   Tab(text: "Manuel İlan"),
+                  Tab(text: "İş İlanı"),
                   Tab(text: "Öne Çıkanlar"),
                   Tab(text: "Emlakçılar"),
                   Tab(text: "İşletmeler"),
@@ -151,6 +153,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             AdminStoreOrdersTab(),
             AdminClassifiedAdsTab(),
             AdminManualClassifiedAdTab(),
+            AdminManualJobTab(),
             AdminStoriesTab(),
             AdminBusinessTab(type: 'emlakci'),
             AdminBusinessTab(type: 'private'),

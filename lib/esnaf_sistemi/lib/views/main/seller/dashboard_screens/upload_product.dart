@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:pazarcik_portal/esnaf_sistemi/lib/utils/food_compliance.dart';
 import 'package:pazarcik_portal/utils/portal_file_upload.dart';
 
 // Proje Renkleri
@@ -32,17 +33,27 @@ class _UploadProductState extends State<UploadProduct> {
   final _prepTimeController = TextEditingController();
   final _descController = TextEditingController();
   final _dealLimitController = TextEditingController();
+  final _calorieController = TextEditingController();
+  final _customIngredientController = TextEditingController();
+  final _meatOriginController = TextEditingController(text: 'Türkiye');
 
   String? selectedCategory;
   File? _image;
   bool isLoading = false;
   bool isAvailable = true;
+  bool complianceApproved = false;
   bool repeatMonthly = false;
   DateTime dealStart = DateTime.now();
   DateTime dealEnd = DateTime.now().add(const Duration(days: 30));
 
+  String? selectedSuggestionName;
   String? selectedPortion;
   List<String> selectedSides = [];
+  List<String> selectedIngredients = [];
+  List<String> selectedRemovableIngredients = [];
+  List<String> selectedAddableIngredients = [];
+  List<String> detectedAllergens = [];
+  List<String> dietaryWarnings = [];
 
   String _pickString(Map<String, dynamic>? data, List<String> keys,
       {String fallback = ''}) {
@@ -89,6 +100,91 @@ class _UploadProductState extends State<UploadProduct> {
     "Su",
     "Tatlı İkramı"
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _priceController.dispose();
+    _discountController.dispose();
+    _prepTimeController.dispose();
+    _descController.dispose();
+    _dealLimitController.dispose();
+    _calorieController.dispose();
+    _customIngredientController.dispose();
+    _meatOriginController.dispose();
+    super.dispose();
+  }
+
+  void _refreshAllergens() {
+    detectedAllergens = FoodComplianceHelper.allergensFor(selectedIngredients);
+    dietaryWarnings = FoodComplianceHelper.warningsFor(
+      selectedIngredients,
+      suggestion:
+          FoodComplianceHelper.findSuggestionByName(selectedSuggestionName),
+    );
+  }
+
+  void _applyFoodSuggestion(FoodSuggestion suggestion) {
+    final currentProductName = _nameController.text;
+    setState(() {
+      selectedSuggestionName = suggestion.name;
+      selectedIngredients = List<String>.from(suggestion.ingredients);
+      selectedRemovableIngredients =
+          List<String>.from(suggestion.removableIngredients);
+      selectedAddableIngredients =
+          List<String>.from(suggestion.addableIngredients);
+      _calorieController.text = suggestion.calorieText;
+      _refreshAllergens();
+      complianceApproved = false;
+    });
+    _nameController.text = currentProductName;
+    _nameController.selection = TextSelection.collapsed(
+      offset: _nameController.text.length,
+    );
+  }
+
+  void _toggleIngredient(String ingredient) {
+    setState(() {
+      if (selectedIngredients.contains(ingredient)) {
+        selectedIngredients.remove(ingredient);
+      } else {
+        selectedIngredients.add(ingredient);
+      }
+      _refreshAllergens();
+      complianceApproved = false;
+    });
+  }
+
+  void _toggleRemovableIngredient(String ingredient) {
+    setState(() {
+      if (selectedRemovableIngredients.contains(ingredient)) {
+        selectedRemovableIngredients.remove(ingredient);
+      } else {
+        selectedRemovableIngredients.add(ingredient);
+      }
+      complianceApproved = false;
+    });
+  }
+
+  void _toggleAddableIngredient(String ingredient) {
+    setState(() {
+      if (selectedAddableIngredients.contains(ingredient)) {
+        selectedAddableIngredients.remove(ingredient);
+      } else {
+        selectedAddableIngredients.add(ingredient);
+      }
+      _refreshAllergens();
+      complianceApproved = false;
+    });
+  }
 
   Future _pickImage(ImageSource source) async {
     final pickedFile =
@@ -190,6 +286,16 @@ class _UploadProductState extends State<UploadProduct> {
       return;
     }
 
+    final requiresMeatOrigin =
+        FoodComplianceHelper.requiresMeatOrigin(selectedIngredients);
+    if (requiresMeatOrigin && _meatOriginController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Et içeren ürünlerde et menşei zorunludur."),
+          backgroundColor: Color(0xFFFF3B30),
+          behavior: SnackBarBehavior.floating));
+      return;
+    }
+
     setState(() => isLoading = true);
 
     try {
@@ -255,6 +361,23 @@ class _UploadProductState extends State<UploadProduct> {
         'portion': selectedPortion ?? "Standart / 1 Porsiyon",
         'sideDishes': selectedSides.join(', '),
         'description': _descController.text.trim(),
+        'ingredients': selectedIngredients,
+        'removableIngredients': selectedRemovableIngredients,
+        'addableIngredients': selectedAddableIngredients,
+        'allergens': detectedAllergens,
+        'dietaryWarnings': dietaryWarnings,
+        'calorieText': _calorieController.text.trim(),
+        'addableIngredientCalories':
+            FoodComplianceHelper.calorieMapFor(selectedAddableIngredients),
+        'suggestedFoodName': selectedSuggestionName ?? '',
+        'meatOrigin':
+            requiresMeatOrigin ? _meatOriginController.text.trim() : '',
+        'requiresMeatOrigin': requiresMeatOrigin,
+        'celiacWarning': FoodComplianceHelper.celiacWarning(detectedAllergens),
+        'complianceSource': 'Pazarcık Portal önerisi',
+        'complianceApprovedBySeller': complianceApproved,
+        'complianceApprovedAt':
+            complianceApproved ? FieldValue.serverTimestamp() : null,
       });
 
       if (!mounted) return;
@@ -339,6 +462,9 @@ class _UploadProductState extends State<UploadProduct> {
                   ],
                 ),
               ]),
+              const SizedBox(height: 25),
+              _sectionHeader("KALORİ, İÇERİK VE ALERJEN BEYANI"),
+              _buildFoodComplianceCard(),
               if (widget.monthlyDealMode) ...[
                 const SizedBox(height: 25),
                 _sectionHeader("AYIN İNDİRİMLİ MENÜ AYARLARI"),
@@ -535,6 +661,325 @@ class _UploadProductState extends State<UploadProduct> {
     );
   }
 
+  Widget _buildFoodComplianceCard() {
+    final suggestions =
+        FoodComplianceHelper.searchSuggestions(_nameController.text);
+    final needsMeatOrigin =
+        FoodComplianceHelper.requiresMeatOrigin(selectedIngredients);
+    final celiacWarning = FoodComplianceHelper.celiacWarning(detectedAllergens);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 14)
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF34C759).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(CupertinoIcons.checkmark_shield_fill,
+                    color: Color(0xFF34C759), size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  "Pazarcık Portal içerik şablonu",
+                  style: GoogleFonts.inter(
+                      fontSize: 15, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Ürün adından öneri seçin; içeriklere göre alerjen, çölyak uyarısı, kalori ve et menşei alanları otomatik hazırlanır.",
+            style: GoogleFonts.inter(
+                fontSize: 12, height: 1.35, color: Colors.black54),
+          ),
+          const SizedBox(height: 14),
+          _buildSuggestionDropdown(suggestions),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Text("İçindekiler",
+                    style: GoogleFonts.inter(
+                        fontSize: 13, fontWeight: FontWeight.w900)),
+              ),
+              TextButton.icon(
+                onPressed: _addCustomIngredient,
+                icon: const Icon(CupertinoIcons.plus_circle, size: 17),
+                label: const Text("Ekle"),
+              )
+            ],
+          ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: FoodComplianceHelper.ingredients.map((item) {
+              final selected = selectedIngredients.contains(item.name);
+              return FilterChip(
+                label: Text(item.name),
+                selected: selected,
+                selectedColor: trendyolOrange,
+                checkmarkColor: Colors.white,
+                labelStyle: TextStyle(
+                  color: selected ? Colors.white : Colors.black87,
+                  fontWeight: FontWeight.w700,
+                ),
+                backgroundColor: iosBg,
+                onSelected: (_) => _toggleIngredient(item.name),
+              );
+            }).toList(),
+          ),
+          if (selectedIngredients.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _infoLine(CupertinoIcons.list_bullet, "Seçilen içerikler",
+                selectedIngredients.join(', '), Colors.blue),
+          ],
+          const SizedBox(height: 14),
+          _buildComplianceChipGroup(
+            title: 'Müşteri çıkarabilir',
+            values: selectedRemovableIngredients,
+            color: Colors.redAccent,
+            onToggle: _toggleRemovableIngredient,
+          ),
+          const SizedBox(height: 12),
+          _buildComplianceChipGroup(
+            title: 'Ekstra eklenebilir',
+            values: selectedAddableIngredients,
+            color: const Color(0xFF34C759),
+            onToggle: _toggleAddableIngredient,
+          ),
+          const SizedBox(height: 12),
+          _buildField(_calorieController, "Kalori / enerji değeri",
+              CupertinoIcons.flame_fill, false),
+          if (detectedAllergens.isNotEmpty)
+            _infoLine(CupertinoIcons.exclamationmark_triangle_fill,
+                "Alerjenler", detectedAllergens.join(', '), Colors.orange),
+          if (celiacWarning.isNotEmpty)
+            _infoLine(CupertinoIcons.bandage_fill, "Çölyak uyarısı",
+                celiacWarning, Colors.redAccent),
+          if (dietaryWarnings.isNotEmpty)
+            _infoLine(CupertinoIcons.heart_fill, "Sağlık uyarıları",
+                dietaryWarnings.join('\n'), Colors.purple),
+          if (needsMeatOrigin) ...[
+            const SizedBox(height: 8),
+            _buildField(_meatOriginController, "Et menşei / kökeni",
+                CupertinoIcons.location_solid, false),
+          ],
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            value: complianceApproved,
+            activeColor: const Color(0xFF34C759),
+            onChanged: (value) => setState(() => complianceApproved = value),
+            title: Text("İşletme olarak doğruluyorum",
+                style: GoogleFonts.inter(
+                    fontSize: 14, fontWeight: FontWeight.w800)),
+            subtitle: Text(
+              "Bilgiler öneridir; yayınlanmadan önce işletme tarafından kontrol edilmelidir.",
+              style: GoogleFonts.inter(fontSize: 12, color: Colors.black45),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestionDropdown(List<FoodSuggestion> suggestions) {
+    final shownSuggestions = List<FoodSuggestion>.from(suggestions);
+    final selectedSuggestion =
+        FoodComplianceHelper.findSuggestionByName(selectedSuggestionName);
+    if (selectedSuggestion != null &&
+        !shownSuggestions.any((item) => item.name == selectedSuggestion.name)) {
+      shownSuggestions.insert(0, selectedSuggestion);
+    }
+
+    final safeValue = shownSuggestions.any(
+      (item) => item.name == selectedSuggestionName,
+    )
+        ? selectedSuggestionName
+        : null;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: iosBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButtonFormField<String>(
+          value: safeValue,
+          isExpanded: true,
+          hint: Text(
+            'İçerik şablonu seçin',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Colors.black45,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          decoration: const InputDecoration(
+            border: InputBorder.none,
+            prefixIcon: Icon(CupertinoIcons.sparkles, color: trendyolOrange),
+          ),
+          items: shownSuggestions
+              .map(
+                (item) => DropdownMenuItem<String>(
+                  value: item.name,
+                  child: Text(
+                    '${item.name}  •  ${item.category}',
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: (value) {
+            final suggestion = FoodComplianceHelper.findSuggestionByName(value);
+            if (suggestion != null) _applyFoodSuggestion(suggestion);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildComplianceChipGroup({
+    required String title,
+    required List<String> values,
+    required Color color,
+    required ValueChanged<String> onToggle,
+  }) {
+    if (values.isEmpty) {
+      return _infoLine(
+        CupertinoIcons.info_circle_fill,
+        title,
+        'Bu ürün için otomatik öneri yok. İsterseniz içerik listesinden ekleyebilirsiniz.',
+        Colors.black45,
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: values.map((item) {
+            return FilterChip(
+              selected: true,
+              label: Text(item),
+              selectedColor: color,
+              checkmarkColor: Colors.white,
+              labelStyle: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+              onSelected: (_) => onToggle(item),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _infoLine(IconData icon, String title, String body, Color color) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.14)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: color)),
+                const SizedBox(height: 3),
+                Text(body,
+                    style:
+                        GoogleFonts.inter(fontSize: 12, color: Colors.black87)),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  void _addCustomIngredient() {
+    _customIngredientController.clear();
+    showCupertinoDialog(
+      context: context,
+      builder: (_) => CupertinoAlertDialog(
+        title: const Text("İçerik ekle"),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: CupertinoTextField(
+            controller: _customIngredientController,
+            placeholder: "Örn. özel sos",
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+              child: const Text("Vazgeç"),
+              onPressed: () => Navigator.pop(context)),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: const Text("Ekle"),
+            onPressed: () {
+              final value = _customIngredientController.text.trim();
+              if (value.isNotEmpty && !selectedIngredients.contains(value)) {
+                setState(() {
+                  selectedIngredients.add(value);
+                  _refreshAllergens();
+                  complianceApproved = false;
+                });
+              }
+              Navigator.pop(context);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showSidesModal() {
     showModalBottomSheet(
       context: context,
@@ -692,14 +1137,25 @@ class _UploadProductState extends State<UploadProduct> {
           return const Padding(
               padding: EdgeInsets.all(16.0),
               child: CupertinoActivityIndicator());
-        var items = snapshot.data!.docs
-            .map((doc) => doc['categoryName'].toString())
-            .toList();
+        final categorySet = <String>{};
+        for (final doc in snapshot.data!.docs) {
+          final data = doc.data() as Map<String, dynamic>?;
+          final name = data?['categoryName']?.toString().trim() ?? '';
+          if (name.isNotEmpty) categorySet.add(name);
+        }
+        final items = categorySet.toList()..sort();
+        if (selectedCategory != null &&
+            selectedCategory!.trim().isNotEmpty &&
+            !items.contains(selectedCategory)) {
+          items.insert(0, selectedCategory!);
+        }
+        final safeValue =
+            items.contains(selectedCategory) ? selectedCategory : null;
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: DropdownButtonHideUnderline(
             child: DropdownButtonFormField<String>(
-              value: selectedCategory,
+              value: safeValue,
               hint: Text("Kategori Seçin",
                   style: GoogleFonts.inter(
                       fontSize: 14,

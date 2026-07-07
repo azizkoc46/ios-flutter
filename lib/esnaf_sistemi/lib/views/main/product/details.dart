@@ -17,6 +17,20 @@ import '../../../utils/store_availability.dart';
 const Color trendyolOrange = Color(0xfff27a1a);
 const Color iosBg = Color(0xFFF2F2F7);
 
+class _ExtraCartDraft {
+  const _ExtraCartDraft({
+    required this.id,
+    required this.name,
+    required this.price,
+    required this.imageUrl,
+  });
+
+  final String id;
+  final String name;
+  final double price;
+  final String imageUrl;
+}
+
 class DetailsScreen extends StatefulWidget {
   const DetailsScreen({Key? key, required this.product}) : super(key: key);
   final dynamic product;
@@ -32,7 +46,10 @@ class _DetailsScreenState extends State<DetailsScreen> {
 
   // Ekstralar iÃ§in state yÃ¶netimi
   Map<String, int> selectedExtras = {};
+  final Map<String, _ExtraCartDraft> selectedExtraDrafts = {};
   double extrasTotalPrice = 0.0;
+  final Set<String> removedIngredients = {};
+  final Set<String> addedIngredients = {};
 
   String _pickString(Map<String, dynamic>? data, List<String> keys,
       {String fallback = ''}) {
@@ -55,6 +72,44 @@ class _DetailsScreenState extends State<DetailsScreen> {
   int _asInt(dynamic value, {int fallback = 0}) {
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  List<String> _asStringList(dynamic value) {
+    if (value is List) {
+      return value
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    final raw = value?.toString().trim() ?? '';
+    if (raw.isEmpty) return [];
+    return raw
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+  }
+
+  Map<String, int> _asIntMap(dynamic value) {
+    if (value is! Map) return const {};
+    return value.map((key, rawValue) {
+      final parsed = rawValue is num
+          ? rawValue.toInt()
+          : int.tryParse(rawValue.toString()) ?? 0;
+      return MapEntry(key.toString(), parsed);
+    });
+  }
+
+  int? _calorieAverage(dynamic value) {
+    final matches = RegExp(r'\d+').allMatches(value?.toString() ?? '').toList();
+    if (matches.isEmpty) return null;
+    final values = matches
+        .map((match) => int.tryParse(match.group(0) ?? ''))
+        .whereType<int>()
+        .toList();
+    if (values.isEmpty) return null;
+    return (values.reduce((left, right) => left + right) / values.length)
+        .round();
   }
 
   @override
@@ -119,6 +174,12 @@ class _DetailsScreenState extends State<DetailsScreen> {
         data, ['vendorId', 'sellerId', 'seller_id', 'storeId', 'userId'],
         fallback: 'unknown');
     final isMonthlyDeal = data['isMonthlyDeal'] == true;
+    final baseCalories = _calorieAverage(data['calorieText']);
+    final extraCalorieValues = _asIntMap(data['addableIngredientCalories']);
+    final selectedExtraCalories = addedIngredients.fold<int>(
+      0,
+      (total, ingredient) => total + (extraCalorieValues[ingredient] ?? 0),
+    );
     final storeOpen = store != null &&
         (store?.exists ?? false) &&
         StoreAvailability.isOpen(
@@ -150,16 +211,31 @@ class _DetailsScreenState extends State<DetailsScreen> {
         prodPrice: currentPrice,
         prodImgUrl: imageUrl,
         isMonthlyDeal: isMonthlyDeal,
+        removedIngredients: removedIngredients.toList()..sort(),
+        addedIngredients: addedIngredients.toList()..sort(),
+        estimatedCalories:
+            baseCalories == null ? null : baseCalories + selectedExtraCalories,
         totalPrice: currentPrice * quantity,
         quantity: quantity,
       ));
 
       // 2. SeÃ§ili EkstralarÄ± Ekle (AyrÄ± kalemler olarak)
       selectedExtras.forEach((extraId, qty) {
+        final extra = selectedExtraDrafts[extraId];
         if (qty > 0) {
-          // EkstranÄ±n bilgilerini (isim ve fiyat) o anki Stream verisinden alÄ±yoruz
-          // BasitleÅŸtirmek iÃ§in burada genel bir isim kullanabilirsin veya
-          // extras listesini state'de tutabilirsin.
+          if (extra == null) return;
+          cartData.addToCart(CartItem(
+            id: 'extra_${vendorId}_$extraId',
+            docId: extraId,
+            prodId: 'extra_${vendorId}_$extraId',
+            userId: userId,
+            sellerId: vendorId,
+            prodName: extra.name,
+            prodPrice: extra.price,
+            prodImgUrl: extra.imageUrl.isNotEmpty ? extra.imageUrl : imageUrl,
+            totalPrice: extra.price * qty,
+            quantity: qty,
+          ));
         }
       });
 
@@ -213,6 +289,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
                               fontSize: 14,
                               color: Colors.black54,
                               height: 1.6)),
+                      _buildComplianceCard(data),
+                      _buildPersonalizationCard(data),
                       const SizedBox(height: 25),
 
                       // ğŸ”¥ ADET SEÃ‡Ä°CÄ° ğŸ”¥
@@ -319,6 +397,253 @@ class _DetailsScreenState extends State<DetailsScreen> {
             fontSize: 17, fontWeight: FontWeight.w800, color: Colors.black87));
   }
 
+  Widget _buildComplianceCard(Map<String, dynamic> data) {
+    final ingredients = _asStringList(data['ingredients']);
+    final allergens = _asStringList(data['allergens']);
+    final removable = _asStringList(data['removableIngredients']);
+    final addable = _asStringList(data['addableIngredients']);
+    final warnings = _asStringList(data['dietaryWarnings']);
+    final calorieText = data['calorieText']?.toString().trim() ?? '';
+    final meatOrigin = data['meatOrigin']?.toString().trim() ?? '';
+    final celiacWarning = data['celiacWarning']?.toString().trim() ?? '';
+    final approved = data['complianceApprovedBySeller'] == true;
+
+    if (ingredients.isEmpty &&
+        allergens.isEmpty &&
+        removable.isEmpty &&
+        addable.isEmpty &&
+        warnings.isEmpty &&
+        calorieText.isEmpty &&
+        meatOrigin.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 18),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: iosBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.black.withOpacity(0.04)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(CupertinoIcons.checkmark_shield_fill,
+                  color: Color(0xFF34C759), size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('İçerik ve alerjen beyanı',
+                    style: GoogleFonts.inter(
+                        fontSize: 15, fontWeight: FontWeight.w900)),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: approved
+                      ? const Color(0xFF34C759).withOpacity(0.12)
+                      : Colors.orange.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  approved ? 'Onaylı' : 'Öneri',
+                  style: GoogleFonts.inter(
+                    color: approved ? const Color(0xFF248A3D) : Colors.orange,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (ingredients.isNotEmpty)
+            _complianceLine('İçindekiler', ingredients.join(', ')),
+          if (allergens.isNotEmpty)
+            _complianceLine('Alerjenler', allergens.join(', '),
+                color: Colors.orange),
+          if (removable.isNotEmpty)
+            _complianceLine('Çıkarılabilir', removable.join(', '),
+                color: Colors.blueGrey),
+          if (addable.isNotEmpty)
+            _complianceLine('Ekstra seçenekleri', addable.join(', '),
+                color: Colors.blue),
+          if (celiacWarning.isNotEmpty)
+            _complianceLine('Çölyak uyarısı', celiacWarning,
+                color: Colors.redAccent),
+          if (calorieText.isNotEmpty)
+            _complianceLine('Enerji', calorieText, color: trendyolOrange),
+          if (meatOrigin.isNotEmpty)
+            _complianceLine('Et menşei', meatOrigin, color: Colors.blue),
+          if (warnings.isNotEmpty)
+            _complianceLine('Beslenme uyarıları', warnings.join('\n'),
+                color: const Color(0xFFAF52DE)),
+          const SizedBox(height: 8),
+          Text(
+            'Bu bilgiler işletme beyanı ve Pazarcık Portal öneri sistemiyle oluşturulmuştur. Alerjik hassasiyetiniz varsa işletmeyle teyit ediniz.',
+            style: GoogleFonts.inter(
+                fontSize: 11, color: Colors.black45, height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPersonalizationCard(Map<String, dynamic> data) {
+    final removable = _asStringList(data['removableIngredients']);
+    final addable = _asStringList(data['addableIngredients']);
+    if (removable.isEmpty && addable.isEmpty) return const SizedBox.shrink();
+
+    final baseCalories = _calorieAverage(data['calorieText']);
+    final calorieValues = _asIntMap(data['addableIngredientCalories']);
+    final extraCalories = addedIngredients.fold<int>(
+      0,
+      (total, ingredient) => total + (calorieValues[ingredient] ?? 0),
+    );
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.black.withOpacity(0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(CupertinoIcons.slider_horizontal_3,
+                  color: trendyolOrange, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Siparişini kişiselleştir',
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              if (baseCalories != null)
+                Text(
+                  '≈ ${baseCalories + extraCalories} kcal',
+                  style: GoogleFonts.inter(
+                    color: trendyolOrange,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+            ],
+          ),
+          if (removable.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Text('İçinden çıkar',
+                style: GoogleFonts.inter(
+                    fontSize: 12, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: removable.map((ingredient) {
+                final selected = removedIngredients.contains(ingredient);
+                return FilterChip(
+                  selected: selected,
+                  label: Text(ingredient),
+                  avatar: Icon(
+                    selected
+                        ? CupertinoIcons.minus_circle_fill
+                        : CupertinoIcons.minus_circle,
+                    size: 17,
+                  ),
+                  onSelected: (enabled) => setState(() {
+                    enabled
+                        ? removedIngredients.add(ingredient)
+                        : removedIngredients.remove(ingredient);
+                  }),
+                );
+              }).toList(),
+            ),
+          ],
+          if (addable.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text('Ekstra ekle',
+                style: GoogleFonts.inter(
+                    fontSize: 12, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: addable.map((ingredient) {
+                final selected = addedIngredients.contains(ingredient);
+                final calories = calorieValues[ingredient] ?? 0;
+                return FilterChip(
+                  selected: selected,
+                  label: Text(calories > 0
+                      ? '$ingredient (+$calories kcal)'
+                      : ingredient),
+                  avatar: Icon(
+                    selected
+                        ? CupertinoIcons.plus_circle_fill
+                        : CupertinoIcons.plus_circle,
+                    size: 17,
+                  ),
+                  onSelected: (enabled) => setState(() {
+                    enabled
+                        ? addedIngredients.add(ingredient)
+                        : addedIngredients.remove(ingredient);
+                  }),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _complianceLine(String title, String body, {Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            margin: const EdgeInsets.only(top: 7),
+            decoration: BoxDecoration(
+              color: color ?? Colors.black45,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: GoogleFonts.inter(
+                    fontSize: 13, color: Colors.black87, height: 1.35),
+                children: [
+                  TextSpan(
+                    text: '$title: ',
+                    style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w900,
+                        color: color ?? Colors.black87),
+                  ),
+                  TextSpan(text: body),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMainQuantitySelector() {
     return Container(
       padding: const EdgeInsets.all(15),
@@ -393,6 +718,11 @@ class _DetailsScreenState extends State<DetailsScreen> {
                 double ePrice = _asDouble(extraData['price']);
                 String eName = _pickString(extraData, ['name', 'title'],
                     fallback: 'Ekstra');
+                String eImage = _pickString(
+                  extraData,
+                  ['imageUrl', 'image', 'productImage', 'photoUrl'],
+                  fallback: '',
+                );
                 int currentQty = selectedExtras[eId] ?? 0;
 
                 return Container(
@@ -433,7 +763,13 @@ class _DetailsScreenState extends State<DetailsScreen> {
                           if (currentQty > 0)
                             _qtyBtn(CupertinoIcons.minus, () {
                               setState(() {
-                                selectedExtras[eId] = currentQty - 1;
+                                final nextQty = currentQty - 1;
+                                if (nextQty <= 0) {
+                                  selectedExtras.remove(eId);
+                                  selectedExtraDrafts.remove(eId);
+                                } else {
+                                  selectedExtras[eId] = nextQty;
+                                }
                                 extrasTotalPrice -= ePrice;
                               });
                             }),
@@ -448,6 +784,12 @@ class _DetailsScreenState extends State<DetailsScreen> {
                           _qtyBtn(CupertinoIcons.plus, () {
                             setState(() {
                               selectedExtras[eId] = currentQty + 1;
+                              selectedExtraDrafts[eId] = _ExtraCartDraft(
+                                id: eId,
+                                name: eName,
+                                price: ePrice,
+                                imageUrl: eImage,
+                              );
                               extrasTotalPrice += ePrice;
                             });
                           }),

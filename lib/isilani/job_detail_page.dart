@@ -47,6 +47,8 @@ class JobDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     List<dynamic> images = job['images'] ?? [];
     String ownerId = job['ownerId'] ?? "";
+    String manualPhone =
+        (job['contactPhone'] ?? job['phone'] ?? '').toString().trim();
     final Color jobPrimaryColor = const Color(0xFF0284C7);
 
     return Scaffold(
@@ -169,10 +171,10 @@ class JobDetailPage extends StatelessWidget {
                     .doc(ownerId)
                     .get(),
                 builder: (context, snapshot) {
-                  String phone = "";
-                  bool hasPhone = false;
+                  String phone = manualPhone;
+                  bool hasPhone = phone.isNotEmpty;
 
-                  if (snapshot.hasData && snapshot.data!.exists) {
+                  if (!hasPhone && snapshot.hasData && snapshot.data!.exists) {
                     var userData =
                         snapshot.data!.data() as Map<String, dynamic>;
                     phone = userData['phoneNumber'] ?? userData['phone'] ?? "";

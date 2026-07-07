@@ -1,11 +1,17 @@
 // ignore_for_file: deprecated_member_use
 
+import 'package:barcode/barcode.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart' hide Badge;
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:image/image.dart' as img;
+import 'package:share_plus/share_plus.dart';
 
 // 🔥 BİLDİRİM SERVİSİNİ İÇERİ AKTAR
 import 'package:pazarcik_portal/services/notification_service.dart';
@@ -243,6 +249,214 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  String get _menuUrl =>
+      'https://www.pazarcikportal.com/magaza?id=$currentUserId';
+
+  String _pdfSafe(String value) {
+    const replacements = {
+      'ç': 'c',
+      'Ç': 'C',
+      'ğ': 'g',
+      'Ğ': 'G',
+      'ı': 'i',
+      'İ': 'I',
+      'ö': 'o',
+      'Ö': 'O',
+      'ş': 's',
+      'Ş': 'S',
+      'ü': 'u',
+      'Ü': 'U',
+    };
+    var result = value;
+    replacements.forEach((key, replacement) {
+      result = result.replaceAll(key, replacement);
+    });
+    return result;
+  }
+
+  Future<Map<String, dynamic>> _loadStoreData() async {
+    if (currentUserId.isEmpty) return {};
+    final doc = await FirebaseFirestore.instance
+        .collection('customers')
+        .doc(currentUserId)
+        .get();
+    return doc.data() ?? {};
+  }
+
+  Future<void> _shareQrMenuPdf() async {
+    try {
+      final storeData = await _loadStoreData();
+      final storeName = (storeData['storeName'] ??
+              storeData['businessName'] ??
+              storeData['restaurantName'] ??
+              storeData['fullname'] ??
+              'Pazarcik Portal')
+          .toString();
+      final safeName = _pdfSafe(storeName);
+      final pdf = pw.Document();
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          build: (context) {
+            return pw.Container(
+              padding: const pw.EdgeInsets.all(28),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.orange, width: 2),
+                borderRadius: pw.BorderRadius.circular(18),
+              ),
+              child: pw.Column(
+                mainAxisAlignment: pw.MainAxisAlignment.center,
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                children: [
+                  pw.Text(
+                    safeName,
+                    textAlign: pw.TextAlign.center,
+                    style: pw.TextStyle(
+                      fontSize: 28,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 8),
+                  pw.Text(
+                    'Pazarcik Portal QR Menu',
+                    style: const pw.TextStyle(
+                      color: PdfColors.grey700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  pw.SizedBox(height: 28),
+                  pw.BarcodeWidget(
+                    barcode: pw.Barcode.qrCode(),
+                    data: _menuUrl,
+                    width: 250,
+                    height: 250,
+                  ),
+                  pw.SizedBox(height: 22),
+                  pw.Text(
+                    'Menuyu acmak icin telefon kamerasi ile okutun.',
+                    textAlign: pw.TextAlign.center,
+                    style: const pw.TextStyle(fontSize: 14),
+                  ),
+                  pw.SizedBox(height: 10),
+                  pw.UrlLink(
+                    destination: _menuUrl,
+                    child: pw.Text(
+                      _menuUrl,
+                      textAlign: pw.TextAlign.center,
+                      style: const pw.TextStyle(
+                        color: PdfColors.blue,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+
+      await Share.shareXFiles(
+        [
+          XFile.fromData(
+            await pdf.save(),
+            mimeType: 'application/pdf',
+            name: 'pazarcik_portal_qr_menu_$currentUserId.pdf',
+          ),
+        ],
+        text: 'Pazarcık Portal QR menü PDF',
+      );
+    } catch (e) {
+      _showSnack('QR menü hazırlanamadı: $e', Colors.redAccent);
+    }
+  }
+
+  void _shareQrLink() {
+    Share.share('Pazarcık Portal menümü inceleyin:\n$_menuUrl');
+  }
+
+  Future<void> _copyQrLink() async {
+    await Clipboard.setData(ClipboardData(text: _menuUrl));
+    _showSnack('QR menü linki kopyalandı.', const Color(0xFF34C759));
+  }
+
+  Future<void> _shareQrMenuImage() async {
+    try {
+      final storeData = await _loadStoreData();
+      final storeName = (storeData['storeName'] ??
+              storeData['businessName'] ??
+              storeData['restaurantName'] ??
+              storeData['fullname'] ??
+              'Pazarcık Portal')
+          .toString();
+      final safeName = _fileSafeName(storeName);
+      final pngBytes = _buildQrPngBytes(_menuUrl);
+
+      await Share.shareXFiles(
+        [
+          XFile.fromData(
+            pngBytes,
+            mimeType: 'image/png',
+            name: 'pazarcik_portal_qr_menu_$safeName.png',
+          ),
+        ],
+        text: 'Pazarcık Portal QR menü kodu',
+      );
+    } catch (e) {
+      _showSnack('QR görseli hazırlanamadı: $e', Colors.redAccent);
+    }
+  }
+
+  String _fileSafeName(String value) {
+    final cleaned = _pdfSafe(value)
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+    return cleaned.isEmpty ? currentUserId : cleaned;
+  }
+
+  Uint8List _buildQrPngBytes(String data) {
+    const imageSize = 1024;
+    const quietZone = 96;
+    const qrSize = imageSize - (quietZone * 2);
+    final image = img.Image(width: imageSize, height: imageSize);
+    img.fill(image, color: img.ColorRgb8(255, 255, 255));
+
+    final barcode = Barcode.qrCode();
+    for (final element in barcode.make(
+      data,
+      width: qrSize.toDouble(),
+      height: qrSize.toDouble(),
+      drawText: false,
+    )) {
+      if (element is! BarcodeBar || !element.black) continue;
+      final left = (quietZone + element.left).round().clamp(0, imageSize - 1);
+      final top = (quietZone + element.top).round().clamp(0, imageSize - 1);
+      final right = (quietZone + element.right).ceil().clamp(0, imageSize);
+      final bottom = (quietZone + element.bottom).ceil().clamp(0, imageSize);
+      img.fillRect(
+        image,
+        x1: left,
+        y1: top,
+        x2: right,
+        y2: bottom,
+        color: img.ColorRgb8(0, 0, 0),
+      );
+    }
+
+    return Uint8List.fromList(img.encodePng(image));
+  }
+
+  void _showSnack(String message, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: color),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -372,6 +586,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
 
+                SliverPadding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  sliver: SliverToBoxAdapter(
+                    child: _buildQrMenuCard(),
+                  ),
+                ),
+
                 // Menü Grid
                 SliverPadding(
                   padding:
@@ -461,6 +683,197 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildQrMenuCard() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3E8),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  CupertinoIcons.qrcode,
+                  color: trendyolOrange,
+                  size: 25,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'QR Menüm',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF111827),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Müşteriler masadan QR kodu okutup menünüzü ve güncel ürünlerinizi görebilir.',
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        height: 1.35,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF6B7280),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Row(
+              children: [
+                const Icon(CupertinoIcons.link,
+                    size: 17, color: Colors.black45),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _menuUrl,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF374151),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _qrActionButton(
+                  label: 'QR PDF Al',
+                  icon: CupertinoIcons.arrow_down_doc_fill,
+                  onPressed: _shareQrMenuPdf,
+                  filled: true,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _qrActionButton(
+                  label: 'QR Görsel Al',
+                  icon: CupertinoIcons.photo_fill_on_rectangle_fill,
+                  onPressed: _shareQrMenuImage,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _qrActionButton(
+                  label: 'Linki Kopyala',
+                  icon: CupertinoIcons.doc_on_clipboard,
+                  onPressed: _copyQrLink,
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                height: 44,
+                width: 50,
+                child: OutlinedButton(
+                  onPressed: _shareQrLink,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: trendyolOrange,
+                    side: BorderSide(color: trendyolOrange.withOpacity(0.35)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Icon(CupertinoIcons.share, size: 20),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _qrActionButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+    bool filled = false,
+  }) {
+    final style = filled
+        ? ElevatedButton.styleFrom(
+            backgroundColor: trendyolOrange,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          )
+        : OutlinedButton.styleFrom(
+            foregroundColor: trendyolOrange,
+            side: BorderSide(color: trendyolOrange.withOpacity(0.35)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          );
+
+    final child = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 17),
+        const SizedBox(width: 7),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800),
+          ),
+        ),
+      ],
+    );
+
+    return SizedBox(
+      height: 44,
+      child: filled
+          ? ElevatedButton(onPressed: onPressed, style: style, child: child)
+          : OutlinedButton(onPressed: onPressed, style: style, child: child),
     );
   }
 
