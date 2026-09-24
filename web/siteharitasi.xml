@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+        http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+
+  <!-- Ana Sayfa -->
+  <url>
+    <loc>https://pazarcikportal.com/</loc>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- Pazarcık İşletmeleri & Esnaf Rehberi -->
+  <url>
+    <loc>https://pazarcikportal.com/isletmeler</loc>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+  </url>
+
+  <!-- Yemek Siparişi & Restoranlar -->
+  <url>
+    <loc>https://pazarcikportal.com/yemek-siparisi</loc>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+  </url>
+
+  <!-- Sahibinden İkinci El, Emlak & Vasıta İlanları -->
+  <url>
+    <loc>https://pazarcikportal.com/ilanlar</loc>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.95</priority>
+  </url>
+
+  <!-- Nöbetçi Eczaneler -->
+  <url>
+    <loc>https://pazarcikportal.com/nobetci-eczane</loc>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.90</priority>
+  </url>
+
+  <!-- Haberler & Son Dakika Gelişmeleri -->
+  <url>
+    <loc>https://pazarcikportal.com/haberler</loc>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- Vefat, Taziye & Başsağlığı İlanları -->
+  <url>
+    <loc>https://pazarcikportal.com/vefat-duyurulari</loc>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- İş İlanları & Eleman Arayanlar -->
+  <url>
+    <loc>https://pazarcikportal.com/is-ilanlari</loc>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- Etkinlikler, Kültür & Sanat -->
+  <url>
+    <loc>https://pazarcikportal.com/etkinlikler</loc>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+
+  <!-- Pazarcık Kamu Rehberi & Acil Numaralar -->
+  <url>
+    <loc>https://pazarcikportal.com/kamu-rehberi</loc>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.70</priority>
+  </url>
+
+</urlset>

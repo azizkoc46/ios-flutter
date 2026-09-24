@@ -12,9 +12,10 @@ service cloud.firestore {
 
     function isAdmin() {
       return signedIn() &&
-        (currentUser().data.role in ['admin', 'yonetici', 'yönetici'] ||
-         currentUser().data.isAdmin == true ||
-         currentUser().data.admin == true);
+        exists(/databases/$(database)/documents/customers/$(request.auth.uid)) &&
+        (currentUser().data.get('role', '') in ['admin', 'yonetici', 'yönetici'] ||
+         currentUser().data.get('isAdmin', false) == true ||
+         currentUser().data.get('admin', false) == true);
     }
 
     function ownsRestaurant(restaurantId) {
@@ -42,12 +43,12 @@ service cloud.firestore {
       return signedIn() &&
         request.auth.uid == userId &&
         safeSelfRole(request.resource.data) &&
-        request.resource.data.isAdmin != true &&
-        request.resource.data.admin != true &&
-        request.resource.data.isApproved != true &&
-        request.resource.data.sellerApproved != true &&
-        request.resource.data.corporateSellerApproved != true &&
-        request.resource.data.tableServiceEnabled != true;
+        request.resource.data.get('isAdmin', false) != true &&
+        request.resource.data.get('admin', false) != true &&
+        request.resource.data.get('isApproved', false) != true &&
+        request.resource.data.get('sellerApproved', false) != true &&
+        request.resource.data.get('corporateSellerApproved', false) != true &&
+        request.resource.data.get('tableServiceEnabled', false) != true;
     }
 
     function sensitiveCustomerFieldsUnchanged() {
@@ -82,13 +83,14 @@ service cloud.firestore {
           'emlakci_pending',
           'kurumsal_satici_pending'
         ] &&
-        request.resource.data.isApproved != true &&
-        request.resource.data.isAdmin != true &&
-        request.resource.data.admin != true &&
-        request.resource.data.sellerApproved != true &&
-        request.resource.data.corporateSellerApproved != true &&
-        request.resource.data.tableServiceEnabled != true;
+        request.resource.data.get('isApproved', false) != true &&
+        request.resource.data.get('isAdmin', false) != true &&
+        request.resource.data.get('admin', false) != true &&
+        request.resource.data.get('sellerApproved', false) != true &&
+        request.resource.data.get('corporateSellerApproved', false) != true &&
+        request.resource.data.get('tableServiceEnabled', false) != true;
     }
+
     function validTable(data) {
       return data.name is string &&
         data.name.size() > 0 && data.name.size() <= 50 &&
@@ -104,8 +106,10 @@ service cloud.firestore {
         data.grandTotal is number && data.paidTotal is number;
     }
 
+    // ── customers ─────────────────────────────────────────────────────────────
+    // FIX: Kamuya açık okuma kaldırıldı (KVKK). Kendi verisini veya admin okur.
     match /customers/{userId} {
-      allow read: if true;
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if isAdmin() || safeSelfCustomerCreate(userId);
       allow update: if isAdmin() ||
                       safeSelfCustomerUpdate(userId) ||
@@ -113,8 +117,13 @@ service cloud.firestore {
       allow delete: if isAdmin() ||
                        (signedIn() && request.auth.uid == userId);
 
+      // FIX: extras alt koleksiyonuna sadece kendi kullanıcısı yazabilir
       match /extras/{extraId} {
-        allow read, write: if signedIn();
+        allow read, write: if signedIn() && request.auth.uid == userId;
+      }
+
+      match /saved_posts/{postId} {
+        allow read, write: if signedIn() && (request.auth.uid == userId || isAdmin());
       }
 
       match /restaurant_tables/{tableId} {
@@ -139,94 +148,341 @@ service cloud.firestore {
     }
 
     match /orders/{document=**} {
-      allow read, write: if true;
+      allow read: if signedIn() && (
+        resource.data.customerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.sellerId == request.auth.uid ||
+        resource.data.vendorId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if signedIn() && (
+        request.resource.data.customerId == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow update: if signedIn() && (
+        resource.data.sellerId == request.auth.uid ||
+        resource.data.vendorId == request.auth.uid ||
+        resource.data.customerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
     }
 
     match /businesses/{document=**} {
       allow read: if true;
-      allow write: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.editorId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
     }
 
-    match /admin_activity_log/{document=**} { allow read, write: if signedIn(); }
-    match /admin_notification_requests/{document=**} { allow read, write: if signedIn(); }
-    match /admin_notifications_log/{document=**} { allow read, write: if signedIn(); }
-    match /admin_tokens/{document=**} { allow read, write: if signedIn(); }
-    match /announcements/{document=**} { allow read, write: if signedIn(); }
-    match /app_notifications/{document=**} { allow read, write: if signedIn(); }
+    match /admin_activity_log/{document=**} { allow read, write: if isAdmin(); }
+    match /admin_notification_requests/{document=**} {
+      allow read: if isAdmin();
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+    match /admin_notifications_log/{document=**} { allow read, write: if isAdmin(); }
+    match /admin_tokens/{document=**} { allow read, write: if isAdmin(); }
+    match /announcements/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /app_notifications/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
     match /app_settings/{document=**} {
       allow read: if true;
-      allow write: if signedIn();
+      allow write: if isAdmin();
     }
-    match /business_claims/{document=**} { allow read, write: if signedIn(); }
+    match /business_claims/{document=**} {
+      allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
     match /campaigns/{document=**} {
       allow read: if true;
-      allow write: if signedIn();
+      allow create: if signedIn() && (
+        isAdmin() ||
+        request.resource.data.sellerId == request.auth.uid ||
+        request.resource.data.vendorId == request.auth.uid
+      );
+      allow update, delete: if signedIn() && (
+        isAdmin() ||
+        resource.data.sellerId == request.auth.uid ||
+        resource.data.vendorId == request.auth.uid
+      );
     }
     match /cateogries/{document=**} {
       allow read: if true;
-      allow write: if signedIn();
+      allow write: if isAdmin();
     }
-    match /cek_gonder_reports/{document=**} { allow read, write: if signedIn(); }
-    match /classified_ads/{document=**} {
+    match /categories/{document=**} {
       allow read: if true;
-      allow write: if signedIn();
+      allow write: if isAdmin();
     }
-    match /comments/{document=**} { allow read, write: if signedIn(); }
-    match /complaints/{document=**} { allow read, write: if signedIn(); }
-    match /corporate_seller_applications/{document=**} { allow read, write: if signedIn(); }
-    match /custom_pages/{document=**} { allow read, write: if signedIn(); }
-    match /customer_order_push_requests/{document=**} { allow read, write: if signedIn(); }
+    match /muhtarliklar/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /cek_gonder_reports/{docId} {
+      // FIX: Sadece kendi raporunu okuyabilir
+      allow read: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (
+        resource.data.uid == request.auth.uid ||
+        isAdmin()
+      );
+    }
+    match /classified_ads/{adId} {
+      allow read: if true;
+      // FIX: create'de sahiplik ID kontrolü eklendi
+      allow create: if signedIn() && (
+        request.resource.data.get('userId', request.auth.uid) == request.auth.uid ||
+        request.resource.data.get('ownerId', request.auth.uid) == request.auth.uid ||
+        isAdmin()
+      );
+      allow update, delete: if signedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.sellerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    // FIX: comments — sahiplik kontrolü eklendi, başkasının yorumu silinemez
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (
+        resource.data.get('userId', '') == request.auth.uid ||
+        resource.data.get('authorId', '') == request.auth.uid ||
+        isAdmin()
+      );
+    }
+    // Alt koleksiyon yorumları için de aynı kural
+    match /{path=**}/comments/{commentId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (
+        resource.data.get('userId', '') == request.auth.uid ||
+        resource.data.get('authorId', '') == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    match /complaints/{docId} {
+      allow read: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+    match /corporate_seller_applications/{document=**} {
+      allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+    match /custom_pages/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /customer_order_push_requests/{document=**} {
+      // FIX: Sadece kendi siparişini okuyabilir
+      allow read: if signedIn() && (
+        resource.data.customerId == request.auth.uid || isAdmin()
+      );
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
     match /dernekler/{document=**} {
       allow read: if true;
-      allow write: if signedIn();
+      allow create: if signedIn();
+      // FIX: e-posta tabanlı yetkide email_verified kontrolü eklendi
+      allow update, delete: if isAdmin() || (signedIn() && (
+        resource.data.applicantId == request.auth.uid ||
+        (resource.data.adminEmail == request.auth.token.email &&
+         request.auth.token.email_verified == true)
+      ));
     }
     match /earthquake_alerts/{document=**} {
       allow read: if true;
-      allow write: if signedIn();
+      allow write: if isAdmin();
     }
-    match /group_posts/{document=**} { allow read, write: if signedIn(); }
-    match /group_reports/{document=**} { allow read, write: if signedIn(); }
-    match /job_ads/{document=**} {
+
+    // FIX: group_posts — sahiplik kontrolü eklendi
+    match /group_posts/{postId} {
       allow read: if true;
-      allow write: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (
+        resource.data.get('authorId', '') == request.auth.uid ||
+        resource.data.get('userId', '') == request.auth.uid ||
+        isAdmin()
+      );
     }
-    match /job_postings/{document=**} {
+
+    // FIX: group_reports — sadece kendi raporunu okur
+    match /group_reports/{reportId} {
+      allow read: if signedIn() && (
+        resource.data.get('reporterId', '') == request.auth.uid ||
+        resource.data.get('userId', '') == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    match /job_ads/{adId} {
       allow read: if true;
-      allow write: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
     }
-    match /notification_send_requests/{document=**} { allow read, write: if signedIn(); }
-    match /notifications/{document=**} { allow read, write: if signedIn(); }
-    match /phone_verification_requests/{document=**} { allow read, write: if signedIn(); }
+    match /job_postings/{adId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+    match /notification_send_requests/{document=**} { allow read, write: if isAdmin(); }
+    match /notifications/{document=**} {
+      allow read: if signedIn() && (resource.data.to == request.auth.uid || isAdmin());
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (resource.data.to == request.auth.uid || isAdmin());
+    }
+
+    // FIX: phone_verification_requests — sadece kendi kaydını okur/yazar
+    match /phone_verification_requests/{docId} {
+      allow read, write: if signedIn() && (
+        resource.data.get('uid', '') == request.auth.uid || isAdmin()
+      );
+      allow create: if signedIn() &&
+        request.resource.data.get('uid', '') == request.auth.uid;
+    }
+
     match /polls/{document=**} {
       allow read: if true;
-      allow write: if signedIn();
+      allow write: if isAdmin();
     }
-    match /posts/{document=**} {
+
+    // FIX: posts — sahiplik kontrolü eklendi
+    match /posts/{postId} {
       allow read: if true;
-      allow write: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (
+        resource.data.get('authorId', '') == request.auth.uid ||
+        resource.data.get('userId', '') == request.auth.uid ||
+        isAdmin()
+      );
     }
+
     match /products/{document=**} {
       allow read: if true;
-      allow write: if signedIn();
+      allow create: if signedIn() && (
+        isAdmin() ||
+        request.resource.data.vendorId == request.auth.uid ||
+        request.resource.data.sellerId == request.auth.uid
+      );
+      allow update, delete: if signedIn() && (
+        isAdmin() ||
+        resource.data.vendorId == request.auth.uid ||
+        resource.data.sellerId == request.auth.uid
+      );
     }
-    match /reads/{document=**} { allow read, write: if signedIn(); }
-    match /requests_complaints/{document=**} { allow read, write: if signedIn(); }
+
+    // FIX: reads — sadece kendi kayıtlarını yönetir
+    match /reads/{docId} {
+      allow read, write: if signedIn() && (
+        resource.data.get('userId', '') == request.auth.uid ||
+        docId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if signedIn();
+    }
+
+    match /requests_complaints/{document=**} {
+      allow read: if signedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.uid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
     match /reviews/{document=**} {
       allow read: if true;
-      allow write: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
     }
-    match /seller_order_push_requests/{document=**} { allow read, write: if signedIn(); }
-    match /seller_reviews/{document=**} { allow read, write: if signedIn(); }
-    match /sellers/{document=**} {
+
+    // FIX: seller_order_push_requests — sadece kendi satıcı ID'si
+    match /seller_order_push_requests/{docId} {
+      allow read: if signedIn() && (
+        resource.data.sellerId == request.auth.uid || isAdmin()
+      );
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    match /seller_reviews/{document=**} {
       allow read: if true;
-      allow write: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (
+        resource.data.reviewerId == request.auth.uid ||
+        isAdmin()
+      );
     }
-    match /sikayetler/{document=**} { allow read, write: if signedIn(); }
+
+    // FIX: sellers — create sadece kendi sellerId ile
+    match /sellers/{sellerId} {
+      allow read: if true;
+      allow create: if signedIn() && request.auth.uid == sellerId;
+      allow update, delete: if signedIn() && (
+        request.auth.uid == sellerId ||
+        isAdmin()
+      );
+    }
+
+    match /sikayetler/{docId} {
+      allow read: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
     match /story_categories/{document=**} {
       allow read: if true;
-      allow write: if signedIn();
+      allow write: if isAdmin();
     }
-    match /user_notification_requests/{document=**} { allow read, write: if signedIn(); }
-    match /votes/{document=**} { allow read, write: if signedIn(); }
+
+    // FIX: user_notification_requests — sadece hedef uid veya admin okur
+    match /user_notification_requests/{docId} {
+      allow read: if signedIn() && (
+        resource.data.get('targetUid', '') == request.auth.uid || isAdmin()
+      );
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // FIX: votes — sahiplik kontrolü, oy manipülasyonu engellendi
+    match /votes/{voteId} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        request.resource.data.get('userId', '') == request.auth.uid;
+      allow update, delete: if signedIn() && (
+        resource.data.get('userId', '') == request.auth.uid || isAdmin()
+      );
+    }
   }
 }

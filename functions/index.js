@@ -119,6 +119,131 @@ exports.adminCreateUser = onCall(async (request) => {
   return {uid: user.uid};
 });
 
+// Toplam Firebase Auth kullanıcı sayısını döndürür
+exports.adminGetUserCount = onCall(async (request) => {
+  await requireAdmin(request);
+  let count = 0;
+  let pageToken;
+  do {
+    const result = await admin.auth().listUsers(1000, pageToken);
+    count += result.users.length;
+    pageToken = result.pageToken;
+  } while (pageToken);
+  return {count};
+});
+
+// Tek kullanıcının Firebase Auth kaydını döndürür
+exports.adminGetAuthUser = onCall(async (request) => {
+  await requireAdmin(request);
+  const uid = String((request.data || {}).uid || "");
+  if (!uid) throw new HttpsError("invalid-argument", "uid gereklidir.");
+  const user = await admin.auth().getUser(uid);
+  return {
+    uid: user.uid,
+    email: user.email || "",
+    emailVerified: user.emailVerified,
+    phoneNumber: user.phoneNumber || "",
+    displayName: user.displayName || "",
+    photoURL: user.photoURL || "",
+    disabled: user.disabled,
+    creationTime: user.metadata.creationTime || "",
+    lastSignInTime: user.metadata.lastSignInTime || "",
+    providers: (user.providerData || []).map((p) => ({
+      providerId: p.providerId,
+      email: p.email || "",
+      phoneNumber: p.phoneNumber || "",
+      displayName: p.displayName || "",
+    })),
+  };
+});
+
+// Tüm Firebase Auth kullanıcılarını listeler (Auth + Firestore merge için)
+exports.adminListUsers = onCall({timeoutSeconds: 120, memory: "512MiB"}, async (request) => {
+  await requireAdmin(request);
+  const users = [];
+  let pageToken;
+  do {
+    const result = await admin.auth().listUsers(1000, pageToken);
+    for (const user of result.users) {
+      users.push({
+        uid: user.uid,
+        email: user.email || "",
+        phoneNumber: user.phoneNumber || "",
+        displayName: user.displayName || "",
+        photoURL: user.photoURL || "",
+        disabled: user.disabled,
+        creationTime: user.metadata.creationTime || "",
+        lastSignInTime: user.metadata.lastSignInTime || "",
+        providers: (user.providerData || []).map((p) => p.providerId),
+      });
+    }
+    pageToken = result.pageToken;
+  } while (pageToken);
+  return {users};
+});
+
+// Kullanıcı telefon ve profil (isim/soyisim) bilgilerini güvenle kaydeder
+exports.savePhoneAndProfile = onCall(async (request) => {
+  if (!request.auth || !request.auth.uid) {
+    throw new HttpsError("unauthenticated", "Oturum açmanız gerekiyor.");
+  }
+  const uid = request.auth.uid;
+  const data = request.data || {};
+  const phone = String(data.phone || "").trim();
+  const fullname = String(data.fullname || data.fullName || data.name || "").trim();
+
+  // 1) Firebase Auth displayName güncelle
+  if (fullname) {
+    try {
+      await admin.auth().updateUser(uid, { displayName: fullname });
+    } catch (e) {
+      logger.warn("Auth displayName güncelleme uyarısı:", e.message);
+    }
+  }
+
+  // 2) Firestore customers dökümanını Admin SDK ile kaydet
+  const docRef = db.collection("customers").doc(uid);
+  const snap = await docRef.get();
+
+  const updateData = {
+    phoneVerified: true,
+    isPhoneVerified: true,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  if (phone) {
+    updateData.phone = phone;
+    updateData.phoneNumber = phone;
+  }
+  if (fullname) {
+    updateData.fullname = fullname;
+    updateData.fullName = fullname;
+    updateData.name = fullname;
+  }
+
+  if (!snap.exists) {
+    let authEmail = "";
+    try {
+      const authUser = await admin.auth().getUser(uid);
+      authEmail = authUser.email || "";
+      if (!phone && authUser.phoneNumber) {
+        updateData.phone = authUser.phoneNumber;
+        updateData.phoneNumber = authUser.phoneNumber;
+      }
+    } catch (_) {}
+    updateData.email = authEmail;
+    updateData.role = "customer";
+    updateData.isApproved = false;
+    updateData.createdAt = admin.firestore.FieldValue.serverTimestamp();
+    await docRef.set(updateData);
+  } else {
+    await docRef.set(updateData, { merge: true });
+  }
+
+  return { success: true };
+});
+
+
 exports.adminDeleteUser = onCall({timeoutSeconds: 540, memory: "1GiB"}, async (request) => {
   await requireAdmin(request);
   const uid = String((request.data || {}).uid || "");
@@ -602,6 +727,80 @@ exports.sendSellerOrderNotification = onDocumentCreated(
     },
 );
 
+exports.sendUserNotification = onDocumentCreated(
+    "user_notification_requests/{requestId}",
+    async (event) => {
+      const snap = event.data;
+      if (!snap) return;
+
+      const request = snap.data() || {};
+      const targetUid = request.targetUid || "";
+      const title = request.title || "Yeni Bildirim";
+      const body = request.body || "";
+      const type = request.type || "general";
+      const docId = request.docId || "";
+
+      try {
+        if (!targetUid) {
+          throw new Error("targetUid bos");
+        }
+
+        await snap.ref.set({
+          status: "sending",
+          startedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, {merge: true});
+
+        const response = await sendToUserOrTopic(
+            targetUid,
+            `customer_${targetUid}`,
+            {
+              notification: {
+                title,
+                body,
+              },
+              data: cleanData({
+                type,
+                docId,
+                title,
+                body,
+                message: body,
+                click_action: "FLUTTER_NOTIFICATION_CLICK",
+                ...(request.data || {}),
+              }),
+              android: {
+                priority: "high",
+                notification: {
+                  channelId: "pazarcik_main_channel_v5",
+                  sound: "default",
+                },
+              },
+              apns: {
+                payload: {
+                  aps: {
+                    sound: "default",
+                    badge: 1,
+                  },
+                },
+              },
+            },
+        );
+
+        await snap.ref.set({
+          status: "sent",
+          messageId: response,
+          sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, {merge: true});
+      } catch (error) {
+        logger.error("User notification failed", error);
+        await snap.ref.set({
+          status: "failed",
+          error: error && error.message ? error.message : String(error),
+          failedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, {merge: true});
+      }
+    },
+);
+
 function distanceKm(lat1, lng1, lat2, lng2) {
   const p = Math.PI / 180;
   const a = 0.5 - Math.cos((lat2 - lat1) * p) / 2 +
@@ -678,9 +877,9 @@ exports.pollEarthquakes = onSchedule(
         });
 
         const messageId = await admin.messaging().send({
-          topic: "all_users",
+          topic: "earthquake_alerts",
           notification: {
-            title: "Deprem Bilgilendirmesi",
+            title: `🌍 Deprem – M${mag.toFixed(1)}`,
             body,
           },
           data: cleanData({
@@ -696,6 +895,8 @@ exports.pollEarthquakes = onSchedule(
             notification: {
               channelId: "earthquake_alert_channel_v1",
               sound: "default",
+              priority: "max",
+              visibility: "public",
             },
           },
           apns: {

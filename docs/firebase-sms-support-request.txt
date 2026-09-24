@@ -1,0 +1,42 @@
+Subject: Production Phone Auth fails with backend Error code 39 across Turkish operators
+
+Project ID: pazarcik-portal-7faf2
+Project number: 615903758381
+App: Pazarcik Portal (Android and iOS)
+
+Real SMS verification fails in production. The owner reports failures on
+Turkcell, Vodafone and Turk Telekom, including a first attempt from an account.
+Firebase fictional test numbers work, but real numbers do not receive an SMS.
+
+We enabled Identity Platform activity logging and captured this failed request:
+UTC timestamp: 2026-09-08T10:31:06.488Z
+Turkey local time: 2026-09-08 13:31:06.488 (+03:00)
+Method: google.cloud.identitytoolkit.v1.AuthenticationService.SendVerificationCode
+Status code: 13
+Status message: Error code: 39
+Log insertId: -psbwpme5y32n
+Log name: projects/pazarcik-portal-7faf2/logs/identitytoolkit.googleapis.com%2Frequests
+Resource type: identitytoolkit_project
+
+Verified configuration:
+- Billing enabled; Phone sign-in provider enabled.
+- Project subtype: IDENTITY_PLATFORM.
+- SMS region allowlist explicitly includes TR. A real request still failed
+  after setting this allowlist and restarting the app.
+- Android app has SHA-1 and SHA-256 certificate registrations.
+- Local iOS project includes APNs entitlement/background mode and auth callback
+  URL scheme. APNs key validity has not been independently verified.
+- reCAPTCHA SMS Defense is not configured; reCAPTCHA Enterprise API is disabled.
+  We have not enabled ENFORCE speculatively on existing clients.
+- GetRecaptchaConfig and GetRecaptchaParam succeeded immediately before the
+  failed SMS request. This alone does not prove all app verification succeeded.
+
+Please investigate the internal reason for the failure using the timestamp and
+insertId above. Is this due to project/number/carrier delivery restrictions,
+anti-abuse protection, quota, or another backend condition? Please advise the
+specific remediation. If SMS Defense is required for these destinations,
+please confirm the prerequisites and whether a support-side unblock is needed.
+
+Phone numbers, verification codes and auth tokens are intentionally omitted.
+We can provide a reproduction number through your secure support channel if
+needed. Activity logging was temporarily enabled for this reproduction.

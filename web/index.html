@@ -1,126 +1,500 @@
-<!DOCTYPE html><html><head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
+<!DOCTYPE html>
+<html lang="tr">
+<head>
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="Pazarcık duyuruları, yerel işletmeleri, ilanları ve şehir rehberi.">
+  
+  <!-- 🔍 Birincil Arama Motoru (SEO) Meta Etiketleri -->
+  <title>Pazarcık Portal — Pazarcık İşletmeleri, Yemek Siparişi, İlanlar ve Haberler</title>
+  <meta name="title" content="Pazarcık Portal — Pazarcık İşletmeleri, Yemek Siparişi, İlanlar ve Haberler">
+  <meta name="description" content="Kahramanmaraş Pazarcık'ın 1 numaralı yerel rehberi: Online yemek siparişi, yerel esnaf ve işletmeler, sahibinden satılık kiralık ilanlar, nöbetçi eczaneler, vefat duyuruları ve ilçe haberleri.">
+  <meta name="keywords" content="pazarcık, pazarcık portal, pazarcık haberleri, pazarcık nöbetçi eczane, pazarcık esnafı, pazarcık işletmeler, pazarcık yemek siparişi, pazarcık restoranlar, pazarcık döner, pazarcık satılık daire, pazarcık kiralık ev, pazarcık arsa, pazarcık iş ilanları, pazarcık vefat ilanları, pazarcık etkinlikler, kahramanmaraş pazarcık">
+  <meta name="author" content="Pazarcık Portal">
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+  <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+  <link rel="canonical" href="https://pazarcikportal.com/">
+
+  <!-- 📍 Yerel Konum & Coğrafi Etiketler (Local SEO) -->
+  <meta name="geo.region" content="TR-46">
+  <meta name="geo.placename" content="Pazarcık, Kahramanmaraş">
+  <meta name="geo.position" content="37.4897;37.2989">
+  <meta name="ICBM" content="37.4897, 37.2989">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pazarcık Portal">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png">
-
-  <title>Pazarcık Portal</title>
   <link rel="manifest" href="manifest.json">
   
-  
-  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
-  <style id="splash-screen-style">
-    html {
-      height: 100%
+  <!-- Viewport -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+
+  <!-- ✅ Open Graph / Facebook / Instagram / WhatsApp Tam Uyumlu -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Pazarcık Portal">
+  <meta property="og:title" content="Pazarcık Portal — Pazarcık İşletmeleri, Yemek Siparişi, İlanlar ve Haberler">
+  <meta property="og:description" content="Kahramanmaraş Pazarcık'ın yerel işletmeleri, online yemek siparişi, sahibinden ilanlar, nöbetçi eczaneler ve ilçe haberleri tek ekranda.">
+  <meta property="og:url" content="https://pazarcikportal.com/">
+  <meta property="og:image" content="https://pazarcikportal.com/icons/Icon-512.png">
+  <meta property="og:image:secure_url" content="https://pazarcikportal.com/icons/Icon-512.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta property="og:image:alt" content="Pazarcık Portal Logosu">
+  <meta property="og:locale" content="tr_TR">
+
+  <!-- ✅ Twitter / X Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Pazarcık Portal — Pazarcık İşletmeleri, Yemek Siparişi, İlanlar ve Haberler">
+  <meta name="twitter:description" content="Pazarcık yerel esnafı, online yemek siparişi, sahibinden ilanlar ve haberler.">
+  <meta name="twitter:image" content="https://pazarcikportal.com/icons/Icon-512.png">
+
+  <!-- 📊 Schema.org JSON-LD Yapısal Veri (Google Zengin Sonuçlar) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://pazarcikportal.com/#website",
+        "url": "https://pazarcikportal.com/",
+        "name": "Pazarcık Portal",
+        "description": "Kahramanmaraş Pazarcık yerel işletme ve esnaf rehberi, online yemek siparişi, sahibinden ilanlar, nöbetçi eczaneler ve haberler.",
+        "inLanguage": "tr-TR",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://pazarcikportal.com/ilanlar?q={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      },
+      {
+        "@type": "Organization",
+        "@id": "https://pazarcikportal.com/#organization",
+        "name": "Pazarcık Portal",
+        "url": "https://pazarcikportal.com/",
+        "logo": "https://pazarcikportal.com/icons/Icon-512.png",
+        "description": "Kahramanmaraş Pazarcık ilçe portalı, yerel işletmeler ve şehir rehberi platformu.",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Pazarcık",
+          "addressRegion": "Kahramanmaraş",
+          "addressCountry": "TR"
+        },
+        "sameAs": [
+          "https://play.google.com/store/apps/details?id=com.pp.pazarckportal.pazarckportal",
+          "https://apps.apple.com/app/id6779951979"
+        ]
+      },
+      {
+        "@type": "ItemList",
+        "@id": "https://www.pazarcikportal.com/#services",
+        "name": "Pazarcık Portal Hizmetleri",
+        "itemListElement": [
+          {
+            "@type": "SiteNavigationElement",
+            "position": 1,
+            "name": "Pazarcık İşletmeleri & Esnaf Rehberi",
+            "url": "https://www.pazarcikportal.com/isletmeler"
+          },
+          {
+            "@type": "SiteNavigationElement",
+            "position": 2,
+            "name": "Pazarcık Online Yemek Siparişi",
+            "url": "https://www.pazarcikportal.com/yemek-siparisi"
+          },
+          {
+            "@type": "SiteNavigationElement",
+            "position": 3,
+            "name": "Pazarcık Sahibinden Satılık & Kiralık İlanları",
+            "url": "https://www.pazarcikportal.com/ilanlar"
+          },
+          {
+            "@type": "SiteNavigationElement",
+            "position": 4,
+            "name": "Pazarcık Günlük Nöbetçi Eczaneleri",
+            "url": "https://www.pazarcikportal.com/nobetci-eczane"
+          },
+          {
+            "@type": "SiteNavigationElement",
+            "position": 5,
+            "name": "Pazarcık Son Dakika Haberleri",
+            "url": "https://www.pazarcikportal.com/haberler"
+          },
+          {
+            "@type": "SiteNavigationElement",
+            "position": 6,
+            "name": "Pazarcık Vefat ve Taziye İlanları",
+            "url": "https://www.pazarcikportal.com/vefat-duyurulari"
+          },
+          {
+            "@type": "SiteNavigationElement",
+            "position": 7,
+            "name": "Pazarcık Etkinlikler ve İlçe Takvimi",
+            "url": "https://www.pazarcikportal.com/etkinlikler"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
 
-    body {
-      margin: 0;
-      min-height: 100%;
-      background-color: #FFFFFF;
-          background-size: 100% 100%;
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: #080A0C;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
-    .center {
-      margin: 0;
+    /* 🌟 ANİMASYONLU & ÇİZİMLİ ULTRA HIZLI AÇILIŞ SİSTEMİ */
+    #splash {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      background: radial-gradient(circle at 50% 50%, #151D2A 0%, #080A0C 100%);
+      pointer-events: none;
+      transition: opacity 0.45s ease-out, visibility 0.45s;
+    }
+
+    #splash.hidden {
+      opacity: 0 !important;
+      visibility: hidden !important;
+    }
+
+    .splash-container {
+      position: relative;
+      width: 100%;
+      max-width: 600px;
+      height: 480px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    /* Merkez Logo & Işık Halkası */
+    .center-logo-box {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      z-index: 10;
+      animation: zoomIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .glow-ring {
       position: absolute;
-      top: 50%;
-      left: 50%;
-      -ms-transform: translate(-50%, -50%);
-      transform: translate(-50%, -50%);
+      top: -15px;
+      width: 150px;
+      height: 150px;
+      background: radial-gradient(circle, rgba(0, 122, 255, 0.4) 0%, rgba(0, 122, 255, 0) 70%);
+      border-radius: 50%;
+      filter: blur(16px);
+      animation: pulseGlow 2.4s infinite ease-in-out;
     }
 
-    .contain {
-      display:block;
-      width:100%; height:100%;
+    #splash-logo {
+      position: relative;
+      width: 110px;
+      height: 110px;
+      border-radius: 24px;
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.1);
       object-fit: contain;
     }
 
-    .stretch {
-      display:block;
-      width:100%; height:100%;
+    .brand-title {
+      margin-top: 18px;
+      color: #FFFFFF;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.5);
     }
 
-    .cover {
-      display:block;
-      width:100%; height:100%;
-      object-fit: cover;
+    .brand-subtitle {
+      margin-top: 5px;
+      color: #94A3B8;
+      font-size: 13.5px;
+      font-weight: 500;
     }
 
-    .bottom {
+    /* 🎈 Yüzen Animasyonlu Hizmet Kartları (Eczane, Yemek, Haberler vb.) */
+    .floating-badge {
       position: absolute;
-      bottom: 0;
-      left: 50%;
-      -ms-transform: translate(-50%, 0);
-      transform: translate(-50%, 0);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 14px;
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 30px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      color: #F1F5F9;
+      font-size: 12.5px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      z-index: 5;
+      animation: floatBadge 3.2s infinite ease-in-out;
     }
 
-    .bottomLeft {
+    .floating-badge .icon-circle {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+
+    /* Pozisyonlar ve Renkler */
+    .badge-eczane {
+      top: 30px;
+      left: 15px;
+      animation-delay: 0s;
+    }
+    .badge-eczane .icon-circle {
+      background: rgba(16, 185, 129, 0.25);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    .badge-yemek {
+      top: 35px;
+      right: 15px;
+      animation-delay: 0.6s;
+    }
+    .badge-yemek .icon-circle {
+      background: rgba(249, 115, 22, 0.25);
+      border: 1px solid rgba(249, 115, 22, 0.4);
+    }
+
+    .badge-haber {
+      bottom: 60px;
+      left: 20px;
+      animation-delay: 1.2s;
+    }
+    .badge-haber .icon-circle {
+      background: rgba(59, 130, 246, 0.25);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+    }
+
+    .badge-etkinlik {
+      bottom: 55px;
+      right: 20px;
+      animation-delay: 1.8s;
+    }
+    .badge-etkinlik .icon-circle {
+      background: rgba(168, 85, 247, 0.25);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+    }
+
+    /* İnce Yükleme Çizgisi */
+    .loader-bar {
+      margin-top: 22px;
+      width: 140px;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .loader-bar::after {
+      content: "";
       position: absolute;
-      bottom: 0;
+      top: 0;
       left: 0;
+      height: 100%;
+      width: 40%;
+      background: linear-gradient(90deg, #007AFF, #60A5FA);
+      border-radius: 10px;
+      animation: loadingSlide 1.2s infinite ease-in-out;
     }
 
-    .bottomRight {
-      position: absolute;
-      bottom: 0;
-      right: 0;
+    @keyframes loadingSlide {
+      0% { left: -40%; width: 40%; }
+      50% { width: 60%; }
+      100% { left: 100%; width: 30%; }
+    }
+
+    @keyframes floatBadge {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-8px) scale(1.03); }
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { transform: scale(0.95); opacity: 0.5; }
+      50% { transform: scale(1.2); opacity: 0.9; }
+    }
+
+    @keyframes zoomIn {
+      from { opacity: 0; transform: scale(0.9); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    @media (max-width: 480px) {
+      .badge-eczane { top: 20px; left: 10px; }
+      .badge-yemek { top: 20px; right: 10px; }
+      .badge-haber { bottom: 40px; left: 10px; }
+      .badge-etkinlik { bottom: 40px; right: 10px; }
+      .floating-badge { font-size: 11px; padding: 5px 10px; }
     }
   </style>
+
   <script id="splash-screen-script">
     function removeSplashFromWeb() {
-      document.getElementById("splash")?.remove();
-      document.getElementById("splash-branding")?.remove();
-      document.body.style.background = "transparent";
+      var splash = document.getElementById("splash");
+      if (splash) {
+        splash.classList.add('hidden');
+        setTimeout(function() {
+          if (splash && splash.parentNode) {
+            splash.remove();
+          }
+        }, 450);
+      }
     }
-  </script>
-  <script>
-    if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
-      navigator.serviceWorker?.getRegistrations().then((registrations) => {
-        registrations.forEach((registration) => registration.unregister());
-      });
-    }
+
+    // Flutter render olduğunda anında kaldır
+    window.addEventListener('flutter-first-frame', removeSplashFromWeb);
+
+    // Fallback: 2.5 saniye
+    setTimeout(removeSplashFromWeb, 2500);
   </script>
 </head>
 <body>
-  <picture id="splash">
-      <source srcset="splash/img/light-1x.png 1x, splash/img/light-2x.png 2x, splash/img/light-3x.png 3x, splash/img/light-4x.png 4x" media="(prefers-color-scheme: light)">
-      <source srcset="splash/img/dark-1x.png 1x, splash/img/dark-2x.png 2x, splash/img/dark-3x.png 3x, splash/img/dark-4x.png 4x" media="(prefers-color-scheme: dark)">
-      <img class="center" aria-hidden="true" src="splash/img/light-1x.png" alt="">
-  </picture>
-  
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+  <!-- 🎨 Çizimli & Animasyonlu Hizmet İkonlarıyla Açılış Ekranı -->
+  <div id="splash">
+    <div class="splash-container">
+      <!-- 1. Nöbetçi Eczane -->
+      <div class="floating-badge badge-eczane">
+        <div class="icon-circle">💊</div>
+        <span>Nöbetçi Eczane</span>
+      </div>
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
-  <script src="flutter_bootstrap.js" async=""></script>
+      <!-- 2. Yemek Siparişi -->
+      <div class="floating-badge badge-yemek">
+        <div class="icon-circle">🍔</div>
+        <span>Yemek & Esnaf</span>
+      </div>
 
+      <!-- Merkez Logo & Başlık -->
+      <div class="center-logo-box">
+        <div class="glow-ring"></div>
+        <img id="splash-logo" src="assets/login.png" alt="Pazarcık Portal" onerror="this.src='assets/assets/login.png'">
+        <h1 class="brand-title">Pazarcık Portal</h1>
+        <p class="brand-subtitle">Şehrin, hayatın, senin portalın.</p>
+        <div class="loader-bar"></div>
+      </div>
 
-</body></html>
+      <!-- 3. Son Haberler -->
+      <div class="floating-badge badge-haber">
+        <div class="icon-circle">📰</div>
+        <span>Son Haberler</span>
+      </div>
+
+      <!-- 4. Etkinlikler & Duyurular -->
+      <div class="floating-badge badge-etkinlik">
+        <div class="icon-circle">🎭</div>
+        <span>Etkinlik & İlan</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🌐 Googlebot & Arama Motorları İçin Semantik SEO İçeriği -->
+  <noscript>
+    <div style="padding: 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #ffffff; color: #1e293b; max-width: 900px; margin: 0 auto;">
+      <h1>Pazarcık Portal — Kahramanmaraş Pazarcık İşletmeleri, Yemek Siparişi ve İlan Portalı</h1>
+      <p>Pazarcık Portal; Kahramanmaraş'ın Pazarcık ilçesine özel yerel işletme rehberi, online yemek siparişi, sahibinden satılık kiralık emlak ve vasıta ilanları, nöbetçi eczaneler, vefat duyuruları ve son dakika ilçe haberlerini tek çatı altında sunan resmi dijital şehir platformudur.</p>
+      
+      <h2>🍽️ Pazarcık Online Yemek Siparişi & Restoranlar</h2>
+      <p>Pazarcık'taki en lezzetli restoranlar, lokantalar, dönerciler, kebapçılar, pide ve lahmacun salonları ile tatlıcılardan online yemek siparişi verin. Canlı sipariş takibi ve kapıda ödeme kolaylığıyla Pazarcık'ta yemek siparişiniz kapınıza gelsin.</p>
+      <ul>
+        <li><a href="https://www.pazarcikportal.com/yemek-siparisi">Pazarcık Yemek Siparişi Ver</a></li>
+        <li><a href="https://www.pazarcikportal.com/isletmeler">Pazarcık Restoran ve Lokantaları</a></li>
+      </ul>
+
+      <h2>🏢 Pazarcık İşletmeleri & Yerel Esnaf Rehberi</h2>
+      <p>Pazarcık esnafları, marketler, oto tamirhaneleri, kuaför ve berberler, inşaat ve tesisat ustaları, giyim mağazaları ve tüm yerel işletmelerin telefon numaraları, adresleri ve harita konumları.</p>
+      <ul>
+        <li><a href="https://www.pazarcikportal.com/isletmeler">Pazarcık Esnaf ve İşletme Listesi</a></li>
+      </ul>
+
+      <h2>🏡 Pazarcık Sahibinden Satılık & Kiralık İlanları</h2>
+      <p>Pazarcık merkez ve mahallelerinde sahibinden satılık daireler, kiralık evler, dükkanlar, arsalar, tarla ve araziler, traktörler, tarım ekipmanları ile ikinci el eşya alım satım ilanları.</p>
+      <ul>
+        <li><a href="https://www.pazarcikportal.com/ilanlar">Sahibinden Pazarcık İlanları</a></li>
+        <li><a href="https://www.pazarcikportal.com/is-ilanlari">Pazarcık İş İlanları & Eleman Arayanlar</a></li>
+      </ul>
+
+      <h2>💊 Pazarcık Günlük Nöbetçi Eczaneleri</h2>
+      <p>Kahramanmaraş Pazarcık ilçesinde bugün ve gece boyunca açık olan nöbetçi eczane listesi, eczane telefonları ve yol tarifi bilgileri.</p>
+      <ul>
+        <li><a href="https://www.pazarcikportal.com/nobetci-eczane">Bugünkü Pazarcık Nöbetçi Eczanesi</a></li>
+      </ul>
+
+      <h2>📰 Pazarcık Son Dakika Haberleri & Vefat Duyuruları</h2>
+      <p>Pazarcık'tan anlık son dakika haberleri, resmi duyurular, taziye ve vefat ilanları, cenaze bilgileri ile Pazarcık etkinlik takvimi.</p>
+      <ul>
+        <li><a href="https://www.pazarcikportal.com/haberler">Pazarcık Güncel Haberler</a></li>
+        <li><a href="https://www.pazarcikportal.com/vefat-duyurulari">Pazarcık Vefat ve Taziye İlanları</a></li>
+        <li><a href="https://www.pazarcikportal.com/etkinlikler">Pazarcık Etkinlikleri</a></li>
+      </ul>
+    </div>
+  </noscript>
+
+  <!-- 🤖 Arama Motoru Örümcekleri (Googlebot) İçin Semantik İçerik Bloğu -->
+  <main id="seo-static-content" style="position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; overflow: hidden;" aria-hidden="true">
+    <h1>Pazarcık Portal — Kahramanmaraş Pazarcık Şehir Rehberi ve İlan Portalı</h1>
+    <section>
+      <h2>Pazarcık İşletmeleri ve Esnaf Rehberi</h2>
+      <p>Kahramanmaraş Pazarcık yerel işletmeleri, esnaf listesi, iletişim bilgileri, harita konumları ve müşteri değerlendirmeleri.</p>
+      <a href="https://www.pazarcikportal.com/isletmeler">İşletmeleri Gör</a>
+    </section>
+    <section>
+      <h2>Pazarcık Online Yemek Siparişi</h2>
+      <p>Pazarcık lokantaları, restoranlar, döner, kebap, pide, lahmacun ve tatlı siparişleri.</p>
+      <a href="https://www.pazarcikportal.com/yemek-siparisi">Yemek Siparişi Ver</a>
+    </section>
+    <section>
+      <h2>Pazarcık Sahibinden Satılık ve Kiralık İlanları</h2>
+      <p>Pazarcık satılık daire, kiralık ev, arsa, tarla, traktör, tarım aletleri ve ikinci el eşya ilanları.</p>
+      <a href="https://www.pazarcikportal.com/ilanlar">İlanları İncele</a>
+    </section>
+    <section>
+      <h2>Pazarcık Nöbetçi Eczaneleri</h2>
+      <p>Pazarcık'ta bugün açık olan nöbetçi eczanelerin isimleri, telefonları ve adresleri.</p>
+      <a href="https://www.pazarcikportal.com/nobetci-eczane">Nöbetçi Eczaneler</a>
+    </section>
+    <section>
+      <h2>Pazarcık Haberleri ve Vefat Duyuruları</h2>
+      <p>Pazarcık yerel haberleri, taziye ve vefat ilanları, belediye duyuruları ve ilçe etkinlikleri.</p>
+      <a href="https://www.pazarcikportal.com/haberler">Haberler</a>
+      <a href="https://www.pazarcikportal.com/vefat-duyurulari">Vefat İlanları</a>
+    </section>
+  </main>
+
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Disallow internal paths
+Disallow: /admin
+Disallow: /_ah/
+
+# Sitemaps
+Sitemap: https://pazarcikportal.com/sitemap.xml
+Sitemap: https://pazarcikportal.com/siteharitasi.xml
