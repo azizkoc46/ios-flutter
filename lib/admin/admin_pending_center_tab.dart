@@ -124,8 +124,7 @@ class AdminPendingCenterTab extends StatelessWidget {
 
     await batch.commit();
     _toast(
-        context,
-        isVendor ? 'Esnaf onaylandı.' : 'Kurumsal satıcı onaylandı.',
+        context, isVendor ? 'Esnaf onaylandı.' : 'Kurumsal satıcı onaylandı.',
         Colors.green);
   }
 
@@ -254,7 +253,8 @@ class AdminPendingCenterTab extends StatelessWidget {
                 'taxNumber',
                 'taxId'
               ]);
-              final badge = _isVendorApplication(data) ? 'Esnaf' : 'Kurumsal';
+              final badge =
+                  _isVendorApplication(data) ? 'Esnaf' : 'Kurumsal';
 
               return _PendingTile(
                 title: title,

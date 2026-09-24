@@ -1,20 +1,20 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:pazarcik_portal/services/earthquake_page.dart';
-import 'package:pazarcik_portal/views/bildirimkutusuanasayfa.dart';
+import 'package:pazarcik_portal/services/notification_router.dart';
+import 'package:pazarcik_portal/widgets/interactive_poll_dialog.dart';
+import 'package:pazarcik_portal/widgets/cek_gonder_reply_dialog.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
-import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/seller/dashboard_screens/orders.dart'; // Sayfanın bulunduğu gerçek dosya yolu
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -108,7 +108,7 @@ class NotificationService {
 
     // 4. Local Notifications Başlatma
     const initSettings = InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      android: AndroidInitializationSettings('@mipmap/launcher_icon'),
       iOS: DarwinInitializationSettings(),
     );
 
@@ -123,6 +123,15 @@ class NotificationService {
     FirebaseMessaging.instance.onTokenRefresh.listen(_updateTokenInFirestore);
     await FirebaseMessaging.instance.subscribeToTopic("all_users");
     await FirebaseMessaging.instance.subscribeToTopic("pazarcik_duyuru");
+
+    // 5b. Deprem bildirimleri (varsayılan: açık)
+    final prefs = await SharedPreferences.getInstance();
+    final earthquakeEnabled = prefs.getBool('earthquake_bildirim') ?? true;
+    if (earthquakeEnabled) {
+      await FirebaseMessaging.instance.subscribeToTopic('earthquake_alerts');
+    } else {
+      await FirebaseMessaging.instance.unsubscribeFromTopic('earthquake_alerts');
+    }
 
     // 6. Dinleyiciler
     FirebaseMessaging.onMessage.listen(_showNotification);
@@ -203,15 +212,11 @@ class NotificationService {
 // --- TIKLAMA YÖNETİMİ ---
   Future<void> _handleNotificationClick(String? payload) async {
     if (payload == null) return;
-    Map<String, dynamic> data = jsonDecode(payload);
-    String type = data['type'] ?? '';
-
-    final externalUrl = (data['linkUrl'] ?? data['url'] ?? '').toString();
-    if (externalUrl.isNotEmpty) {
-      final uri = Uri.parse(externalUrl);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
+    Map<String, dynamic> data = {};
+    try {
+      data = Map<String, dynamic>.from(jsonDecode(payload));
+    } catch (e) {
+      debugPrint("Payload parse hatası: $e");
       return;
     }
 
@@ -220,46 +225,31 @@ class NotificationService {
       await _markAppNotificationAsRead(notificationId);
     }
 
-    // Navigator durumunu kontrol ediyoruz
-    if (navigatorKey?.currentState == null) return;
-    final navigator = navigatorKey!.currentState!;
+    if (navigatorKey?.currentContext == null &&
+        navigatorKey?.currentState == null) {
+      return;
+    }
+    final context =
+        navigatorKey!.currentContext ?? navigatorKey!.currentState!.context;
 
-    if (type == 'complaint_reply') {
+    final type = data['type'] ?? '';
+    if (type == 'cek_gonder_reply' || data['targetType'] == 'cek_gonder') {
+      CekGonderReplyDialog.show(context,
+          data: data, docId: (data['docId'] ?? data['targetId'])?.toString());
+      return;
+    } else if (type == 'complaint_reply') {
       showSimpleDetail(
           data['title'] ?? "Yanıt", data['message'] ?? "Mesajınız var.");
+      return;
     } else if (type == 'poll') {
       _showPollDialog(
           data['question'] ?? "Anket",
           List<String>.from(jsonDecode(data['options'] ?? '[]')),
           data['pollId'] ?? "0");
-    } else if (type == 'Anket' || type == 'Duyuru') {
-      navigator.push(
-        MaterialPageRoute(
-          builder: (context) => const BildirimKutusuAnaSayfa(),
-        ),
-      );
+      return;
     }
-    // 🔥 ROTA OLMADAN DOĞRUDAN SAYFAYI AÇAN YENİ KISIM
-    else if (type == 'new_order' || type == 'order') {
-      navigator.push(
-        MaterialPageRoute(
-          builder: (context) =>
-              const OrdersScreen(), // Esnafın sipariş sayfa sınıfı
-        ),
-      );
-    } else if (type == 'order_status' || type == 'order_update') {
-      if (navigatorKey?.currentContext != null) {
-        Navigator.pushNamed(navigatorKey!.currentContext!, '/my-orders');
-      }
-    } else if (type == 'earthquake') {
-      navigator.push(
-        MaterialPageRoute(
-          builder: (context) => const EarthquakePage(),
-        ),
-      );
-    } else if (data['route'] != null && navigatorKey?.currentContext != null) {
-      Navigator.pushNamed(navigatorKey!.currentContext!, data['route']);
-    }
+
+    await NotificationRouter.navigateToTarget(context, data);
   }
 
   Future<void> _markAppNotificationAsRead(String notificationId) async {
@@ -281,43 +271,11 @@ class NotificationService {
   // --- ANKET DİYALOGU ---
   void _showPollDialog(String question, List<String> options, String pollId) {
     if (navigatorKey?.currentContext == null) return;
-    showCupertinoDialog(
-      context: navigatorKey!.currentContext!,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text("📊 Görüşünüz"),
-        content: Column(
-          children: [
-            const SizedBox(height: 10),
-            Text(question),
-            const SizedBox(height: 15),
-            ...options.map((opt) => CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  child: Text(opt),
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    final user = FirebaseAuth.instance.currentUser;
-                    if (user != null) {
-                      await FirebaseFirestore.instance
-                          .collection('polls')
-                          .doc(pollId)
-                          .collection('votes')
-                          .add({
-                        'uid': user.uid,
-                        'choice': opt,
-                        'date': FieldValue.serverTimestamp(),
-                      });
-                      showSimpleDetail("Teşekkürler", "Oyunuz kaydedildi.");
-                    }
-                  },
-                )),
-          ],
-        ),
-        actions: [
-          CupertinoDialogAction(
-              child: const Text("Kapat"),
-              onPressed: () => Navigator.pop(context))
-        ],
-      ),
+    InteractivePollDialog.show(
+      navigatorKey!.currentContext!,
+      question: question,
+      options: options,
+      pollId: pollId,
     );
   }
 
@@ -457,6 +415,25 @@ class NotificationService {
       debugPrint("🛑 Esnaf cihazı seller_$sellerId konusundan ayrıldı.");
     } catch (e) {
       debugPrint("Abonelikten çıkma hatası: $e");
+    }
+  }
+
+  // --- DEPREM BİLDİRİM ABONELİĞİ ---
+  Future<void> subscribeEarthquakeAlerts() async {
+    try {
+      await FirebaseMessaging.instance.subscribeToTopic('earthquake_alerts');
+      debugPrint('🌍 Deprem bildirimlerine abone olundu.');
+    } catch (e) {
+      debugPrint('Deprem abonelik hatası: $e');
+    }
+  }
+
+  Future<void> unsubscribeEarthquakeAlerts() async {
+    try {
+      await FirebaseMessaging.instance.unsubscribeFromTopic('earthquake_alerts');
+      debugPrint('🔕 Deprem bildirimlerinden çıkıldı.');
+    } catch (e) {
+      debugPrint('Deprem abonelik çıkma hatası: $e');
     }
   }
 

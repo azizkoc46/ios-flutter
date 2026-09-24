@@ -1,11 +1,13 @@
-import 'package:flutter/material.dart';
-// Sayfa importlarını buraya ekleyeceğiz (Auth, Home, Profile vb.)
-
 class AppRoutes {
   static const String home = '/home';
-  static const String auth = '/auth';
-  static const String customerNav = '/customer_nav';
   static const String profile = '/profile';
-
-  // Gelecekte buraya Map<String, WidgetBuilder> gelecek.
+  static const String auth = '/auth-screen';
+  static const String forgotPassword = '/forgot-password';
+  static const String kamu = '/kamu';
+  static const String muhtarliklar = '/muhtarliklar';
+  static const String nobetciEczane = '/nobetci-eczane';
+  static const String ilanlar = '/ilanlar';
+  static const String isIlanlari = '/is-ilanlari';
+  static const String haberler = '/haberler';
+  static const String cekgonder = '/cekgonder';
 }

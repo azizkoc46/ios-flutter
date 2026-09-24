@@ -1,12 +1,15 @@
 // ignore_for_file: deprecated_member_use
 
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'CommentManagementPage.dart';
 import 'sikayet.dart';
 import 'admin_notification_sender_page.dart';
-import 'admin_pending_center_tab.dart'; // BEKLEYENLER SAYFASI BURAYA EKLENDİ
+import 'admin_pending_center_tab.dart';
 
 class AdminStatsTab extends StatelessWidget {
   final Color primaryColor = const Color(0xFF6366F1);
@@ -17,7 +20,29 @@ class AdminStatsTab extends StatelessWidget {
   final Color storyColor = Colors.purple;
   final Color warningColor = const Color(0xFFF59E0B);
 
+  static const _functionsBase =
+      'https://us-central1-pazarcik-portal-7faf2.cloudfunctions.net';
+
   const AdminStatsTab({Key? key}) : super(key: key);
+
+  Future<int> _fetchAuthUserCount() async {
+    try {
+      final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (token == null) return -1;
+      final response = await http.post(
+        Uri.parse('$_functionsBase/adminGetUserCount'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'data': {}}),
+      ).timeout(const Duration(seconds: 10));
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return (body['result']?['count'] as num?)?.toInt() ?? -1;
+    } catch (_) {
+      return -1;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,8 +65,72 @@ class AdminStatsTab extends StatelessWidget {
             crossAxisSpacing: 15,
             childAspectRatio: 1.5,
             children: [
-              _statBox(context, "Toplam Kullanıcı", "customers", Icons.people,
-                  primaryColor),
+              // ── Toplam Kullanıcı: Firebase Auth'tan gerçek sayı ───────────
+              FutureBuilder<int>(
+                future: _fetchAuthUserCount(),
+                builder: (context, authSnap) {
+                  return StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('customers')
+                        .snapshots(),
+                    builder: (context, fsSnap) {
+                      final authCount = authSnap.data ?? -1;
+                      final fsCount = fsSnap.data?.docs.length ?? 0;
+                      final displayCount =
+                          authCount > 0 ? authCount : fsCount;
+                      return GestureDetector(
+                        child: Container(
+                          padding: const EdgeInsets.all(15),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(15),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: primaryColor.withOpacity(0.05),
+                                  blurRadius: 10)
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.people,
+                                  color: primaryColor, size: 28),
+                              const SizedBox(height: 5),
+                              authSnap.connectionState ==
+                                      ConnectionState.waiting
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2))
+                                  : Text(
+                                      displayCount.toString(),
+                                      style: const TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.bold)),
+                              Column(
+                                children: [
+                                  const Text('Toplam Kullanıcı',
+                                      style: TextStyle(
+                                          fontSize: 10, color: Colors.grey),
+                                      textAlign: TextAlign.center),
+                                  if (authCount > 0 && fsCount != authCount)
+                                    Text(
+                                      '($fsCount Firestore)',
+                                      style: const TextStyle(
+                                          fontSize: 8,
+                                          color: Colors.orange),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
               _statBox(context, "Aktif Esnaf", "customers", Icons.storefront,
                   successColor,
                   field: "role", value: "satici"),
@@ -96,7 +185,6 @@ class AdminStatsTab extends StatelessWidget {
       ),
     );
   }
-
   void _openPending(BuildContext context) {
     Navigator.push(context,
         CupertinoPageRoute(builder: (_) => const AdminPendingCenterTab()));
@@ -176,8 +264,8 @@ class AdminStatsTab extends StatelessWidget {
     return _QuickActionTile(
       icon: CupertinoIcons.chat_bubble_2_fill,
       iconColor: Colors.purple,
-      title: "Yorum Yönetimi",
-      subtitle: "İşletme yorumlarını incele ve sil",
+      title: "Tüm Yorumları Yönet & Argo Radarı",
+      subtitle: "Meydan, İşletme, Restoran & İlan yorumlarını denetle ve sil",
       onTap: () => Navigator.push(context,
           MaterialPageRoute(builder: (_) => const CommentManagementPage())),
     );

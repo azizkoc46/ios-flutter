@@ -14,7 +14,8 @@ const Color trendyolOrange = Color(0xfff27a1a);
 
 class CustomerBottomNav extends StatefulWidget {
   static const routeName = '/customer-home';
-  const CustomerBottomNav({Key? key}) : super(key: key);
+  final VoidCallback? onReturnToPortal;
+  const CustomerBottomNav({Key? key, this.onReturnToPortal}) : super(key: key);
 
   @override
   State<CustomerBottomNav> createState() => _CustomerBottomNavState();
@@ -33,23 +34,20 @@ class _CustomerBottomNavState extends State<CustomerBottomNav> {
 
   void selectPage(int index) {
     if (index == 2) {
-      // 🔥 PORTAL ANA EKRANINA KESİN DÖNÜŞ MANTIĞI 🔥
-      // Tüm sayfaları kapatır ve en baştaki portal ana ekranını açar
+      // 🔥 PORTAL ANA EKRANINA DÖNÜŞ MANTIĞI 🔥
+      if (widget.onReturnToPortal != null) {
+        widget.onReturnToPortal!();
+        return;
+      }
+
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+        return;
+      }
+
       Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const PazarcikAnaEkran()),
         (route) => false,
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Portal Ana Menüsüne Dönüldü",
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-          duration: const Duration(milliseconds: 1200),
-          backgroundColor: trendyolOrange,
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
       );
       return;
     }
@@ -84,7 +82,7 @@ class _CustomerBottomNavState extends State<CustomerBottomNav> {
           const TabItem(icon: Icons.fastfood_rounded, title: 'Lezzet'),
           const TabItem(icon: Icons.favorite_rounded, title: 'Favori'),
 
-          // 🔥 MERKEZDEKİ MODERN LOGO 🔥
+          // 🔥 MERKEZDEKİ MODERN ANA SAYFA BUTONU 🔥
           TabItem(
             icon: Container(
               decoration: BoxDecoration(
@@ -98,18 +96,15 @@ class _CustomerBottomNavState extends State<CustomerBottomNav> {
                   )
                 ],
               ),
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Image.asset(
-                    'assets/images/logo.png', // Logo yolun bu değilse 'assets/pazarcikportal.png' dene
-                    fit: BoxFit.contain,
-                    errorBuilder: (c, e, s) => const Icon(Icons.home_filled,
-                        color: Colors.white, size: 28),
-                  ),
+              child: const Center(
+                child: Icon(
+                  Icons.home_rounded,
+                  color: Colors.white,
+                  size: 28,
                 ),
               ),
             ),
+            title: 'Ana Sayfa',
           ),
 
           const TabItem(icon: Icons.storefront_rounded, title: 'Esnaf'),

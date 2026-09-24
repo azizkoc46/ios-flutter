@@ -41,6 +41,8 @@ class _AdminSettingsTabState extends State<AdminSettingsTab> {
   bool _allowNewAds = true;
   bool _allowNewOrders = true;
   bool _startupAnnouncementActive = false;
+  bool _requirePhoneVerification = false;
+  bool _blockAnonymousUsers = false;
   bool _isLoading = true;
   File? _startupImageFile;
 
@@ -113,6 +115,8 @@ class _AdminSettingsTabState extends State<AdminSettingsTab> {
       _allowNewAds = data['allowNewAds'] != false;
       _allowNewOrders = data['allowNewOrders'] != false;
       _startupAnnouncementActive = startupData['isActive'] == true;
+      _requirePhoneVerification = data['requirePhoneVerification'] == true;
+      _blockAnonymousUsers = data['blockAnonymousUsers'] == true;
       _isLoading = false;
     });
   }
@@ -146,6 +150,8 @@ class _AdminSettingsTabState extends State<AdminSettingsTab> {
       'forceUpdate': _forceUpdate,
       'allowNewAds': _allowNewAds,
       'allowNewOrders': _allowNewOrders,
+      'requirePhoneVerification': _requirePhoneVerification,
+      'blockAnonymousUsers': _blockAnonymousUsers,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
@@ -276,6 +282,24 @@ class _AdminSettingsTabState extends State<AdminSettingsTab> {
                     "Yemek / mağaza siparişleri alınabilsin.",
                     _allowNewOrders,
                     (v) => setState(() => _allowNewOrders = v),
+                  ),
+                ],
+              ),
+              _section(
+                title: "Güvenlik ve Üyelik Kontrolleri",
+                icon: CupertinoIcons.shield_fill,
+                children: [
+                  _switchTile(
+                    "Telefon Doğrulaması Zorunlu",
+                    "Açık olduğunda tüm üyelerin (yeni ve eski) işlem yapabilmek için telefonlarını SMS ile doğrulaması gerekir. (SMS altyapısı hazır olana kadar kapalı tutun)",
+                    _requirePhoneVerification,
+                    (v) => setState(() => _requirePhoneVerification = v),
+                  ),
+                  _switchTile(
+                    "Kayıtsız / Anonim Girişleri Engelle",
+                    "Açık olduğunda misafir/isimsiz kullanıcılar uygulamayı gezemez, doğrudan giriş/kayıt sayfasına yönlendirilir.",
+                    _blockAnonymousUsers,
+                    (v) => setState(() => _blockAnonymousUsers = v),
                   ),
                 ],
               ),

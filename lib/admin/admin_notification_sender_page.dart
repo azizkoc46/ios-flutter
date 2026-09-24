@@ -49,6 +49,8 @@ class _AdminNotificationSenderPageState
 
   final Map<String, String> _targetLabels = const {
     'none': 'Yönlendirme Yok',
+    'news': 'Haberler Sayfası',
+    'group_poll': 'Grup Anketi (Gruptan Seç)',
     'ad': 'Sahibinden İlanı',
     'seller': 'Sahibinden Satıcı / Mağaza',
     'business': 'İşletme',
@@ -115,6 +117,7 @@ class _AdminNotificationSenderPageState
       'job',
       'meydan_post',
       'group',
+      'group_poll',
       'food_store',
       'food_product',
     ].contains(type);
@@ -134,6 +137,8 @@ class _AdminNotificationSenderPageState
         return 'meydan_posts';
       case 'group':
         return 'groups';
+      case 'group_poll':
+        return 'group_posts';
       case 'food_store':
         return 'customers';
       case 'food_product':
@@ -151,6 +156,12 @@ class _AdminNotificationSenderPageState
 
   _TargetPickerConfig? _pickerConfig(String type) {
     switch (type) {
+      case 'group_poll':
+        return const _TargetPickerConfig(
+          collection: 'group_posts',
+          titleFields: ['content', 'authorName'],
+          subtitleFields: ['authorName'],
+        );
       case 'ad':
         return const _TargetPickerConfig(
           collection: 'classified_ads',

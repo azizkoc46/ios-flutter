@@ -1,7 +1,7 @@
 name: pazarcik_portal
 description: "Pazarcik Portal"
 publish_to: 'none'
-version: 1.0.5+56
+version: 1.0.6+57
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -82,37 +82,32 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_launcher_icons: ^0.14.1
-  flutter_native_splash: ^2.4.1 # 🔥 Açılış ekranı için paketi ekledik
+  flutter_native_splash: ^2.4.1
 
 # --- 1. UYGULAMA İKONU AYARLARI ---
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/pazarcikportal.png" # Yazım hatası (d harfi) düzeltildi
+  image_path: "assets/pazarcikportal.png"
   adaptive_icon_background: "#FFFFFF"
   adaptive_icon_foreground: "assets/pazarcikportal.png"
 
 # --- 2. AÇILIŞ (SPLASH) EKRANI AYARLARI ---
 flutter_native_splash:
-  color: "#FFFFFF"
+  color: "#080A0C"
   image: "assets/login.png"
   android: true
   ios: true
-  # 👇 BUNU EKLİYORUZ (Android 12 ve üzeri cihazlar için şart)
   android_12:
     image: "assets/login.png"
-    color: "#FFFFFF"
+    color: "#080A0C"
 
 flutter:
   config:
     enable-swift-package-manager: false
 
   uses-material-design: true
-  
-  # 🔥 EKLEME: Font paketlerinin ve ikonların sentezlenmesi için
   generate: true 
 
   assets:
     - assets/
-    - assets/pazarcikportal.png # Ana logo
-    - assets/login.png # 🔥 Login ve açılış logon da burada tanımlı olmalı

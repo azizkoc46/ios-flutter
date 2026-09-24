@@ -12,6 +12,7 @@ class PrayerTimeService {
 
   Map<String, String> namazVakitleri = {};
   String siradakiVakitAd = "Yükleniyor...";
+  String siradakiVakitSaati = "";
   String geriSayim = "--:--:--";
   int aktifVakitIndex = -1;
 
@@ -38,10 +39,33 @@ class PrayerTimeService {
     }
   }
 
+  static const String _kPrayerCacheKey = 'pazarcik_namaz_vakitleri_cache_v1';
+
+  /// ⚡ Önbellekteki namaz vakitlerini anında döndürür (0 ms)
+  Future<Map<String, String>> getCachedVakitler() async {
+    if (namazVakitleri.isNotEmpty) return namazVakitleri;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(_kPrayerCacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        final Map<String, dynamic> decoded = json.decode(cached);
+        namazVakitleri = decoded.map((k, v) => MapEntry(k, v.toString()));
+        return namazVakitleri;
+      }
+    } catch (_) {}
+    return namazVakitleri;
+  }
+
   Future<Map<String, String>> fetchVakitler() async {
+    // Önce varsa hafızadan yükle
+    if (namazVakitleri.isEmpty) {
+      await getCachedVakitler();
+    }
+
     try {
       final response = await http.get(Uri.parse(
-          "https://api.aladhan.com/v1/timingsByAddress?address=Pazarcık,Kahramanmaraş,Turkey&method=13"));
+          "https://api.aladhan.com/v1/timingsByAddress?address=Pazarcık,Kahramanmaraş,Turkey&method=13"))
+          .timeout(const Duration(seconds: 6));
 
       if (response.statusCode == 200) {
         final timings = json.decode(response.body)['data']['timings'];
@@ -54,16 +78,32 @@ class PrayerTimeService {
           "Akşam": timings['Maghrib'],
           "Yatsı": timings['Isha']
         };
-        final preferences = await SharedPreferences.getInstance();
-        if (preferences.getBool('namaz_bildirim') ?? true) {
-          await NotificationService().schedulePrayerAlerts(namazVakitleri);
-        }
+
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_kPrayerCacheKey, json.encode(namazVakitleri));
+          if (prefs.getBool('namaz_bildirim') ?? true) {
+            await NotificationService().schedulePrayerAlerts(namazVakitleri);
+          }
+        } catch (_) {}
+
         return namazVakitleri;
       }
     } catch (e) {
       debugPrint("Namaz vakti çekme hatası: $e");
     }
-    return {};
+
+    if (namazVakitleri.isEmpty) {
+      namazVakitleri = {
+        "İmsak": "05:08",
+        "Güneş": "06:28",
+        "Öğle": "12:44",
+        "İkindi": "16:18",
+        "Akşam": "18:52",
+        "Yatsı": "20:06"
+      };
+    }
+    return namazVakitleri;
   }
 
   void hesaplaGeriSayim(Function onUpdate, bool bildirimAcik) {
@@ -72,6 +112,7 @@ class PrayerTimeService {
     final now = DateTime.now();
     DateTime? siradakiZaman;
     String secilenAd = "";
+    String secilenSaat = "";
     int sIndex = -1;
 
     final isimler = namazVakitleri.keys.toList();
@@ -85,6 +126,7 @@ class PrayerTimeService {
       if (vakit.isAfter(now)) {
         siradakiZaman = vakit;
         secilenAd = isimler[i];
+        secilenSaat = saatler[i];
         sIndex = i;
         break;
       }
@@ -95,6 +137,7 @@ class PrayerTimeService {
       siradakiZaman = DateTime(now.year, now.month, now.day + 1,
           int.parse(ims[0]), int.parse(ims[1]));
       secilenAd = "İmsak";
+      secilenSaat = saatler[0];
       sIndex = 0;
     }
 
@@ -106,6 +149,7 @@ class PrayerTimeService {
     }
 
     siradakiVakitAd = secilenAd;
+    siradakiVakitSaati = secilenSaat;
     aktifVakitIndex = sIndex;
 
     // Geri sayımı formatla

@@ -118,7 +118,7 @@ class _StoryViewerPageState extends State<StoryViewerPage> {
                   backgroundColor: Colors.white,
                   child: Padding(
                     padding: const EdgeInsets.all(2.0),
-                    child: Image.asset('assets/images/logo.png',
+                    child: Image.asset('assets/pazarcikportal.png',
                         errorBuilder: (context, error, stackTrace) =>
                             const Icon(Icons.person, size: 20)),
                   ),

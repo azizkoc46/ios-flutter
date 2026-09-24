@@ -36,7 +36,6 @@ class _AddJobPageState extends State<AddJobPage> {
 
   bool _isLoading = true;
   bool _hasPhoneVerified = false;
-  String _userRole = "customer";
 
   final Color jobPrimaryColor = const Color(0xFF0284C7);
   final Color darkBgColor = const Color(0xFF1C1C1E);
@@ -81,7 +80,6 @@ class _AddJobPageState extends State<AddJobPage> {
       if (userDoc.exists) {
         Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
         setState(() {
-          _userRole = data['role'] ?? 'customer';
           _hasPhoneVerified = data['phoneVerified'] ?? false;
           _isLoading = false;
         });
@@ -132,7 +130,12 @@ class _AddJobPageState extends State<AddJobPage> {
         'employmentType': _selectedEmploymentType,
         'images': imageUrls,
         'ownerId': uid,
-        'status': 'active',
+        'status': widget.existingJob != null
+            ? (widget.existingJob!['status'] ?? 'active')
+            : 'active',
+        'isHired': widget.existingJob != null
+            ? (widget.existingJob!['isHired'] ?? false)
+            : false,
       };
 
       if (widget.docId != null) {

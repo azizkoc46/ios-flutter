@@ -367,6 +367,7 @@ class _AdsHomeViewState extends State<AdsHomeView> {
     final String title = (ad['title'] ?? '').toString();
     final String district =
         (ad['district'] ?? ad['location'] ?? 'Pazarcık').toString();
+    final int views = (ad['views'] is num) ? (ad['views'] as num).toInt() : 0;
 
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -489,24 +490,49 @@ class _AdsHomeViewState extends State<AdsHomeView> {
                   ),
                   const SizedBox(height: 8),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Icon(
-                        CupertinoIcons.location_solid,
-                        size: 12,
-                        color: Colors.black38,
-                      ),
-                      const SizedBox(width: 4),
                       Expanded(
-                        child: Text(
-                          district,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.black45,
-                          ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              CupertinoIcons.location_solid,
+                              size: 11,
+                              color: Colors.black38,
+                            ),
+                            const SizedBox(width: 3),
+                            Expanded(
+                              child: Text(
+                                district,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.black45,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                      Row(
+                        children: [
+                          const Icon(
+                            CupertinoIcons.eye,
+                            size: 11,
+                            color: Colors.black38,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            "$views",
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black45,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

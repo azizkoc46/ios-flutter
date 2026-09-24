@@ -1,11 +1,15 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:pazarcik_portal/widgets/portal_network_image.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:share_plus/share_plus.dart'; // Paylaşım özelliği için eklendi
+
+import 'package:pazarcik_portal/admin/admin_announcements_tab.dart';
 
 class IlanDuyurularPage extends StatefulWidget {
   const IlanDuyurularPage({super.key});
@@ -16,31 +20,53 @@ class IlanDuyurularPage extends StatefulWidget {
 
 class _IlanDuyurularPageState extends State<IlanDuyurularPage> {
   String selectedCategory = "Tümü";
+  String searchQuery = "";
+  bool _isAdmin = false;
 
   final List<String> categories = const [
     "Tümü",
-    "Genel",
     "Duyuru",
     "Etkinlik",
-    "Cenaze",
     "Acil",
+    "Cenaze",
+    "Genel",
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminStatus();
+  }
+
+  Future<void> _checkAdminStatus() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      final token = await user.getIdTokenResult();
+      final claims = token.claims ?? {};
+      if (claims['admin'] == true || claims['role'] == 'admin') {
+        if (mounted) setState(() => _isAdmin = true);
+        return;
+      }
+
+      final doc = await FirebaseFirestore.instance
+          .collection('customers')
+          .doc(user.uid)
+          .get();
+      final data = doc.data() ?? {};
+      final role = (data['role'] ?? '').toString();
+      if (role == 'admin' || role == 'superadmin') {
+        if (mounted) setState(() => _isAdmin = true);
+      }
+    } catch (_) {}
+  }
+
   Stream<QuerySnapshot> _announcementStream() {
-    Query query = FirebaseFirestore.instance
+    return FirebaseFirestore.instance
         .collection('announcements')
         .where('isActive', isEqualTo: true)
-        .orderBy('createdAt', descending: true);
-
-    if (selectedCategory != "Tümü") {
-      query = FirebaseFirestore.instance
-          .collection('announcements')
-          .where('isActive', isEqualTo: true)
-          .where('category', isEqualTo: selectedCategory)
-          .orderBy('createdAt', descending: true);
-    }
-
-    return query.snapshots();
+        .orderBy('createdAt', descending: true)
+        .snapshots();
   }
 
   Color _categoryColor(String category) {
@@ -54,7 +80,7 @@ class _IlanDuyurularPageState extends State<IlanDuyurularPage> {
       case "Duyuru":
         return const Color(0xFF0284C7);
       default:
-        return const Color(0xFFF97316);
+        return const Color(0xFF10B981);
     }
   }
 
@@ -69,11 +95,83 @@ class _IlanDuyurularPageState extends State<IlanDuyurularPage> {
       case "Duyuru":
         return CupertinoIcons.speaker_2_fill;
       default:
-        return CupertinoIcons.info_circle_fill;
+        return CupertinoIcons.sparkles;
     }
   }
 
-  // Liste görünümü için göreceli tarih (Az önce, Dün vs.)
+  String _formatDateTimeRange(dynamic startVal, dynamic endVal) {
+    DateTime? start;
+    DateTime? end;
+
+    if (startVal is Timestamp) start = startVal.toDate();
+    if (startVal is String && startVal.isNotEmpty) start = DateTime.tryParse(startVal);
+
+    if (endVal is Timestamp) end = endVal.toDate();
+    if (endVal is String && endVal.isNotEmpty) end = DateTime.tryParse(endVal);
+
+    if (start == null && end == null) return "";
+
+    final months = [
+      "", "Oca", "Şub", "Mar", "Nis", "May", "Haz",
+      "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"
+    ];
+
+    if (start != null && end != null) {
+      final sDay = start.day;
+      final sMonth = months[start.month];
+      final sTime = "${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}";
+
+      final eDay = end.day;
+      final eMonth = months[end.month];
+      final eTime = "${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}";
+
+      if (start.year == end.year && start.month == end.month && start.day == end.day) {
+        return "$sDay $sMonth • $sTime - $eTime";
+      }
+      return "$sDay $sMonth $sTime – $eDay $eMonth $eTime";
+    }
+
+    if (start != null) {
+      final sDay = start.day;
+      final sMonth = months[start.month];
+      final sTime = "${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}";
+      return "$sDay $sMonth • $sTime";
+    }
+
+    final eDay = end!.day;
+    final eMonth = months[end.month];
+    final eTime = "${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}";
+    return "Bitiş: $eDay $eMonth • $eTime";
+  }
+
+  String _getEventStatus(dynamic startVal, dynamic endVal) {
+    DateTime? start;
+    DateTime? end;
+
+    if (startVal is Timestamp) start = startVal.toDate();
+    if (endVal is Timestamp) end = endVal.toDate();
+
+    final now = DateTime.now();
+
+    if (start != null && end != null) {
+      if (now.isBefore(start)) return "Yakında";
+      if (now.isAfter(end)) return "Sona Erdi";
+      return "Devam Ediyor";
+    }
+
+    if (start != null) {
+      if (now.isBefore(start)) return "Yakında";
+      return "Aktif";
+    }
+
+    if (end != null) {
+      if (now.isAfter(end)) return "Sona Erdi";
+      return "Devam Ediyor";
+    }
+
+    return "";
+  }
+
   String _formatDateRelative(Timestamp? timestamp) {
     if (timestamp == null) return "Şimdi";
 
@@ -88,7 +186,6 @@ class _IlanDuyurularPageState extends State<IlanDuyurularPage> {
     return "${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}";
   }
 
-  // Detay ve Paylaşım için tam ve net tarih formatı
   String _formatDateExact(Timestamp? timestamp) {
     if (timestamp == null) return "Bilinmeyen Tarih";
     final date = timestamp.toDate();
@@ -97,36 +194,65 @@ class _IlanDuyurularPageState extends State<IlanDuyurularPage> {
     final year = date.year;
     final hour = date.hour.toString().padLeft(2, '0');
     final minute = date.minute.toString().padLeft(2, '0');
-    return "$day.$month.$year - $hour:$minute";
+    return "$day.$month.$year • $hour:$minute";
   }
 
-  Future<void> _openVideo(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
+  Future<void> _increaseViewCount(String? docId) async {
+    if (docId == null || docId.isEmpty) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('announcements')
+          .doc(docId)
+          .set({
+        'views': FieldValue.increment(1),
+        'lastViewedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
+  }
+
+  Future<void> _openVideoOrUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri != null && await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
-  // İlan detayını dışarıya metin olarak paylaşma fonksiyonu
-  void _shareAnnouncement(
-      String title, String body, String exactDate, String category) {
-    final String shareText =
-        "📢 $category: $title\n\n$body\n\n🗓️ İlan Tarihi: $exactDate";
+  void _shareAnnouncement({
+    required String title,
+    required String body,
+    required String exactDate,
+    required String category,
+    String? location,
+    String? eventDates,
+  }) {
+    String shareText = "📢 Pazarcık Bülteni | $category\n\n$title\n\n$body\n";
+    if (eventDates != null && eventDates.isNotEmpty) {
+      shareText += "\n🗓️ Tarih: $eventDates";
+    }
+    if (location != null && location.isNotEmpty) {
+      shareText += "\n📍 Mekan: $location";
+    }
+    shareText += "\n🗓️ Yayın Tarihi: $exactDate\n\nPazarcık Portal Uygulamasından Paylaşıldı.";
     Share.share(shareText);
   }
 
-  void _showDetail(Map<String, dynamic> data) {
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+  void _showDetail(String docId, Map<String, dynamic> data) {
+    _increaseViewCount(docId);
 
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final String title = data['title'] ?? 'Başlıksız';
     final String body = data['body'] ?? '';
     final String imageUrl = (data['imageUrl'] ?? '').toString();
     final String videoUrl = (data['videoUrl'] ?? '').toString();
     final String category = data['category'] ?? 'Genel';
+    final String location = (data['location'] ?? '').toString();
     final Timestamp? createdAt = data['createdAt'];
+    final bool isUrgent = data['isUrgent'] == true || category == 'Acil';
 
     final Color color = _categoryColor(category);
     final String exactDate = _formatDateExact(createdAt);
+    final String eventDateRange = _formatDateTimeRange(data['startDate'], data['endDate']);
+    final String eventStatus = _getEventStatus(data['startDate'], data['endDate']);
 
     showModalBottomSheet(
       context: context,
@@ -137,28 +263,21 @@ class _IlanDuyurularPageState extends State<IlanDuyurularPage> {
           top: false,
           child: Container(
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.88,
+              maxHeight: MediaQuery.of(context).size.height * 0.90,
             ),
             decoration: BoxDecoration(
-              color: Theme.of(context).scaffoldBackgroundColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(30),
-              ),
+              color: isDark ? const Color(0xFF0F172A) : Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
             ),
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 12,
-                bottom: MediaQuery.of(context).padding.bottom + 24,
-              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const SizedBox(height: 12),
                   Center(
                     child: Container(
-                      width: 46,
+                      width: 44,
                       height: 5,
                       decoration: BoxDecoration(
                         color: isDark ? Colors.white24 : Colors.black12,
@@ -166,120 +285,288 @@ class _IlanDuyurularPageState extends State<IlanDuyurularPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 14),
+
+                  // Büyük Dergi Kapağı
                   if (imageUrl.isNotEmpty)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(22),
-                      child: CachedNetworkImage(
-                        imageUrl: imageUrl,
-                        width: double.infinity,
-                        height: 230,
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => Container(
-                          height: 230,
-                          color:
-                              isDark ? Colors.white10 : const Color(0xFFF1F5F9),
-                          child: const Center(
-                            child: CupertinoActivityIndicator(),
-                          ),
-                        ),
-                        errorWidget: (_, __, ___) => Container(
-                          height: 230,
-                          color:
-                              isDark ? Colors.white10 : const Color(0xFFF1F5F9),
-                          child: const Icon(Icons.broken_image_outlined),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: Stack(
+                          children: [
+                            PortalNetworkImage(
+                              url: imageUrl,
+                              width: double.infinity,
+                              height: 250,
+                              fit: BoxFit.cover,
+                            ),
+                            if (isUrgent)
+                              Positioned(
+                                top: 12,
+                                left: 12,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    borderRadius: BorderRadius.circular(99),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.3),
+                                        blurRadius: 8,
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(CupertinoIcons.exclamationmark_triangle_fill,
+                                          color: Colors.white, size: 14),
+                                      SizedBox(width: 5),
+                                      Text(
+                                        "🚨 ACİL BİLDİRİM",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
-                  if (imageUrl.isNotEmpty) const SizedBox(height: 18),
 
-                  // Kategori, Tam Tarih ve Paylaş Butonu Satırı
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 11,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: color.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Kategori, Tarih ve Paylaş Satırı
+                        Row(
                           children: [
-                            Icon(_categoryIcon(category),
-                                size: 15, color: color),
-                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: color.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(_categoryIcon(category), size: 14, color: color),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    category.toUpperCase(),
+                                    style: TextStyle(
+                                      color: color,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 11,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (eventStatus.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: eventStatus == "Devam Ediyor"
+                                      ? Colors.green.withOpacity(0.12)
+                                      : eventStatus == "Yakında"
+                                          ? Colors.orange.withOpacity(0.12)
+                                          : Colors.grey.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(99),
+                                ),
+                                child: Text(
+                                  eventStatus,
+                                  style: TextStyle(
+                                    color: eventStatus == "Devam Ediyor"
+                                        ? Colors.green
+                                        : eventStatus == "Yakında"
+                                            ? Colors.orange
+                                            : Colors.grey,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const Spacer(),
+                            IconButton(
+                              onPressed: () => _shareAnnouncement(
+                                title: title,
+                                body: body,
+                                exactDate: exactDate,
+                                category: category,
+                                location: location,
+                                eventDates: eventDateRange,
+                              ),
+                              icon: const Icon(CupertinoIcons.share),
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Başlık
+                        Text(
+                          title,
+                          style: GoogleFonts.inter(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            height: 1.25,
+                            color: isDark ? Colors.white : const Color(0xFF1E293B),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Etkinlik Tarihi Kartı (iPhone Apple Calendar Style)
+                        if (eventDateRange.isNotEmpty) ...[
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  const Color(0xFF7C3AED).withOpacity(0.12),
+                                  const Color(0xFF6366F1).withOpacity(0.06),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: const Color(0xFF7C3AED).withOpacity(0.2),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF7C3AED),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: const Icon(
+                                    CupertinoIcons.calendar_today,
+                                    color: Colors.white,
+                                    size: 22,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        "ETKİNLİK TARİHİ & SAATİ",
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w900,
+                                          color: Color(0xFF7C3AED),
+                                          letterSpacing: 0.6,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        eventDateRange,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+
+                        // Mekan / Konum Kartı
+                        if (location.isNotEmpty) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.white10 : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(CupertinoIcons.location_solid,
+                                    size: 18, color: Colors.redAccent),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    location,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+
+                        // Metin İçeriği
+                        Text(
+                          body,
+                          style: TextStyle(
+                            fontSize: 15,
+                            height: 1.6,
+                            fontWeight: FontWeight.w400,
+                            color: isDark ? Colors.white70 : const Color(0xFF334155),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Video / Bağlantı Butonu
+                        if (videoUrl.isNotEmpty) ...[
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _openVideoOrUrl(videoUrl),
+                              icon: const Icon(CupertinoIcons.play_circle_fill),
+                              label: const Text("Bağlantıyı / Videoyu Aç"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: color,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+
+                        // Yayın Tarihi Dipnotu
+                        Row(
+                          children: [
+                            Icon(CupertinoIcons.clock, size: 13, color: Colors.grey.shade400),
+                            const SizedBox(width: 5),
                             Text(
-                              category,
+                              "Yayınlanma: $exactDate",
                               style: TextStyle(
-                                color: color,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 12,
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Tam Tarih Görünümü
-                      Expanded(
-                        child: Text(
-                          exactDate,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? Colors.white54 : Colors.black54,
-                          ),
-                        ),
-                      ),
-                      // Paylaş Butonu
-                      IconButton(
-                        onPressed: () => _shareAnnouncement(
-                            title, body, exactDate, category),
-                        icon: const Icon(CupertinoIcons.share),
-                        color: isDark ? Colors.white70 : Colors.black87,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      height: 1.15,
-                      fontWeight: FontWeight.w900,
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    body,
-                    style: TextStyle(
-                      fontSize: 15,
-                      height: 1.5,
-                      fontWeight: FontWeight.w500,
-                      color: isDark ? Colors.white70 : const Color(0xFF334155),
-                    ),
-                  ),
-                  if (videoUrl.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _openVideo(videoUrl),
-                        icon: const Icon(CupertinoIcons.play_circle_fill),
-                        label: const Text("Videoyu Aç"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: color,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -294,18 +581,121 @@ class _IlanDuyurularPageState extends State<IlanDuyurularPage> {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text(
-          "İlan ve Duyurular",
-          style: TextStyle(fontWeight: FontWeight.w900),
-        ),
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        elevation: 0,
         centerTitle: true,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new, color: isDark ? Colors.white : Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Column(
+          children: [
+            Text(
+              "Şehir Bülteni & Etkinlik",
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w900,
+                fontSize: 17,
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
+            const Text(
+              "Pazarcık Yaşam & Duyurular",
+              style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        actions: [
+          if (_isAdmin)
+            IconButton(
+              tooltip: "Yönetici Stüdyosu",
+              icon: const Icon(CupertinoIcons.slider_horizontal_3, color: Color(0xFF6366F1)),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  CupertinoPageRoute(
+                    builder: (_) => Scaffold(
+                      appBar: AppBar(
+                        title: const Text("Bülten & Etkinlik Stüdyosu"),
+                        backgroundColor: Colors.white,
+                        elevation: 0,
+                      ),
+                      body: const AdminAnnouncementsTab(),
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
       ),
+      floatingActionButton: _isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  CupertinoPageRoute(
+                    builder: (_) => Scaffold(
+                      appBar: AppBar(
+                        title: const Text("Bülten & Etkinlik Stüdyosu"),
+                        backgroundColor: Colors.white,
+                        elevation: 0,
+                      ),
+                      body: const AdminAnnouncementsTab(),
+                    ),
+                  ),
+                );
+              },
+              backgroundColor: const Color(0xFF6366F1),
+              icon: const Icon(CupertinoIcons.sparkles, color: Colors.white),
+              label: const Text(
+                "Bülteni Yönet",
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+              ),
+            )
+          : null,
       body: Column(
         children: [
-          SizedBox(
+          // 1. Arama Çubuğu
+          Container(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  const Icon(CupertinoIcons.search, color: Colors.grey, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      onChanged: (v) => setState(() => searchQuery = v.trim().toLowerCase()),
+                      decoration: const InputDecoration(
+                        hintText: "Duyuru, etkinlik veya haber ara...",
+                        border: InputBorder.none,
+                        isDense: true,
+                        hintStyle: TextStyle(fontSize: 13, color: Colors.grey),
+                      ),
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  if (searchQuery.isNotEmpty)
+                    GestureDetector(
+                      onTap: () => setState(() => searchQuery = ""),
+                      child: const Icon(CupertinoIcons.xmark_circle_fill, size: 18, color: Colors.grey),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // 2. Kategori Pill Bar
+          Container(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
             height: 48,
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -316,19 +706,19 @@ class _IlanDuyurularPageState extends State<IlanDuyurularPage> {
               itemBuilder: (context, index) {
                 final category = categories[index];
                 final bool active = selectedCategory == category;
-                final Color color = _categoryColor(category);
+                final Color color = category == "Tümü" ? const Color(0xFF6366F1) : _categoryColor(category);
 
                 return GestureDetector(
                   onTap: () => setState(() => selectedCategory = category),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 220),
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
                       color: active
                           ? color
                           : isDark
-                              ? Colors.white.withOpacity(0.07)
-                              : Colors.white,
+                              ? Colors.white.withOpacity(0.06)
+                              : const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(99),
                       border: Border.all(
                         color: active
@@ -339,17 +729,29 @@ class _IlanDuyurularPageState extends State<IlanDuyurularPage> {
                       ),
                     ),
                     child: Center(
-                      child: Text(
-                        category,
-                        style: TextStyle(
-                          color: active
-                              ? Colors.white
-                              : isDark
-                                  ? Colors.white70
-                                  : const Color(0xFF334155),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                        ),
+                      child: Row(
+                        children: [
+                          if (category != "Tümü") ...[
+                            Icon(
+                              _categoryIcon(category),
+                              size: 13,
+                              color: active ? Colors.white : color,
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(
+                            category,
+                            style: TextStyle(
+                              color: active
+                                  ? Colors.white
+                                  : isDark
+                                      ? Colors.white70
+                                      : const Color(0xFF334155),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -357,15 +759,14 @@ class _IlanDuyurularPageState extends State<IlanDuyurularPage> {
               },
             ),
           ),
-          const SizedBox(height: 8),
+
+          // 3. Bülten & Etkinlik Akışı
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _announcementStream(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return const Center(
-                    child: Text("Duyurular yüklenemedi."),
-                  );
+                  return const Center(child: Text("İçerikler yüklenemedi."));
                 }
 
                 if (!snapshot.hasData) {
@@ -374,169 +775,366 @@ class _IlanDuyurularPageState extends State<IlanDuyurularPage> {
 
                 final docs = snapshot.data!.docs;
 
-                if (docs.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      "Henüz ilan veya duyuru yok.",
-                      style: TextStyle(color: Colors.grey),
+                // Kategori & Arama Filtreleme
+                final filtered = docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final cat = (data['category'] ?? 'Genel').toString();
+                  final title = (data['title'] ?? '').toString().toLowerCase();
+                  final body = (data['body'] ?? '').toString().toLowerCase();
+
+                  if (selectedCategory != "Tümü" && cat != selectedCategory) {
+                    return false;
+                  }
+
+                  if (searchQuery.isNotEmpty) {
+                    if (!title.contains(searchQuery) && !body.contains(searchQuery)) {
+                      return false;
+                    }
+                  }
+
+                  return true;
+                }).toList();
+
+                if (filtered.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(CupertinoIcons.sparkles, size: 54, color: Colors.grey.shade400),
+                        const SizedBox(height: 14),
+                        Text(
+                          "Bu filtrede henüz duyuru veya etkinlik yok.",
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 120),
                   physics: const BouncingScrollPhysics(),
-                  itemCount: docs.length,
+                  itemCount: filtered.length,
                   itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
-
-                    final String title = data['title'] ?? 'Başlıksız';
-                    final String body = data['body'] ?? '';
-                    final String imageUrl = (data['imageUrl'] ?? '').toString();
-                    final String videoUrl = (data['videoUrl'] ?? '').toString();
-                    final String category = data['category'] ?? 'Genel';
-                    final Timestamp? createdAt = data['createdAt'];
-
-                    final Color color = _categoryColor(category);
-
-                    return GestureDetector(
-                      onTap: () => _showDetail(data),
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 14),
-                        decoration: BoxDecoration(
-                          color:
-                              isDark ? const Color(0xFF111827) : Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: isDark
-                                ? Colors.white.withOpacity(0.07)
-                                : const Color(0xFFE2E8F0),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: isDark
-                                  ? Colors.black.withOpacity(0.22)
-                                  : Colors.black.withOpacity(0.045),
-                              blurRadius: 18,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (imageUrl.isNotEmpty)
-                              Stack(
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: const BorderRadius.vertical(
-                                      top: Radius.circular(24),
-                                    ),
-                                    child: CachedNetworkImage(
-                                      imageUrl: imageUrl,
-                                      width: double.infinity,
-                                      height: 170,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                  if (videoUrl.isNotEmpty)
-                                    Positioned.fill(
-                                      child: Center(
-                                        child: Container(
-                                          width: 52,
-                                          height: 52,
-                                          decoration: BoxDecoration(
-                                            color:
-                                                Colors.black.withOpacity(0.45),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(
-                                            CupertinoIcons.play_fill,
-                                            color: Colors.white,
-                                            size: 24,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: color.withOpacity(0.12),
-                                          borderRadius:
-                                              BorderRadius.circular(99),
-                                        ),
-                                        child: Text(
-                                          category,
-                                          style: TextStyle(
-                                            color: color,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      // Listede Göreceli Tarih (Örn: 5 dk önce) kalmaya devam ediyor
-                                      Text(
-                                        _formatDateRelative(createdAt),
-                                        style: TextStyle(
-                                          color: isDark
-                                              ? Colors.white38
-                                              : Colors.black38,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    title,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      height: 1.2,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    body,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      height: 1.35,
-                                      color: isDark
-                                          ? Colors.white60
-                                          : const Color(0xFF64748B),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
+                    final doc = filtered[index];
+                    final data = doc.data() as Map<String, dynamic>;
+                    return _buildMagazineCard(doc.id, data, isDark);
                   },
                 );
               },
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMagazineCard(String docId, Map<String, dynamic> data, bool isDark) {
+    final String title = data['title'] ?? 'Başlıksız';
+    final String body = data['body'] ?? '';
+    final String imageUrl = (data['imageUrl'] ?? '').toString();
+    final String category = data['category'] ?? 'Genel';
+    final String location = (data['location'] ?? '').toString();
+    final Timestamp? createdAt = data['createdAt'];
+    final bool isUrgent = data['isUrgent'] == true || category == 'Acil';
+
+    final Color color = _categoryColor(category);
+    final String relativeDate = _formatDateRelative(createdAt);
+    final String eventDateRange = _formatDateTimeRange(data['startDate'], data['endDate']);
+    final String eventStatus = _getEventStatus(data['startDate'], data['endDate']);
+    final int views = (data['views'] is num) ? (data['views'] as num).toInt() : 0;
+
+    return GestureDetector(
+      onTap: () => _showDetail(docId, data),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 18),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isUrgent
+                ? Colors.red.withOpacity(0.5)
+                : isDark
+                    ? Colors.white.withOpacity(0.08)
+                    : const Color(0xFFE2E8F0),
+            width: isUrgent ? 1.5 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isUrgent
+                  ? Colors.red.withOpacity(0.08)
+                  : isDark
+                      ? Colors.black.withOpacity(0.3)
+                      : Colors.black.withOpacity(0.045),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Dergi Kapak Görseli veya Gradient Hero
+            if (imageUrl.isNotEmpty)
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    child: PortalNetworkImage(
+                      url: imageUrl,
+                      width: double.infinity,
+                      height: 190,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  // Kategori & Acil Rozeti
+                  Positioned(
+                    top: 12,
+                    left: 12,
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: color,
+                            borderRadius: BorderRadius.circular(99),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(_categoryIcon(category), size: 12, color: Colors.white),
+                              const SizedBox(width: 5),
+                              Text(
+                                category.toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isUrgent) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: const Text(
+                              "🚨 ACİL",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (eventStatus.isNotEmpty)
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.65),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          eventStatus,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+
+            // İçerik Alanı
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (imageUrl.isEmpty) ...[
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(_categoryIcon(category), size: 12, color: color),
+                              const SizedBox(width: 5),
+                              Text(
+                                category.toUpperCase(),
+                                style: TextStyle(
+                                  color: color,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isUrgent) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: const Text(
+                              "🚨 ACİL",
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ],
+                        const Spacer(),
+                        Text(
+                          relativeDate,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? Colors.white38 : Colors.black38,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+
+                  // Başlık
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      height: 1.25,
+                      color: isDark ? Colors.white : const Color(0xFF1E293B),
+                    ),
+                  ),
+
+                  // Açıklama Özeti
+                  if (body.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      body,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.4,
+                        color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+
+                  // Etkinlik Başlangıç & Bitiş Tarihi Şeridi
+                  if (eventDateRange.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF7C3AED).withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(CupertinoIcons.calendar, size: 15, color: Color(0xFF7C3AED)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              eventDateRange,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF7C3AED),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  // Mekan & Görüntülenme Alt Bilgisi
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      if (location.isNotEmpty) ...[
+                        const Icon(CupertinoIcons.location_solid, size: 12, color: Colors.grey),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            location,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                      const Spacer(),
+                      Row(
+                        children: [
+                          const Icon(CupertinoIcons.eye, size: 12, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          Text(
+                            "$views",
+                            style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                      if (imageUrl.isNotEmpty) ...[
+                        const SizedBox(width: 10),
+                        Text(
+                          relativeDate,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? Colors.white38 : Colors.black38,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

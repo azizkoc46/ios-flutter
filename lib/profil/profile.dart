@@ -38,6 +38,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // --- DEĞİŞKENLER ---
   String _appVersion = "Sürüm yükleniyor";
   bool _isNamazNotificationOn = true;
+  bool _isEarthquakeNotificationOn = true;
   bool _isUploadingImage = false;
   bool _hasAdminClaim = false;
   bool _adminTokenRegistered = false;
@@ -104,6 +105,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _isNamazNotificationOn = prefs.getBool('namaz_bildirim') ?? true;
+      _isEarthquakeNotificationOn = prefs.getBool('earthquake_bildirim') ?? true;
     });
   }
 
@@ -508,8 +510,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 12),
               Container(
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                  color: isDark ? const Color(0xFF131B2E) : Colors.white,
                   borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDark ? Colors.white.withOpacity(0.08) : Colors.transparent,
+                  ),
                 ),
                 child: ListTile(
                   leading: const Icon(Icons.dark_mode_outlined,
@@ -551,7 +556,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       backgroundColor:
-          isDark ? const Color(0xFF121212) : const Color(0xFFF8F9FA),
+          isDark ? const Color(0xFF0B0F19) : const Color(0xFFF8F9FA),
       appBar: AppBar(
         title: const Text("Profilim",
             style: TextStyle(fontWeight: FontWeight.bold)),
@@ -639,7 +644,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               shape: BoxShape.circle,
                               border: Border.all(
                                   color: isDark
-                                      ? const Color(0xFF121212)
+                                      ? const Color(0xFF0B0F19)
                                       : Colors.white,
                                   width: 2),
                             ),
@@ -804,6 +809,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const Divider(height: 1, indent: 50),
+                  // Deprem Bildirimleri (Aç/Kapat)
+                  ListTile(
+                    leading: const Icon(
+                      Icons.crisis_alert_rounded,
+                      color: Color(0xFFFF4444),
+                    ),
+                    title: Text(
+                      "Deprem Uyarıları",
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                    ),
+                    subtitle: Text(
+                      "Bölgede deprem olduğunda anlık bildirim al",
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? Colors.white38 : Colors.black45,
+                      ),
+                    ),
+                    trailing: CupertinoSwitch(
+                      value: _isEarthquakeNotificationOn,
+                      activeTrackColor: const Color(0xFFFF4444),
+                      onChanged: (v) async {
+                        setState(() => _isEarthquakeNotificationOn = v);
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setBool('earthquake_bildirim', v);
+                        if (v) {
+                          await NotificationService().subscribeEarthquakeAlerts();
+                        } else {
+                          await NotificationService().unsubscribeEarthquakeAlerts();
+                        }
+                      },
+                    ),
+                  ),
+                  const Divider(height: 1, indent: 50),
                   // Haber Bildirimleri (Detaylı)
                   _menuItem(
                       Icons.notifications_active_outlined, "Haber Bildirimleri",
@@ -879,11 +921,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildMenuCard(bool isDark, List<Widget> items) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        color: isDark ? const Color(0xFF131B2E) : Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.08) : Colors.transparent,
+        ),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
               blurRadius: 10,
               offset: const Offset(0, 5))
         ],

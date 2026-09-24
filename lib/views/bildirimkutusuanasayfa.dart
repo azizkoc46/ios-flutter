@@ -7,7 +7,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:pazarcik_portal/services/notification_router.dart';
+import 'package:pazarcik_portal/widgets/interactive_poll_dialog.dart';
+import 'package:pazarcik_portal/widgets/cek_gonder_reply_dialog.dart';
 
 class BildirimKutusuAnaSayfa extends StatefulWidget {
   const BildirimKutusuAnaSayfa({super.key});
@@ -104,6 +106,13 @@ class _BildirimKutusuAnaSayfaState extends State<BildirimKutusuAnaSayfa> {
     }
 
     if (!mounted) return;
+    if (notif['type'] == 'cek_gonder_reply' ||
+        notif['targetType'] == 'cek_gonder') {
+      CekGonderReplyDialog.show(context,
+          data: notif,
+          docId: (notif['docId'] ?? notif['targetId'])?.toString());
+      return;
+    }
     _showNotificationDetail(notif);
   }
 
@@ -141,7 +150,10 @@ class _BildirimKutusuAnaSayfaState extends State<BildirimKutusuAnaSayfa> {
     IconData icon = Icons.notifications;
     Color color = Colors.blue;
 
-    if (type == 'Anket') {
+    if (type == 'cek_gonder_reply' || notif['targetType'] == 'cek_gonder') {
+      icon = Icons.mark_chat_read_outlined;
+      color = const Color(0xFF10B981);
+    } else if (type == 'Anket') {
       icon = Icons.poll_outlined;
       color = Colors.orange;
     } else if (type == 'Link') {
@@ -276,29 +288,16 @@ class _BildirimKutusuAnaSayfaState extends State<BildirimKutusuAnaSayfa> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  if ((notif['linkUrl'] ?? '').toString().isNotEmpty)
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          final uri = Uri.parse(notif['linkUrl']);
-                          Navigator.pop(context);
-
-                          if (await canLaunchUrl(uri)) {
-                            await launchUrl(
-                              uri,
-                              mode: LaunchMode.externalApplication,
-                            );
-                          }
-                        },
-                        icon: const Icon(CupertinoIcons.link),
-                        label: const Text("Bağlantıyı Aç"),
-                      ),
-                    ),
                   if (type == 'Anket')
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
                         onPressed: () {
                           Navigator.pop(context);
                           final options =
@@ -307,6 +306,30 @@ class _BildirimKutusuAnaSayfaState extends State<BildirimKutusuAnaSayfa> {
                         },
                         icon: const Icon(Icons.poll_outlined),
                         label: const Text("Ankete Katıl"),
+                      ),
+                    )
+                  else if (NotificationRouter.hasAction(notif))
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          await NotificationRouter.navigateToTarget(
+                            context,
+                            notif,
+                          );
+                        },
+                        icon: Icon(NotificationRouter.getActionIcon(notif)),
+                        label: Text(
+                          NotificationRouter.getActionLabel(notif),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ),
                 ],
@@ -397,75 +420,11 @@ class _BildirimKutusuAnaSayfaState extends State<BildirimKutusuAnaSayfa> {
     List<String> options,
     String pollId,
   ) {
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text(
-          "Yeni Anket",
-          style: TextStyle(color: Colors.orange),
-        ),
-        content: Column(
-          children: [
-            const SizedBox(height: 10),
-            Text(
-              question,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 15),
-            ...options.map(
-              (opt) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: CupertinoButton(
-                  color: Colors.orange.withOpacity(0.1),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 10,
-                    horizontal: 15,
-                  ),
-                  child: Text(
-                    opt,
-                    style: const TextStyle(color: Colors.orange),
-                  ),
-                  onPressed: () async {
-                    Navigator.pop(context);
-
-                    final user = FirebaseAuth.instance.currentUser;
-
-                    if (user != null) {
-                      await FirebaseFirestore.instance
-                          .collection('app_notifications')
-                          .doc(pollId)
-                          .collection('votes')
-                          .add({
-                        'uid': user.uid,
-                        'choice': opt,
-                        'date': FieldValue.serverTimestamp(),
-                      });
-
-                      if (!mounted) return;
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Oyunuz başarıyla kaydedildi."),
-                          backgroundColor: Colors.orange,
-                        ),
-                      );
-                    }
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text(
-              "Kapat",
-              style: TextStyle(color: Colors.grey),
-            ),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ],
-      ),
+    InteractivePollDialog.show(
+      context,
+      question: question,
+      options: options,
+      pollId: pollId,
     );
   }
 

@@ -4,9 +4,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:googleapis_auth/auth_io.dart' as auth;
 
 import '../../../providers/cart.dart';
 import '../../../models/cart.dart';
@@ -42,41 +39,8 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
   final _orderNoteController = TextEditingController();
 
   bool isLoading = false;
+  bool _isSubmitting = false; // FIX: çift sipariş gönderme koruması
   List<String> storeNeighborhoods = [];
-
-  // --- V1 API İÇİN GEREKLİ KİMLİK BİLGİLERİ ---
-  final String _projectId = "pazarcik-portal-7faf2";
-  final String _clientEmail =
-      "firebase-adminsdk-fbsvc@pazarcik-portal-7faf2.iam.gserviceaccount.com";
-  final String _clientId = "100884384179291445520";
-  final String _privateKey = """-----BEGIN PRIVATE KEY-----
-MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDUtDfjJc/C+VFo
-YtkTTH/7bHTsCQ/C+jTUE8b9PR+eXcbovD+iOmErimey9XowE6wJ9nAukipHEPlH
-R1Opg0nrlauMOcKnC2bGtQWoVCPsIJLYYRxqQZ/o8+N7ZjxvUno9499XH7FhhYln
-uBkTxmX2SpJAu8tAWXnoqfB2PQLhB8wzZyZsCAbKPj1mKef+WbUV53qHrbndYmn3
-HiIVMDvZZ/jzAXRQ1oM3mOd7wiURuHfHUG85dkYlofvZaBImP62qN80vM1t74RA+
-xdabu7VCY8GVaJh5FgHmDwL10caJlpUZTN54GzZfOUGgfWhzzIm+HZwL1gs67cke
-YsFzyyqDAgMBAAECggEAWBw/emzTX6T/wAoSehgafAA1fwFR8ibLc36t04Fac7PN
-DePNSFp+nha7Vjqx3vCHN6lKV0BdGwtA9/HoCjREjr51TaUvqRrj/DRIn64bI1lq
-+w9fQfTlVQ6SkS+MoWC9Gp4mimSqigdTIA/282YgHqJNa1tfmsx135dl8NTdOHHM
-6Dycfz3rtZO9p7dIbFLULHscq28Lc7kipHrfj1YHpoZ1gCtXsxTvcNUMyvIOInti
-Q1VDosF1WUiOnfKSlKGFaXnL0QBfE+05YPi8pz0IgZUmM7daKrLeT7jY5bQO+KwS
-zQLM05P4NGiYYFM7JggLWuJpidL0zAT+8BHGDV9VYQKBgQD1M4UK1SoewBwPrh4A
-mAiIbud0jnKBXnx2qyBo0Uy1W612oouySdxJqBAzT59nSRP0rbCRJx95GbYD9HdL
-3/pyY2/IRrnt64tN2j5XUY0P++GoN4UdeisSUL4Fakjw8m5qhoqButk9lYKA40IO
-plcWM7vebDEjLhmiZlRxdRsiXwKBgQDeElBHTqZH0DO5qYQJw/sYNw5r1DtE12tq
-jLPx0rddotMGuLUz6pGkveyH9zBZB+IjYYWMmRluTtFNRFIyuYBkxuu6H1D0Xor4
-AjaTBGLGodkx1pzth5CDdKjVH6+3aIHeEY5UiCRATMfLZ7A/WXrerE/4k5HCE5ns
-NNynb5sSXQKBgBJipI0lYp0fpnr+gT1mKO2h8zToIWnV3dtABZQWbXwDvcPxeCwM
-IbpcIarXQ4qJDjgAdgbMOi3oYZ92SyOjTbIaBp2rv/E5Ah76SEZf1QXnywnD7/U/
-3c7nwvfA+msmomTWZbhIfFWDyl9DqwZSLqF5i5Kn5h9PK5jjt10yfLBdAoGACzBV
-ByK5Ugj1cjdORcewEQpFGb25tsA700R/lIGPZ5Jam44W4yTAbdJ75mXX88Rn6mxx
-dCIKm/owpXn5wkCCbZFwMxJ827MfwVsrMMEZ0PQ6oz4y7ezUpSrtjr9n9Q+4611r
-FGs/mFXGA0OYJ7j0bd+0r8uPnn2qVbJcI7uFzqkCgYBs5AgyqRe7dG3JEkt+t1KA
-R8Qk09x+Fg6qM9tXX67eP2psFHbLgO76IXoZ4POZUY0W0KO7QjrTZyNlmQyAqULH
-kb0f8Vu/zXfNM/ySHgIVv7EYnkWuIdWaQ8cgMvygT0C7HIdroJ77KKwTNA2vSMjH
-0EoeZijLFPdi5Ax2yCuf6A==
------END PRIVATE KEY-----""";
 
   @override
   void initState() {
@@ -140,12 +104,10 @@ kb0f8Vu/zXfNM/ySHgIVv7EYnkWuIdWaQ8cgMvygT0C7HIdroJ77KKwTNA2vSMjH
     }
   }
 
-// 🔥 FIREBASE CONSOLE İLE AYNI YAPI + V5 KANALI - HATASIZ V1 PAYLOAD
+  // Bildirim Cloud Function kuyruğu üzerinden gönderilir (güvenli)
   Future<void> _sendOrderPushNotification(
       String sellerId, String customerName, double amount) async {
     try {
-      debugPrint("🚀 Bildirim gönderiliyor: seller_$sellerId");
-
       await FirebaseFirestore.instance
           .collection('seller_order_push_requests')
           .add({
@@ -155,130 +117,14 @@ kb0f8Vu/zXfNM/ySHgIVv7EYnkWuIdWaQ8cgMvygT0C7HIdroJ77KKwTNA2vSMjH
         'createdAt': FieldValue.serverTimestamp(),
         'status': 'queued',
       });
-      if (DateTime.now().millisecondsSinceEpoch >= 0) return;
-
-      final credentials = auth.ServiceAccountCredentials.fromJson({
-        "type": "service_account",
-        "project_id": _projectId,
-        "private_key": _privateKey,
-        "client_email": _clientEmail,
-        "client_id": _clientId,
-      });
-
-      final scopes = ['https://www.googleapis.com/auth/firebase.messaging'];
-      final client = await auth.clientViaServiceAccount(credentials, scopes);
-      final accessToken = client.credentials.accessToken.data;
-      client.close();
-
-      final String url =
-          'https://fcm.googleapis.com/v1/projects/$_projectId/messages:send';
-
-      // 🔥 HATASI GİDERİLMİŞ, KUSURSUZ JSON YAPISI
-      final Map<String, dynamic> payload = {
-        'message': {
-          'topic': 'seller_$sellerId',
-          'notification': {
-            'title': '🔔 YENİ SİPARİŞ!',
-            'body': '$customerName - ₺${amount.toStringAsFixed(2)}',
-          },
-          'data': {
-            'type': 'new_order',
-            'click_action': 'FLUTTER_NOTIFICATION_CLICK',
-            'customerName': customerName,
-            'amount': amount.toString(),
-            'sellerId': sellerId,
-          },
-          'android': {
-            'priority': 'high', // 🔥 Küçük harf olmalı
-            'ttl': '86400s',
-            'notification': {
-              'channel_id': 'seller_order_channel_v5',
-              'sound': 'default',
-              'notification_priority':
-                  'PRIORITY_MAX', // 🔥 HATA VEREN SATIR DÜZELTİLDİ!
-              'visibility': 'PUBLIC',
-              'click_action': 'FLUTTER_NOTIFICATION_CLICK',
-              'tag': 'order_${DateTime.now().millisecondsSinceEpoch}',
-            }
-          },
-          'apns': {
-            'headers': {
-              'apns-priority': '10',
-              'apns-push-type': 'alert',
-            },
-            'payload': {
-              'aps': {
-                'alert': {
-                  'title': '🔔 YENİ SİPARİŞ!',
-                  'body': '$customerName - ₺${amount.toStringAsFixed(2)}',
-                },
-                'sound': 'default',
-                'badge': 1,
-                'category': 'NEW_ORDER_CATEGORY',
-                'interruption-level': 'time-sensitive',
-                'relevance-score': 1.0,
-              }
-            }
-          },
-          'webpush': {
-            'headers': {
-              'Urgency': 'high',
-            },
-            'notification': {
-              'title': '🔔 YENİ SİPARİŞ!',
-              'body': '$customerName - ₺${amount.toStringAsFixed(2)}',
-              'requireInteraction': true,
-              'vibrate': [200, 100, 200],
-            }
-          }
-        }
-      };
-
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: jsonEncode(payload),
-      );
-
-      debugPrint("📬 HTTP Status: ${response.statusCode}");
-
-      if (response.statusCode == 200) {
-        final responseBody = jsonDecode(response.body);
-        debugPrint("✅ BİLDİRİM BAŞARILI!");
-        debugPrint("📨 Mesaj ID: ${responseBody['name']}");
-      } else {
-        debugPrint("❌ HATA: ${response.body}");
-        final errorBody = jsonDecode(response.body);
-        debugPrint("❌ Hata detayı: ${errorBody['error']['message']}");
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  "Bildirim gönderilemedi: ${errorBody['error']['message']}"),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
     } catch (e) {
-      debugPrint("❌ KRİTİK HATA: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Bildirim hatası: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      debugPrint('Bildirim kuyruğu hatası: $e');
     }
   }
 
-  // 🔥 SİPARİŞİ ONAYLA VE ESNAFA BİLDİRİM GÖNDER
+  // FIX: Çift sipariş gönderme koruması
   Future<void> _handleOrderConfirmation() async {
+    if (_isSubmitting || isLoading) return;
     if (userId.isEmpty) {
       _showErrorSnackBar("Sipariş vermek için giriş yapmalısınız.");
       Navigator.of(context).push(
@@ -294,6 +140,7 @@ kb0f8Vu/zXfNM/ySHgIVv7EYnkWuIdWaQ8cgMvygT0C7HIdroJ77KKwTNA2vSMjH
       return;
     }
 
+    _isSubmitting = true;
     setState(() => isLoading = true);
 
     try {
@@ -412,6 +259,7 @@ kb0f8Vu/zXfNM/ySHgIVv7EYnkWuIdWaQ8cgMvygT0C7HIdroJ77KKwTNA2vSMjH
     } catch (e) {
       _showErrorSnackBar("Sipariş sırasında bir hata oluştu: $e");
     } finally {
+      _isSubmitting = false;
       if (mounted) setState(() => isLoading = false);
     }
   }

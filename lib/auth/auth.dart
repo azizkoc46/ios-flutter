@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
@@ -10,6 +10,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:pazarcik_portal/admin/admin_notification_service.dart';
 import 'package:pazarcik_portal/main.dart';
 import 'package:pazarcik_portal/auth/forgot_password.dart';
+import 'package:pazarcik_portal/auth/phone_otp_page.dart';
+import 'package:pazarcik_portal/services/system_settings_service.dart';
 import 'package:pazarcik_portal/esnaf_sistemi/lib/helpers/image_picker.dart';
 
 class Auth extends StatefulWidget {
@@ -114,7 +116,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
         }
         if (mounted) {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const PazarcikAnaEkran()),
+            MaterialPageRoute(builder: (_) => const PortalHome()),
           );
         }
         return true;
@@ -125,9 +127,6 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
 
   Future<void> _saveUserAndNavigate(User user,
       {String? displayName, String? photoUrl, required String authType}) async {
-    // Token'i zorla yeniliyoruz. Eger onceden anonim bir oturum vardiysa
-    // ve simdi gercek bir hesaba gecildiyse, Firestore'a istek atmadan once
-    // request.auth.uid'in guncel ve dogru kullaniciyi gostermesini garantiliyoruz.
     try {
       await user.getIdToken(true);
     } catch (e) {
@@ -136,13 +135,6 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
 
     final docRef = firebase.collection('customers').doc(user.uid);
 
-    // KRITIK DUZELTME:
-    // Auth durumu degistikten (signOut -> createUser/signIn) hemen sonra
-    // gelen ilk Firestore istegi bazen request.auth henuz tam senkronize
-    // olmadan gidebiliyor (token ve App Check tarafinda kisa bir
-    // senkronizasyon farki). Bu durumda permission-denied alinir, ama
-    // hemen ardindan tekrar denendiginde basarili olur. Bunu tolere etmek
-    // icin kisa bir retry mekanizmasi kullaniyoruz.
     try {
       DocumentSnapshot<Map<String, dynamic>>? userDoc;
       for (var attempt = 0; attempt < 3; attempt++) {
@@ -189,16 +181,28 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
         }
       }
     } on FirebaseException catch (e) {
-      // Kimlik doğrulama başarılıysa profil senkronizasyonundaki geçici bir
-      // Firestore/App Check sorunu kullanıcıyı tekrar giriş ekranına atmasın.
       debugPrint(
           'Giriş başarılı, profil eşitleme ertelendi [$authType]: ${e.code} - ${e.message}');
     } catch (e) {
       debugPrint('Giriş başarılı, profil eşitleme ertelendi [$authType]: $e');
     }
+
     if (mounted) {
-      Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const PazarcikAnaEkran()));
+      if (SystemSettingsService.instance.requirePhoneVerification) {
+        final verified =
+            await SystemSettingsService.instance.isUserPhoneVerified(user);
+        if (!verified && mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+                builder: (_) => const PhoneOtpPage(verifyOnly: true)),
+          );
+          return;
+        }
+      }
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const PortalHome()));
+      }
     }
   }
 
@@ -317,8 +321,15 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
 
         showSnackBar("Hoş Geldiniz!", isError: false);
         if (mounted) {
-          Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const PazarcikAnaEkran()));
+          if (SystemSettingsService.instance.requirePhoneVerification) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                  builder: (_) => const PhoneOtpPage(verifyOnly: true)),
+            );
+          } else {
+            Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const PortalHome()));
+          }
         }
       }
     } on FirebaseAuthException catch (e) {
@@ -336,7 +347,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
         );
         if (mounted) {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const PazarcikAnaEkran()),
+            MaterialPageRoute(builder: (_) => const PortalHome()),
           );
         }
       } else {
@@ -559,22 +570,33 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                         ),
                         SizedBox(height: isCompact ? 16 : 22),
                         Text(
-                          isLogin ? "Pazarcık Portal" : "Hesap Oluştur",
+                          isLogin ? "Hoş geldiniz" : "Hesap Oluştur",
+                          textAlign: TextAlign.center,
                           style: GoogleFonts.inter(
                               fontSize: isCompact ? 26 : 30,
                               fontWeight: FontWeight.w800,
                               color: const Color(0xFF1C1C1E),
-                              letterSpacing: -0.8),
+                              letterSpacing: 0),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           isLogin
-                              ? "Devam etmek için giriş yapın"
+                              ? "Pazarcık Portal hesabınıza giriş yapın"
                               : "Portal ayrıcalıkları için kayıt olun",
+                          textAlign: TextAlign.center,
                           style: GoogleFonts.inter(
                               fontSize: 14,
                               color: const Color(0xFF8E8E93),
                               fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Hesap açmadan da keşfedebilirsiniz.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: const Color(0xFF616975),
+                          ),
                         ),
                         SizedBox(height: isCompact ? 20 : 30),
                         if (!isLogin) ...[
@@ -717,8 +739,10 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                           ],
                         ),
                         SizedBox(height: isCompact ? 18 : 24),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 14,
+                          runSpacing: 12,
                           children: [
                             _buildSocialButton(
                               icon: Icons.g_mobiledata_rounded,
@@ -729,7 +753,6 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                             if (kIsWeb ||
                                 defaultTargetPlatform ==
                                     TargetPlatform.iOS) ...[
-                              const SizedBox(width: 14),
                               _buildSocialButton(
                                 icon: Icons.apple_rounded,
                                 color: Colors.black,
@@ -747,7 +770,7 @@ class _AuthState extends State<Auth> with SingleTickerProviderStateMixin {
                                   .pushNamedAndRemoveUntil(
                                       '/home', (route) => false),
                           child: Text(
-                            "Giriş yapmadan devam et",
+                            "Misafir olarak keşfet",
                             style: GoogleFonts.inter(
                               color: const Color(0xFF007AFF),
                               fontWeight: FontWeight.w800,

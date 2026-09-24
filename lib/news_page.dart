@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:webfeed_plus/webfeed_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 // --- HABER MODELİ ---
@@ -28,6 +29,28 @@ class NewsItem {
     required this.sourceName,
     required this.sourceColor,
   });
+
+  Map<String, dynamic> toMap() => {
+    'title': title,
+    'description': description,
+    'imageUrl': imageUrl,
+    'link': link,
+    'pubDate': pubDate.millisecondsSinceEpoch,
+    'sourceName': sourceName,
+    'sourceColor': sourceColor.value,
+  };
+
+  factory NewsItem.fromMap(Map<String, dynamic> map) => NewsItem(
+    title: (map['title'] ?? '').toString(),
+    description: (map['description'] ?? '').toString(),
+    imageUrl: (map['imageUrl'] ?? '').toString(),
+    link: (map['link'] ?? '').toString(),
+    pubDate: map['pubDate'] is int
+        ? DateTime.fromMillisecondsSinceEpoch(map['pubDate'])
+        : (DateTime.tryParse(map['pubDate']?.toString() ?? '') ?? DateTime.now()),
+    sourceName: (map['sourceName'] ?? 'Haber').toString(),
+    sourceColor: Color(map['sourceColor'] is int ? map['sourceColor'] : 0xFF2563EB),
+  );
 }
 
 class NewsPage extends StatefulWidget {
@@ -38,68 +61,116 @@ class NewsPage extends StatefulWidget {
 }
 
 class _NewsPageState extends State<NewsPage> {
+  static const String _kNewsPageCacheKey = 'pazarcik_news_page_cache_v2';
+  static List<NewsItem>? _memoryNews;
+
   bool _isLoading = true;
   List<NewsItem> _allNews = [];
   String _selectedSource = "Tümü";
 
-  // 🔥 Çip İsimleri (Sıralama Tam İstediğin Gibi)
+  // 🔥 Çip İsimleri (Tümü dahil edildi)
   final List<String> _sources = [
-    "Son Dakika",
+    "Tümü",
     "Pazarcık Havadis",
+    "Son Dakika",
     "Maraş Haberleri"
   ];
 
   @override
   void initState() {
     super.initState();
+    _loadCachedNews();
     initializeDateFormatting('tr_TR', null).then((_) => _fetchNews());
   }
 
-  // --- 🔥 ANLIK HABER ÇEKME FONKSİYONU ---
+  Future<void> _loadCachedNews() async {
+    // 1. Varsa RAM önbelleği
+    if (_memoryNews != null && _memoryNews!.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _allNews = _memoryNews!;
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    // 2. Varsa Disk önbelleği (0 ms anında göster)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kNewsPageCacheKey);
+      if (raw != null && raw.isNotEmpty) {
+        final List list = json.decode(raw);
+        final cached = list
+            .map((e) => NewsItem.fromMap(Map<String, dynamic>.from(e as Map)))
+            .toList();
+        if (cached.isNotEmpty && mounted) {
+          _memoryNews = cached;
+          setState(() {
+            _allNews = cached;
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  // --- 🔥 ANLIK HABER ÇEKME FONKSİYONU (PARALEL) ---
   Future<void> _fetchNews() async {
-    setState(() => _isLoading = true);
+    if (_allNews.isEmpty) {
+      setState(() => _isLoading = true);
+    }
     List<NewsItem> tempNews = [];
 
-    // 1. ENSONHABER (Hız Şampiyonu)
-    await _loadRss(
-      url: 'https://www.ensonhaber.com/rss/ensonhaber.xml',
-      sourceName: 'Son Dakika',
-      sourceColor: Colors.red.shade800,
-      targetList: tempNews,
-    );
+    // 🚀 Tüm kaynaklar PARALEL (Future.wait) olarak aynı anda çekilir!
+    await Future.wait([
+      _loadRss(
+        url: 'https://www.ensonhaber.com/rss/ensonhaber.xml',
+        sourceName: 'Son Dakika',
+        sourceColor: Colors.red.shade800,
+        targetList: tempNews,
+      ),
+      _loadRss(
+        url: 'https://www.sozcu.com.tr/rss/son-dakika.xml',
+        sourceName: 'Son Dakika',
+        sourceColor: Colors.black,
+        targetList: tempNews,
+      ),
+      _loadRss(
+        url: 'https://pazarcikhavadis.com/rss.xml',
+        sourceName: 'Pazarcık Havadis',
+        sourceColor: const Color.fromARGB(255, 254, 1, 1),
+        targetList: tempNews,
+      ),
+      _loadRss(
+        url: 'https://www.haber46.com.tr/rss',
+        sourceName: 'Maraş Haberleri',
+        sourceColor: Colors.blue.shade700,
+        targetList: tempNews,
+      ),
+    ]);
 
-    // 2. SÖZCÜ (Sıcak Gelişmeler)
-    await _loadRss(
-      url: 'https://www.sozcu.com.tr/rss/son-dakika.xml',
-      sourceName: 'Son Dakika',
-      sourceColor: Colors.black,
-      targetList: tempNews,
-    );
+    if (tempNews.isNotEmpty) {
+      // Saniyelerle Yarışan Sıralama
+      tempNews.sort((a, b) => b.pubDate.compareTo(a.pubDate));
+      _memoryNews = tempNews;
 
-    // 3. PAZARCIK HAVADİS
-    await _loadRss(
-      url: 'https://pazarcikhavadis.com/rss.xml',
-      sourceName: 'Pazarcık Havadis',
-      sourceColor: const Color.fromARGB(255, 254, 1, 1),
-      targetList: tempNews,
-    );
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final encoded = json.encode(tempNews.take(40).map((e) => e.toMap()).toList());
+        await prefs.setString(_kNewsPageCacheKey, encoded);
+      } catch (_) {}
 
-    // 4. MARAŞ HABER 46
-    await _loadRss(
-      url: 'https://www.haber46.com.tr/rss',
-      sourceName: 'Maraş Haberleri',
-      sourceColor: Colors.blue.shade700,
-      targetList: tempNews,
-    );
-
-    // Saniyelerle Yarışan Sıralama
-    tempNews.sort((a, b) => b.pubDate.compareTo(a.pubDate));
-
-    if (mounted) {
-      setState(() {
-        _allNews = tempNews;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _allNews = tempNews;
+          _isLoading = false;
+        });
+      }
+    } else {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -109,37 +180,56 @@ class _NewsPageState extends State<NewsPage> {
     required Color sourceColor,
     required List<NewsItem> targetList,
   }) async {
-    try {
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/rss+xml, application/xml, text/xml, */*',
-        },
-      ).timeout(const Duration(seconds: 15));
+    // Web tarayıcısında harici RSS sunucuları CORS izin başlığı göndermezse proxy kullanılır
+    List<String> urlsToTry = [url];
+    if (kIsWeb) {
+      urlsToTry = [
+        'https://api.allorigins.win/raw?url=${Uri.encodeComponent(url)}',
+        'https://corsproxy.io/?${Uri.encodeComponent(url)}',
+        url,
+      ];
+    }
 
-      if (response.statusCode == 200) {
-        String xmlString =
-            utf8.decode(response.bodyBytes, allowMalformed: true);
-        final rssFeed = RssFeed.parse(xmlString);
+    for (final fetchUrl in urlsToTry) {
+      try {
+        final response = await http.get(
+          Uri.parse(fetchUrl),
+          headers: {
+            'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+          },
+        ).timeout(const Duration(seconds: 6));
 
-        int i = 0;
-        for (var item in rssFeed.items ?? []) {
-          targetList.add(NewsItem(
-            title: item.title?.trim() ?? "Başlıksız",
-            description: _cleanHtml(item.description ?? ""),
-            imageUrl: _extractImageUrl(item), // 🔥 Güçlendirilmiş görsel bulucu
-            link: item.link ?? "",
-            pubDate:
-                item.pubDate ?? DateTime.now().subtract(Duration(minutes: i++)),
-            sourceName: sourceName,
-            sourceColor: sourceColor,
-          ));
+        if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+          String xmlString =
+              utf8.decode(response.bodyBytes, allowMalformed: true);
+
+          final rssFeed = RssFeed.parse(xmlString);
+
+          int i = 0;
+          final parsedItems = <NewsItem>[];
+          for (var item in rssFeed.items ?? []) {
+            parsedItems.add(NewsItem(
+              title: item.title?.trim() ?? "Başlıksız",
+              description: _cleanHtml(item.description ?? ""),
+              imageUrl: _extractImageUrl(item, xmlString),
+              link: item.link ?? "",
+              pubDate:
+                  item.pubDate ?? DateTime.now().subtract(Duration(minutes: i++)),
+              sourceName: sourceName,
+              sourceColor: sourceColor,
+            ));
+          }
+
+          if (parsedItems.isNotEmpty) {
+            targetList.addAll(parsedItems);
+            return; // Başarılı oldu, döngüyü bitir
+          }
         }
+      } catch (e) {
+        debugPrint("Hata ($sourceName - $fetchUrl): $e");
       }
-    } catch (e) {
-      debugPrint("Hata ($sourceName): $e");
     }
   }
 
@@ -148,8 +238,8 @@ class _NewsPageState extends State<NewsPage> {
     return htmlString.replaceAll(exp, '').trim();
   }
 
-  // 🔥 YENİ VE GÜÇLENDİRİLMİŞ GÖRSEL BULUCU
-  String _extractImageUrl(RssItem item) {
+  // 🔥 YENİ VE GÜÇLENDİRİLMİŞ GÖRSEL BULUCU (Pazarcık Havadis <image> ve <enclosure> Desteği)
+  String _extractImageUrl(RssItem item, [String? fullXml]) {
     // 1. Klasik Enclosure Kontrolü
     if (item.enclosure != null &&
         item.enclosure!.url != null &&
@@ -163,12 +253,26 @@ class _NewsPageState extends State<NewsPage> {
       if (url != null && url.isNotEmpty) return url;
     }
 
-    // 3. İçerik içi resimler
+    // 3. Pazarcık Havadis Özel XML İçinde <image> URL Kontrolü
+    if (item.title != null && fullXml != null) {
+      try {
+        final escapedTitle = RegExp.escape(item.title!.trim());
+        final itemRegex = RegExp(
+            escapedTitle + r'[\s\S]*?<image>(https?://[^<]+)</image>',
+            caseSensitive: false);
+        final m = itemRegex.firstMatch(fullXml);
+        if (m != null && m.groupCount >= 1) {
+          return m.group(1)!;
+        }
+      } catch (_) {}
+    }
+
+    // 4. İçerik içi resimler
     if (item.content?.images.isNotEmpty == true) {
       return item.content!.images.first;
     }
 
-    // 4. Description içinden Regex ile <img src="..." /> ayıklama
+    // 5. Description içinden Regex ile <img src="..." /> ayıklama
     RegExp imgRegex = RegExp(r'<img[^>]+src="([^">]+)"');
     if (item.description != null) {
       Iterable<Match> matches = imgRegex.allMatches(item.description!);
@@ -177,16 +281,16 @@ class _NewsPageState extends State<NewsPage> {
       }
     }
 
-    // 5. Content Value içinden Regex
+    // 6. Content Value içinden Regex
     if (item.content?.value != null) {
-      Iterable<Match> matches = imgRegex.allMatches(item.content!.value!);
+      Iterable<Match> matches = imgRegex.allMatches(item.content!.value);
       if (matches.isNotEmpty && matches.first.groupCount >= 1) {
         return matches.first.group(1)!;
       }
     }
 
-    // Hiçbir şey bulunamazsa varsayılan resim
-    return "https://via.placeholder.com/400x250.png?text=Gorsel+Bulunamadi&bg=e0e0e0&textColor=999999";
+    // Hiçbir şey bulunamazsa varsayılan görsel
+    return "https://pazarcikhavadis.com/tema/genel/uploads/logo/logo.png";
   }
 
   // "3 dakika önce" gibi yazdıran fonksiyon

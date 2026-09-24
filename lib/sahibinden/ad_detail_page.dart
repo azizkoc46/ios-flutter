@@ -11,6 +11,8 @@ import 'package:share_plus/share_plus.dart';
 import 'seller_store_page.dart';
 import 'package:pazarcik_portal/widgets/comment_identity.dart';
 import 'package:pazarcik_portal/utils/map_launcher.dart';
+import 'sahibinden_image_viewer.dart';
+import 'package:pazarcik_portal/utils/portal_seo_helper.dart';
 
 class AdDetailPage extends StatefulWidget {
   final Map<String, dynamic> ad;
@@ -32,6 +34,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
   @override
   void dispose() {
     _reviewController.dispose();
+    PortalSeoHelper.resetTitle();
     super.dispose();
   }
 
@@ -39,6 +42,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
   void initState() {
     super.initState();
     _increaseViewCount();
+    PortalSeoHelper.updateTitle(widget.ad['title'] ?? 'İlan');
   }
 
   Future<void> _makeCall(String phoneNumber) async {
@@ -51,15 +55,29 @@ class _AdDetailPageState extends State<AdDetailPage> {
   }
 
   Future<void> _increaseViewCount() async {
-    final adId = widget.ad['docId'] ?? widget.ad['adId'];
-    if (adId == null || adId.toString().isEmpty) return;
+    final adId = (widget.ad['docId'] ?? widget.ad['adId'] ?? '').toString();
+    if (adId.isEmpty) return;
 
-    await FirebaseFirestore.instance
-        .collection('classified_ads')
-        .doc(adId.toString())
-        .update({
-      'views': FieldValue.increment(1),
-    });
+    try {
+      await FirebaseFirestore.instance
+          .collection('classified_ads')
+          .doc(adId)
+          .set({
+        'views': FieldValue.increment(1),
+        'lastViewedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint("Görüntülenme artırma hatası: $e");
+    }
+  }
+
+  String _formatDate(dynamic timestamp) {
+    if (timestamp == null) return "Bugün";
+    if (timestamp is Timestamp) {
+      final date = timestamp.toDate();
+      return "${date.day}.${date.month}.${date.year}";
+    }
+    return timestamp.toString();
   }
 
   Future<void> _openMap(GeoPoint pos) async {
@@ -73,16 +91,16 @@ class _AdDetailPageState extends State<AdDetailPage> {
   void _shareAd() {
     final title = widget.ad['title'] ?? "İlan";
     final price = widget.ad['price']?.toString() ?? "0";
-    final adId = widget.ad['adId'] ?? "";
+    final adId = (widget.ad['docId'] ?? widget.ad['adId'] ?? widget.ad['id'] ?? '').toString();
 
     if (adId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Bu ilan eski, paylaşılamaz.")),
+        const SnackBar(content: Text("Bu ilan paylaşılamıyor.")),
       );
       return;
     }
 
-    final shareUrl = "https://pazarcik-portal-7faf2.web.app/ilan?id=$adId";
+    final shareUrl = "https://www.pazarcikportal.com/ilan?id=$adId";
     final playStore =
         "https://play.google.com/store/apps/details?id=com.pp.pazarckportal.pazarckportal";
 
@@ -90,15 +108,16 @@ class _AdDetailPageState extends State<AdDetailPage> {
       "Pazarcık Portal'da Yeni İlan!\n\n"
       "$title\n"
       "Fiyat: $price TL\n\n"
-      "İlanı Uygulamada Gör:\n$shareUrl\n\n"
-      "Uygulama Yüklü Değilse:\n$playStore",
+      "İlan Detayı:\n$shareUrl\n\n"
+      "Uygulama İndir:\n$playStore",
     );
   }
 
   String _formatPrice(dynamic value) {
     if (value == null) return "Fiyat belirtilmedi";
-    if (value is num)
+    if (value is num) {
       return "${value.toStringAsFixed(value % 1 == 0 ? 0 : 2)} TL";
+    }
     final text = value.toString();
     return text.isEmpty ? "Fiyat belirtilmedi" : "$text TL";
   }
@@ -143,6 +162,181 @@ class _AdDetailPageState extends State<AdDetailPage> {
     return data;
   }
 
+  Widget _buildMainInfoCard() {
+    final adId = (widget.ad['docId'] ?? widget.ad['adId'] ?? '').toString();
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: adId.isNotEmpty
+          ? FirebaseFirestore.instance
+              .collection('classified_ads')
+              .doc(adId)
+              .snapshots()
+          : null,
+      builder: (context, snapshot) {
+        final liveData =
+            (snapshot.data?.data() as Map<String, dynamic>?) ?? widget.ad;
+        final int views = (liveData['views'] is num)
+            ? (liveData['views'] as num).toInt()
+            : 1;
+
+        final displayAdNo = adId.length > 8
+            ? adId.substring(0, 8).toUpperCase()
+            : adId.toUpperCase();
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: _cardDecoration(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _formatPrice(liveData['price'] ?? widget.ad['price']),
+                style: GoogleFonts.inter(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF007AFF),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                liveData['title'] ?? widget.ad['title'] ?? "",
+                style: const TextStyle(
+                  fontSize: 20,
+                  height: 1.2,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF1C1C1E),
+                ),
+              ),
+              const Divider(height: 28),
+              if (displayAdNo.isNotEmpty)
+                _buildInfoRow("İlan No", "#$displayAdNo"),
+              _buildInfoRow(
+                  "İlan Tarihi",
+                  _formatDate(
+                      liveData['createdAt'] ?? widget.ad['createdAt'])),
+              _buildInfoRow("Görüntülenme", "$views kez görüntülendi"),
+              _buildInfoRow("Kategori",
+                  liveData['category'] ?? widget.ad['category'] ?? "-"),
+              _buildInfoRow("Alt Kategori",
+                  liveData['subCategory'] ?? widget.ad['subCategory'] ?? "-"),
+              if ((liveData['brandModel'] ??
+                      widget.ad['brandModel'] ??
+                      '')
+                  .toString()
+                  .isNotEmpty)
+                _buildInfoRow(
+                    "Marka / Model",
+                    (liveData['brandModel'] ?? widget.ad['brandModel'])
+                        .toString()),
+              _buildInfoRow("Durum", _badgeText()),
+              if ((liveData['district'] ??
+                      liveData['location'] ??
+                      widget.ad['district'] ??
+                      '')
+                  .toString()
+                  .isNotEmpty)
+                _buildInfoRow(
+                    "Konum",
+                    (liveData['district'] ??
+                            liveData['location'] ??
+                            widget.ad['district'])
+                        .toString()),
+              if ((liveData['images'] ?? widget.ad['images']) is List &&
+                  ((liveData['images'] ?? widget.ad['images']) as List).length > 1) ...[
+                const Divider(height: 28),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Fotoğraflar (${((liveData['images'] ?? widget.ad['images']) as List).length})",
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () {
+                        final raw = (liveData['images'] ?? widget.ad['images']) as List;
+                        final imgList = raw.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+                        SahibindenImageViewer.open(
+                          context,
+                          images: imgList,
+                          initialIndex: 0,
+                          title: widget.ad['title'] ?? '',
+                        );
+                      },
+                      child: const Row(
+                        children: [
+                          Icon(CupertinoIcons.zoom_in, size: 16, color: Color(0xFF0056D2)),
+                          SizedBox(width: 4),
+                          Text(
+                            "Büyüt / Galeriyi Aç",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF0056D2),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 72,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: ((liveData['images'] ?? widget.ad['images']) as List).length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, idx) {
+                      final raw = (liveData['images'] ?? widget.ad['images']) as List;
+                      final imgUrl = raw[idx].toString();
+                      return GestureDetector(
+                        onTap: () {
+                          final imgList = raw.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+                          SahibindenImageViewer.open(
+                            context,
+                            images: imgList,
+                            initialIndex: idx,
+                            title: widget.ad['title'] ?? '',
+                          );
+                        },
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            width: 72,
+                            height: 72,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: idx == _currentImageIndex
+                                    ? sahibindenYellow
+                                    : Colors.black12,
+                                width: idx == _currentImageIndex ? 2 : 1,
+                              ),
+                            ),
+                            child: PortalNetworkImage(
+                              url: imgUrl,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Stream<QuerySnapshot> _sellerReviewsStream(String sellerId) {
     return FirebaseFirestore.instance
         .collection('seller_reviews')
@@ -166,155 +360,6 @@ class _AdDetailPageState extends State<AdDetailPage> {
       return data['parentId'] == null;
     }).length;
     return mainCount == 0 ? 0 : total / mainCount;
-  }
-
-  void _showSellerAds(String sellerId, String sellerName) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) {
-        return SafeArea(
-          top: false,
-          child: Container(
-            height: MediaQuery.of(context).size.height * 0.78,
-            decoration: BoxDecoration(
-              color: Theme.of(context).scaffoldBackgroundColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(28),
-              ),
-            ),
-            child: Column(
-              children: [
-                const SizedBox(height: 10),
-                Container(
-                  width: 46,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.black12,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  "$sellerName ilanları",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('classified_ads')
-                        .where('ownerId', isEqualTo: sellerId)
-                        .where('status', isEqualTo: 'active')
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) {
-                        return const Center(
-                            child: CupertinoActivityIndicator());
-                      }
-
-                      final docs = snapshot.data!.docs;
-
-                      if (docs.isEmpty) {
-                        return const Center(
-                          child: Text("Bu satıcının aktif ilanı yok."),
-                        );
-                      }
-
-                      return ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
-                        itemCount: docs.length,
-                        itemBuilder: (context, index) {
-                          final ad = docs[index].data() as Map<String, dynamic>;
-                          ad['docId'] = docs[index].id;
-
-                          final images = ad['images'] as List? ?? [];
-
-                          return GestureDetector(
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.pushReplacement(
-                                context,
-                                CupertinoPageRoute(
-                                  builder: (_) => AdDetailPage(ad: ad),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: const Color(0xFFE5E7EB),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(14),
-                                    child: Container(
-                                      width: 76,
-                                      height: 76,
-                                      color: const Color(0xFFF1F5F9),
-                                      child: images.isNotEmpty
-                                          ? PortalNetworkImage(
-                                              url: images.first.toString(),
-                                              fit: BoxFit.cover)
-                                          : const Icon(CupertinoIcons.photo),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          _formatPrice(ad['price']),
-                                          style: const TextStyle(
-                                            color: Color(0xFF0056D2),
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 15,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 5),
-                                        Text(
-                                          ad['title'] ?? '',
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const Icon(
-                                    CupertinoIcons.chevron_right,
-                                    size: 16,
-                                    color: Colors.grey,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
   }
 
   void _showReviewDialog(String sellerId, String sellerName) {
@@ -475,9 +520,24 @@ class _AdDetailPageState extends State<AdDetailPage> {
                                 onPageChanged: (index) =>
                                     setState(() => _currentImageIndex = index),
                                 itemBuilder: (context, index) {
-                                  return PortalNetworkImage(
-                                    url: images[index].toString(),
-                                    fit: BoxFit.cover,
+                                  return GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () {
+                                      final imgList = images
+                                          .map((e) => e.toString())
+                                          .where((e) => e.isNotEmpty)
+                                          .toList();
+                                      SahibindenImageViewer.open(
+                                        context,
+                                        images: imgList,
+                                        initialIndex: index,
+                                        title: widget.ad['title'] ?? '',
+                                      );
+                                    },
+                                    child: PortalNetworkImage(
+                                      url: images[index].toString(),
+                                      fit: BoxFit.cover,
+                                    ),
                                   );
                                 },
                               )
@@ -518,21 +578,50 @@ class _AdDetailPageState extends State<AdDetailPage> {
                         Positioned(
                           right: 16,
                           bottom: 16,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                            child: Text(
-                              "${_currentImageIndex + 1} / ${images.length}",
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
+                          child: GestureDetector(
+                            onTap: () {
+                              final imgList = images
+                                  .map((e) => e.toString())
+                                  .where((e) => e.isNotEmpty)
+                                  .toList();
+                              SahibindenImageViewer.open(
+                                context,
+                                images: imgList,
+                                initialIndex: _currentImageIndex,
+                                title: widget.ad['title'] ?? '',
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.72),
+                                borderRadius: BorderRadius.circular(99),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.24),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.fullscreen,
+                                    color: Colors.white,
+                                    size: 15,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    "${_currentImageIndex + 1} / ${images.length} • Büyüt",
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -561,43 +650,6 @@ class _AdDetailPageState extends State<AdDetailPage> {
             ],
           ),
           _buildBottomCallBar(ownerId),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMainInfoCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: _cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _formatPrice(widget.ad['price']),
-            style: GoogleFonts.inter(
-              fontSize: 28,
-              fontWeight: FontWeight.w900,
-              color: const Color(0xFF007AFF),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            widget.ad['title'] ?? "",
-            style: const TextStyle(
-              fontSize: 20,
-              height: 1.2,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFF1C1C1E),
-            ),
-          ),
-          const Divider(height: 32),
-          _buildInfoRow("Kategori", widget.ad['category'] ?? "-"),
-          _buildInfoRow("Alt Kategori", widget.ad['subCategory'] ?? "-"),
-          if ((widget.ad['brandModel'] ?? '').toString().isNotEmpty)
-            _buildInfoRow("Marka / Model", widget.ad['brandModel']),
-          _buildInfoRow("Durum", _badgeText()),
         ],
       ),
     );

@@ -363,6 +363,25 @@ class _SellerStorePageState extends State<SellerStorePage> {
                                   fontSize: 12,
                                 ),
                               ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    CupertinoIcons.eye,
+                                    size: 12,
+                                    color: Colors.grey,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    "${ad['views'] ?? 0} görüntülenme",
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ],
                           ),
                         ),

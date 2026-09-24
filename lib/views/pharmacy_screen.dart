@@ -13,14 +13,10 @@ import 'package:pazarcik_portal/utils/map_launcher.dart';
 const _kRed = Color(0xFFE53935);
 const _kRedLight = Color(0xFFFFEBEE);
 const _kRedMid = Color(0xFFFFCDD2);
-const _kBg = Color(0xFFF9F9F9);
 const _kAfterHour = 17;
 
 const _kScriptUrl =
     'https://script.google.com/macros/s/AKfycbyKYLWBU8pkuSljmyXRviOzK8aAVt4VIvTzJ8s7sigHBxShb0-26ch4vygN5h0IOtmV-g/exec';
-
-const _kAllCacheHours = 12;
-const _kDutyCacheHours = 2;
 
 const _kPrefAll = 'gs_all_v1';
 const _kPrefAllTs = 'gs_all_ts_v1';
@@ -37,117 +33,141 @@ enum PharmacyTab { allPharmacies, onDuty }
 // ═══════════════════════════════════════════════════════════════════
 //  VERİ SERVİSİ
 // ═══════════════════════════════════════════════════════════════════
-class _PharmacyService {
+class PharmacyService {
+  static List<Map<String, dynamic>>? _memoryAll;
+  static ({List<Map<String, dynamic>> list, String label})? _memoryDuty;
+
   // ── Tüm eczaneler ──────────────────────────────────────────────
   static Future<List<Map<String, dynamic>>?> getCachedAll() async {
-    final prefs = await SharedPreferences.getInstance();
-    final ts = prefs.getInt(_kPrefAllTs);
-    if (ts == null) return null;
-    final age = DateTime.now().millisecondsSinceEpoch - ts;
-    if (age > _kAllCacheHours * 3600 * 1000) return null;
-    final raw = prefs.getString(_kPrefAll);
-    if (raw == null) return null;
+    if (_memoryAll != null && _memoryAll!.isNotEmpty) return _memoryAll;
     try {
-      return (json.decode(raw) as List).cast<Map<String, dynamic>>();
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kPrefAll);
+      if (raw == null) return null;
+      final list = (json.decode(raw) as List).cast<Map<String, dynamic>>();
+      _memoryAll = list;
+      return list;
     } catch (_) {
       return null;
     }
   }
 
   static Future<void> _saveAll(List<Map<String, dynamic>> data) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kPrefAll, json.encode(data));
-    await prefs.setInt(_kPrefAllTs, DateTime.now().millisecondsSinceEpoch);
+    _memoryAll = data;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kPrefAll, json.encode(data));
+      await prefs.setInt(_kPrefAllTs, DateTime.now().millisecondsSinceEpoch);
+    } catch (_) {}
   }
 
   static Future<List<Map<String, dynamic>>> fetchAll() async {
     final url = '$_kScriptUrl?type=all';
     try {
       final res =
-          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 20));
-      if (res.statusCode != 200) return [];
+          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 7));
+      if (res.statusCode != 200) {
+        return (await getCachedAll()) ?? [];
+      }
       final body = json.decode(res.body);
       final list = body['pharmacies'] as List?;
-      if (list == null || list.isEmpty) return [];
+      if (list == null || list.isEmpty) {
+        return (await getCachedAll()) ?? [];
+      }
       final data =
           list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
       await _saveAll(data);
       return data;
     } catch (_) {
-      return [];
+      return (await getCachedAll()) ?? [];
     }
   }
 
-  // ── Nöbetçi ────────────────────────────────────────────────────
-  // DÜZELTME: Önbellek kontrolünde tarihi de karşılaştırıyoruz.
-  // Eğer önbellekteki tarih bugünle eşleşmiyorsa (gece geçti),
-  // önbelleği geçersiz sayıyoruz.
+  // ── Nöbetçi Eczaneler (Stale-While-Revalidate) ─────────────────────
   static Future<({List<Map<String, dynamic>> list, String label})?>
-      getCachedDuty() async {
-    final prefs = await SharedPreferences.getInstance();
-    final ts = prefs.getInt(_kPrefDutyTs);
-    if (ts == null) return null;
+      getCachedDuty({bool allowStale = true}) async {
+    if (_memoryDuty != null && _memoryDuty!.list.isNotEmpty) return _memoryDuty;
 
-    final age = DateTime.now().millisecondsSinceEpoch - ts;
-    if (age > _kDutyCacheHours * 3600 * 1000) return null;
-
-    // DÜZELTME: Önbellek bugünün tarihine ait mi?
-    final cachedDate = prefs.getString(_kPrefDutyDate);
-    final todayStr = _isoDate(DateTime.now());
-    if (cachedDate != todayStr) {
-      // Tarih değişmiş (gece yarısı geçildi), önbellek geçersiz
-      return null;
-    }
-
-    final raw = prefs.getString(_kPrefDuty);
-    final label = prefs.getString(_kPrefDutyLabel) ?? '';
-    if (raw == null) return null;
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kPrefDuty);
+      final label = prefs.getString(_kPrefDutyLabel) ?? '';
+      if (raw == null) return null;
+
       final list = (json.decode(raw) as List).cast<Map<String, dynamic>>();
-      return (list: list, label: label);
-    } catch (_) {
-      return null;
-    }
+      final cachedDate = prefs.getString(_kPrefDutyDate);
+      final todayStr = _isoDate(DateTime.now());
+
+      final result = (list: list, label: label);
+      if (cachedDate == todayStr || allowStale) {
+        _memoryDuty = result;
+        return result;
+      }
+    } catch (_) {}
+    return null;
   }
 
   static Future<void> _saveDuty(
       List<Map<String, dynamic>> data, String label, String date) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kPrefDuty, json.encode(data));
-    await prefs.setString(_kPrefDutyLabel, label);
-    await prefs.setString(_kPrefDutyDate, date); // DÜZELTME: tarihi kaydet
-    await prefs.setInt(_kPrefDutyTs, DateTime.now().millisecondsSinceEpoch);
+    _memoryDuty = (list: data, label: label);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kPrefDuty, json.encode(data));
+      await prefs.setString(_kPrefDutyLabel, label);
+      await prefs.setString(_kPrefDutyDate, date);
+      await prefs.setInt(_kPrefDutyTs, DateTime.now().millisecondsSinceEpoch);
+    } catch (_) {}
   }
 
-  /// DÜZELTME: fetchDuty artık her zaman bugünün tarihini ister.
-  /// Script tarafında "en yakın geçmiş" mantığı kaldırıldığından,
-  /// bugün sheet'te yoksa boş liste döner (00:00-02:00 arası pencere).
-  /// Bu durumda kullanıcıya net bir hata gösterilir.
   static Future<({List<Map<String, dynamic>> list, String label})?>
       fetchDuty() async {
-    final today = _isoDate(DateTime.now());
-    final url = '$_kScriptUrl?type=duty&date=$today';
-    try {
-      final res =
-          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 20));
-      if (res.statusCode != 200) return null;
-      final body = json.decode(res.body);
+    final now = DateTime.now();
+    final todayStr = _isoDate(now);
 
-      // DÜZELTME: Artık body['date'] yerine her zaman bugünün tarihini kullan.
-      // Script "bulunan tarihi" döndürüyordu; bu dün olabiliyordu.
-      final list = (body['pharmacies'] as List?)
-              ?.map((e) => Map<String, dynamic>.from(e as Map))
-              .toList() ??
-          [];
-      if (list.isEmpty) return null;
+    // Google Apps Script endpoint'leri:
+    // Doğrudan `?type=duty` Google Apps Script'te en kararlı çalışan ve bugünün
+    // nöbetçisini döndüren ana sorgudur. &date= parametresi bazı formatlarda Apps Script
+    // tarafında istisnaya (Sayfa Bulunamadı / 500) yol açabildiği için önce doğrudan `type=duty`,
+    // ardından alternatif formatlar denenir.
+    List<Map<String, dynamic>> list = [];
+    DateTime? apiDate;
 
-      // DÜZELTME: Etiket için her zaman bugünün tarihini kullan
-      final label = _turkishDate(DateTime.now());
-      await _saveDuty(list, label, today);
-      return (list: list, label: label);
-    } catch (_) {
-      return null;
+    final endpoints = [
+      '$_kScriptUrl?type=duty',
+      '$_kScriptUrl?type=duty&date=${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}',
+      '$_kScriptUrl?type=duty&date=$todayStr',
+    ];
+
+    for (final url in endpoints) {
+      try {
+        final res =
+            await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+        if (res.statusCode == 200 && res.body.trim().startsWith('{')) {
+          final body = json.decode(res.body);
+          final rawList = body['pharmacies'] as List?;
+          if (rawList != null && rawList.isNotEmpty) {
+            list = rawList
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList();
+            if (body['date'] != null) {
+              try {
+                apiDate = DateTime.parse(body['date'].toString()).toLocal();
+              } catch (_) {}
+            }
+            break;
+          }
+        }
+      } catch (_) {}
     }
+
+    if (list.isNotEmpty) {
+      final effectiveDate = apiDate ?? now;
+      final label = _turkishDate(effectiveDate);
+      await _saveDuty(list, label, todayStr);
+      return (list: list, label: label);
+    }
+
+    return await getCachedDuty(allowStale: true);
   }
 }
 
@@ -262,17 +282,10 @@ class _PharmacyScreenState extends State<PharmacyScreen>
   //  YÜKLEME FONKSİYONLARI
   // ════════════════════════════════════════
   Future<void> _loadAll({bool force = false}) async {
-    setState(() {
-      _pharmsLoading = true;
-      _pharmsError = '';
-      _pharmsFromCache = false;
-    });
-    _fadeCtrl.reset();
-
+    // 1. Varsa önbelleği anında (0 ms) ekrana yansıt
     if (!force) {
-      final cached = await _PharmacyService.getCachedAll();
-      if (cached != null && cached.isNotEmpty) {
-        if (!mounted) return;
+      final cached = await PharmacyService.getCachedAll();
+      if (cached != null && cached.isNotEmpty && mounted) {
         setState(() {
           _allPharms = cached;
           _displayPharms = List.from(cached);
@@ -281,37 +294,35 @@ class _PharmacyScreenState extends State<PharmacyScreen>
         });
         _fadeCtrl.forward();
         if (_userPosition != null && _pharmsByDist) _applyPharmsSorting();
-        return;
       }
     }
 
-    final data = await _PharmacyService.fetchAll();
+    // 2. Canlı veriyi arka planda sorgula
+    final data = await PharmacyService.fetchAll();
     if (!mounted) return;
-    setState(() {
-      _allPharms = data;
-      _displayPharms = List.from(data);
-      _pharmsLoading = false;
-      if (data.isEmpty)
+    if (data.isNotEmpty) {
+      setState(() {
+        _allPharms = data;
+        _displayPharms = List.from(data);
+        _pharmsLoading = false;
+        _pharmsError = '';
+      });
+      _fadeCtrl.forward();
+      if (_userPosition != null && _pharmsByDist) _applyPharmsSorting();
+    } else if (_allPharms.isEmpty) {
+      setState(() {
+        _pharmsLoading = false;
         _pharmsError =
             'Sunucudan veri alınamadı. Lütfen daha sonra tekrar deneyin.';
-    });
-    _fadeCtrl.forward();
-    if (_userPosition != null && _pharmsByDist) _applyPharmsSorting();
+      });
+    }
   }
 
   Future<void> _loadDuty({bool force = false}) async {
-    setState(() {
-      _dutyLoading = true;
-      _dutyError = '';
-      _dutyFromCache = false;
-    });
-    _fadeCtrl.reset();
-
-    // DÜZELTME: Önbellek kontrolü artık tarih duyarlı
+    // 1. Varsa önbelleği anında (0 ms) ekrana yansıt
     if (!force) {
-      final cached = await _PharmacyService.getCachedDuty();
-      if (cached != null && cached.list.isNotEmpty) {
-        if (!mounted) return;
+      final cached = await PharmacyService.getCachedDuty(allowStale: true);
+      if (cached != null && cached.list.isNotEmpty && mounted) {
         setState(() {
           _allDuty = cached.list;
           _displayDuty = List.from(cached.list);
@@ -321,11 +332,11 @@ class _PharmacyScreenState extends State<PharmacyScreen>
         });
         _fadeCtrl.forward();
         if (_userPosition != null && _dutyByDist) _applyDutySorting();
-        return;
       }
     }
 
-    final result = await _PharmacyService.fetchDuty();
+    // 2. Canlı veriyi arka planda sorgula
+    final result = await PharmacyService.fetchDuty();
     if (!mounted) return;
     if (result != null && result.list.isNotEmpty) {
       setState(() {
@@ -333,13 +344,14 @@ class _PharmacyScreenState extends State<PharmacyScreen>
         _displayDuty = List.from(result.list);
         _dutyDateLabel = result.label;
         _dutyLoading = false;
+        _dutyError = '';
+        _dutyFromCache = false;
       });
       _fadeCtrl.forward();
       if (_userPosition != null && _dutyByDist) _applyDutySorting();
-    } else {
+    } else if (_allDuty.isEmpty) {
       setState(() {
         _dutyLoading = false;
-        // DÜZELTME: Saat 00:00-02:00 arası özel mesaj
         final hour = DateTime.now().hour;
         _dutyError = hour == 0 || hour == 1
             ? 'Nöbetçi listesi güncelleniyor (00:00-02:00 arası). Lütfen birkaç dakika sonra tekrar deneyin.'
@@ -521,9 +533,7 @@ class _PharmacyScreenState extends State<PharmacyScreen>
         ],
         body: TabBarView(
           controller: _tabCtrl,
-          physics: isAfterHours
-              ? const NeverScrollableScrollPhysics()
-              : const AlwaysScrollableScrollPhysics(),
+          physics: const AlwaysScrollableScrollPhysics(),
           children: [
             RefreshIndicator(
               color: _kRed,

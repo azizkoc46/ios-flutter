@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:pazarcik_portal/utils/portal_file_upload.dart';
 
 class GrupGonderiOlustur extends StatefulWidget {
   const GrupGonderiOlustur({Key? key}) : super(key: key);
@@ -21,6 +22,7 @@ class _GrupGonderiOlusturState extends State<GrupGonderiOlustur> {
 
   // Medya Yönetimi
   List<File> _selectedImages = [];
+  File? _selectedVideo;
   bool isLoading = false;
 
   // Anket Yönetimi
@@ -58,39 +60,97 @@ class _GrupGonderiOlusturState extends State<GrupGonderiOlustur> {
           .doc(currentUser!.uid)
           .get();
       if (doc.exists && mounted) {
+        var data = doc.data()!;
         setState(() {
-          userName = doc.data()!['fullname'] ?? "Kullanıcı";
-          userAvatar = doc.data()!['profileImage'] ?? "";
+          userName = data['fullname'] ?? "Kullanıcı";
+          userAvatar = data['profileImage'] ?? "";
         });
       }
     }
   }
 
-  // --- FOTOĞRAF SEÇİCİ ---
+  // --- FOTOĞRAF SEÇİCİ (En fazla 4 fotoğraf) ---
   Future<void> _pickImage() async {
+    if (_selectedImages.length >= 4) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("En fazla 4 adet fotoğraf ekleyebilirsiniz."),
+            backgroundColor: Color(0xFFFF5E62),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
     final pickedFiles = await ImagePicker().pickMultiImage(imageQuality: 70);
     if (pickedFiles.isNotEmpty) {
+      final availableSlots = 4 - _selectedImages.length;
+      final toAdd = pickedFiles.take(availableSlots).map((x) => File(x.path)).toList();
       setState(() {
-        _selectedImages.addAll(pickedFiles.map((x) => File(x.path)));
+        _selectedImages.addAll(toAdd);
         isPollMode = false; // Resim seçilirse anketi kapat
       });
+
+      if (pickedFiles.length > availableSlots && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("En fazla 4 fotoğraf seçilebilir. İlk 4 fotoğraf eklendi."),
+            backgroundColor: Color(0xFFFF5E62),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
   // --- VİDEO SEÇİCİ ---
   Future<void> _pickVideo() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-          content: Text("Video yükleme özelliği çok yakında aktif edilecek!")),
-    );
+    try {
+      final pickedFile = await ImagePicker().pickVideo(
+        source: ImageSource.gallery,
+        maxDuration: const Duration(minutes: 5),
+      );
+      if (pickedFile != null) {
+        final file = File(pickedFile.path);
+        final length = await file.length();
+        if (length > 100 * 1024 * 1024) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Video boyutu en fazla 100MB olabilir."),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+          return;
+        }
+        setState(() {
+          _selectedVideo = file;
+          isPollMode = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Video seçilirken bir hata oluştu: $e"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   // --- ANKET YÖNETİMİ ---
   void _togglePollMode() {
     setState(() {
       isPollMode = !isPollMode;
-      if (isPollMode)
-        _selectedImages.clear(); // Anket açılırsa resimleri temizle
+      if (isPollMode) {
+        _selectedImages.clear(); // Anket açılırsa resimleri ve videoyu temizle
+        _selectedVideo = null;
+      }
     });
   }
 
@@ -106,9 +166,10 @@ class _GrupGonderiOlusturState extends State<GrupGonderiOlustur> {
   Future<void> _sharePost() async {
     if (_contentController.text.trim().isEmpty &&
         _selectedImages.isEmpty &&
+        _selectedVideo == null &&
         (!isPollMode || _pollOptionControllers[0].text.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("Lütfen bir içerik girin."),
+          content: Text("Lütfen bir içerik, fotoğraf veya video ekleyin."),
           backgroundColor: Colors.redAccent));
       return;
     }
@@ -123,9 +184,19 @@ class _GrupGonderiOlusturState extends State<GrupGonderiOlustur> {
         String fileName =
             'group_media/${currentUser!.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
         Reference ref = FirebaseStorage.instance.ref().child(fileName);
-        await ref.putFile(image);
+        await uploadPortalFile(ref, image);
         String url = await ref.getDownloadURL();
         uploadedImageUrls.add(url);
+      }
+
+      // 1.5 Videoyu Storage'a Yükle
+      String? uploadedVideoUrl;
+      if (_selectedVideo != null) {
+        String videoFileName =
+            'group_media/videos/${currentUser!.uid}_${DateTime.now().millisecondsSinceEpoch}.mp4';
+        Reference vRef = FirebaseStorage.instance.ref().child(videoFileName);
+        await uploadPortalFile(vRef, _selectedVideo!);
+        uploadedVideoUrl = await vRef.getDownloadURL();
       }
 
       // 2. Anket Verilerini Hazırla
@@ -152,7 +223,7 @@ class _GrupGonderiOlusturState extends State<GrupGonderiOlustur> {
         'authorAvatar': userAvatar,
         'content': _contentController.text.trim(),
         'imageUrls': uploadedImageUrls,
-        'videoUrl': null,
+        'videoUrl': uploadedVideoUrl,
         'pollData': pollData,
         'likes': [],
         'commentCount': 0,
@@ -195,7 +266,7 @@ class _GrupGonderiOlusturState extends State<GrupGonderiOlustur> {
             padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 10),
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0056D2),
+                backgroundColor: const Color(0xFFFF5E62),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8)),
@@ -290,6 +361,21 @@ class _GrupGonderiOlusturState extends State<GrupGonderiOlustur> {
                   // --- SEÇİLEN FOTOĞRAFLARI GÖSTER ---
                   if (_selectedImages.isNotEmpty) ...[
                     const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Icon(Icons.photo_library, size: 16, color: Color(0xFFFF5E62)),
+                        const SizedBox(width: 6),
+                        Text(
+                          "Seçilen Fotoğraflar (${_selectedImages.length}/4)",
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFFF5E62),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -298,7 +384,7 @@ class _GrupGonderiOlusturState extends State<GrupGonderiOlustur> {
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: Image.file(file,
+                              child: portalPickedImage(file,
                                   width: 100, height: 100, fit: BoxFit.cover),
                             ),
                             Positioned(
@@ -321,6 +407,65 @@ class _GrupGonderiOlusturState extends State<GrupGonderiOlustur> {
                         );
                       }).toList(),
                     )
+                  ],
+
+                  // --- SEÇİLEN VİDEO ÖNİZLEMESİ ---
+                  if (_selectedVideo != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFECE8),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                            color: const Color(0xFFFF5E62).withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFF5E62),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(CupertinoIcons.videocam_fill,
+                                color: Colors.white, size: 22),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  "Video Eklendi",
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: Color(0xFF1C1C1E)),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _selectedVideo!.path
+                                      .split(Platform.pathSeparator)
+                                      .last,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade700),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(CupertinoIcons.xmark_circle_fill,
+                                color: Colors.redAccent, size: 24),
+                            onPressed: () =>
+                                setState(() => _selectedVideo = null),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
 
                   // --- ANKET ALANI ---

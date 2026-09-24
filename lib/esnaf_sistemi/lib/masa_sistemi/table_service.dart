@@ -358,7 +358,7 @@ class RestaurantTableService {
     final cachedAt = prefs.getInt(cacheTimeKey) ?? 0;
 
     final cacheFresh = DateTime.now().millisecondsSinceEpoch - cachedAt <
-        const Duration(minutes: 30).inMilliseconds;
+        const Duration(minutes: 5).inMilliseconds;
     final cached = prefs.getString(cacheKey);
     if (!force && cacheFresh && cached != null) {
       try {
