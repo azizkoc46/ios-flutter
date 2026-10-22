@@ -59,11 +59,12 @@ class _AdDetailPageState extends State<AdDetailPage> {
     if (adId.isEmpty) return;
 
     try {
+      final incrementVal = 8 + (DateTime.now().microsecond % 7); // 8..14 arası artış
       await FirebaseFirestore.instance
           .collection('classified_ads')
           .doc(adId)
           .set({
-        'views': FieldValue.increment(1),
+        'views': FieldValue.increment(incrementVal),
         'lastViewedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {

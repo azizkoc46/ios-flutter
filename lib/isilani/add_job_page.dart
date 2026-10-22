@@ -6,7 +6,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:intl/intl.dart';
 import 'package:pazarcik_portal/utils/portal_file_upload.dart';
+import 'package:pazarcik_portal/widgets/portal_date_picker_modal.dart';
 
 class AddJobPage extends StatefulWidget {
   // 🔥 DÜZENLEME DESTEĞİ İÇİN EKLENEN PARAMETRELER
@@ -28,6 +30,11 @@ class _AddJobPageState extends State<AddJobPage> {
       TextEditingController();
   final TextEditingController _salaryController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
+  final TextEditingController _applicationUrlController =
+      TextEditingController();
+
+  DateTime _startDate = DateTime.now();
+  DateTime? _endDate;
 
   List<File> _selectedImages = [];
   final ImagePicker _picker = ImagePicker();
@@ -55,16 +62,37 @@ class _AddJobPageState extends State<AddJobPage> {
     _checkIfEditMode(); // 🔥 Düzenleme kontrolü
   }
 
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _companyController.dispose();
+    _personnelCountController.dispose();
+    _salaryController.dispose();
+    _descController.dispose();
+    _applicationUrlController.dispose();
+    super.dispose();
+  }
+
   // 🔥 EĞER DÜZENLEME MODUNDAYSA VERİLERİ KUTULARA DOLDUR
   void _checkIfEditMode() {
     if (widget.existingJob != null) {
-      _titleController.text = widget.existingJob!['title'] ?? '';
-      _companyController.text = widget.existingJob!['companyName'] ?? '';
-      _personnelCountController.text =
-          widget.existingJob!['personnelCount'] ?? '';
-      _salaryController.text = widget.existingJob!['salary'] ?? '';
-      _descController.text = widget.existingJob!['description'] ?? '';
-      _selectedEmploymentType = widget.existingJob!['employmentType'];
+      final job = widget.existingJob!;
+      _titleController.text = job['title'] ?? '';
+      _companyController.text = job['companyName'] ?? '';
+      _personnelCountController.text = job['personnelCount'] ?? '';
+      _salaryController.text = job['salary'] ?? '';
+      _descController.text = job['description'] ?? '';
+      _selectedEmploymentType = job['employmentType'];
+      _applicationUrlController.text = job['applicationUrl'] ?? '';
+
+      if (job['applicationStartDate'] != null &&
+          job['applicationStartDate'] is Timestamp) {
+        _startDate = (job['applicationStartDate'] as Timestamp).toDate();
+      }
+      if (job['applicationEndDate'] != null &&
+          job['applicationEndDate'] is Timestamp) {
+        _endDate = (job['applicationEndDate'] as Timestamp).toDate();
+      }
     }
   }
 
@@ -128,6 +156,10 @@ class _AddJobPageState extends State<AddJobPage> {
         'salary': _salaryController.text.trim(),
         'description': _descController.text.trim(),
         'employmentType': _selectedEmploymentType,
+        'applicationUrl': _applicationUrlController.text.trim(),
+        'applicationStartDate': Timestamp.fromDate(_startDate),
+        'applicationEndDate':
+            _endDate != null ? Timestamp.fromDate(_endDate!) : null,
         'images': imageUrls,
         'ownerId': uid,
         'status': widget.existingJob != null
@@ -145,13 +177,56 @@ class _AddJobPageState extends State<AddJobPage> {
             .doc(widget.docId)
             .update(jobData);
         _showSnackBar("İş ilanınız başarıyla güncellendi!", Colors.green);
-      } else {
         // 🔥 YENİ İLAN EKLEME İŞLEMİ
         jobData['createdAt'] = FieldValue.serverTimestamp();
         jobData['views'] = 0;
-        await FirebaseFirestore.instance
+        final newDocRef = await FirebaseFirestore.instance
             .collection('job_postings')
             .add(jobData);
+
+        // 🔔 Abone olan kişilere topic bildirimi gönder
+        try {
+          final titleText = (jobData['title'] ?? 'Yeni İş İlanı').toString();
+          final companyText =
+              (jobData['companyName'] ?? 'Pazarcık').toString();
+
+          // 1. Genel Bildirim Havuzuna Ekle (Uygulama içi bildirim kutusu için)
+          await FirebaseFirestore.instance.collection('app_notifications').add({
+            'title': '💼 Yeni İş İlanı: $titleText',
+            'body':
+                '$companyText yeni bir personel arıyor. Başvurmak ve detayları görmek için dokunun.',
+            'type': 'job',
+            'targetType': 'job',
+            'targetId': newDocRef.id,
+            'targetLabel': titleText,
+            'imageUrl': imageUrls.isNotEmpty ? imageUrls.first : '',
+            'topic': 'is_ilanlari',
+            'createdAt': FieldValue.serverTimestamp(),
+            'isActive': true,
+          });
+
+          // 2. FCM Push Kuyruğuna Ekle (is_ilanlari konusuna abone olanlara push bildirimi)
+          await FirebaseFirestore.instance
+              .collection('notification_send_requests')
+              .add({
+            'notificationId': newDocRef.id,
+            'title': '💼 Yeni İş İlanı: $titleText',
+            'body':
+                '$companyText yeni bir personel arıyor. Detaylar ve başvuru için dokunun.',
+            'type': 'job',
+            'targetType': 'job',
+            'targetId': newDocRef.id,
+            'targetLabel': titleText,
+            'imageUrl': imageUrls.isNotEmpty ? imageUrls.first : '',
+            'topic': 'is_ilanlari',
+            'requestedBy': uid,
+            'requestedAt': FieldValue.serverTimestamp(),
+            'status': 'queued',
+          });
+        } catch (e) {
+          debugPrint("İş ilanı bildirim hatası: $e");
+        }
+
         _showSnackBar("İş ilanınız başarıyla yayına alındı!", Colors.green);
       }
 
@@ -234,9 +309,86 @@ class _AddJobPageState extends State<AddJobPage> {
                 const SizedBox(width: 15),
                 Expanded(
                     child: _buildTextField(_salaryController,
-                        "Maaş (Opsiyonel)", Icons.payments_outlined)),
+                        "Maaş (Opsiyonel)", Icons.payments_outlined,
+                        isRequired: false)),
               ],
             ),
+            const SizedBox(height: 10),
+            const Text("BAŞVURU SÜRECİ & TARİHLERİ",
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    color: Colors.grey)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDatePickerCard(
+                    title: "Başlangıç Tarihi",
+                    dateText:
+                        DateFormat('dd.MM.yyyy', 'tr_TR').format(_startDate),
+                    icon: CupertinoIcons.calendar_today,
+                    onTap: () async {
+                      final picked = await showPortalDatePicker(
+                        context: context,
+                        initialDate: _startDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2035),
+                        title: "Başvuru Başlangıç Tarihi",
+                      );
+                      if (picked != null) {
+                        setState(() => _startDate = picked);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildDatePickerCard(
+                    title: "Son Başvuru Tarihi",
+                    dateText: _endDate != null
+                        ? DateFormat('dd.MM.yyyy', 'tr_TR').format(_endDate!)
+                        : "Süresiz / Seçilmedi",
+                    icon: CupertinoIcons.calendar,
+                    isEnd: true,
+                    onTap: () async {
+                      final picked = await showPortalDatePicker(
+                        context: context,
+                        initialDate: _endDate ??
+                            _startDate.add(const Duration(days: 30)),
+                        firstDate: _startDate,
+                        lastDate: DateTime(2035),
+                        title: "Son Başvuru Tarihi",
+                        canClear: true,
+                      );
+                      setState(() => _endDate = picked);
+                    },
+                    onClear: _endDate != null
+                        ? () => setState(() => _endDate = null)
+                        : null,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+            const Text("ONLİNE BAŞVURU LİNKİ (OPSİYONEL)",
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    color: Colors.grey)),
+            const SizedBox(height: 6),
+            Text(
+              "İŞKUR, kariyer veya şirket başvuru formunuz varsa buraya ekleyin. İlanınızda adaylar tek dokunuşla yönlendirilir.",
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 8),
+            _buildTextField(
+              _applicationUrlController,
+              "Başvuru Linki (https://... - İŞKUR veya Web Linki)",
+              CupertinoIcons.link,
+              isRequired: false,
+            ),
+            const SizedBox(height: 10),
             _buildTextField(_descController, "İş Tanımı ve Aranan Özellikler",
                 Icons.description_outlined,
                 maxLines: 6),
@@ -263,6 +415,71 @@ class _AddJobPageState extends State<AddJobPage> {
               ),
             ),
             const SizedBox(height: 50),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDatePickerCard({
+    required String title,
+    required String dateText,
+    required IconData icon,
+    required VoidCallback onTap,
+    bool isEnd = false,
+    VoidCallback? onClear,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isEnd && _endDate != null
+                ? jobPrimaryColor.withOpacity(0.5)
+                : Colors.grey[200]!,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 14, color: jobPrimaryColor),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ),
+                if (onClear != null)
+                  GestureDetector(
+                    onTap: onClear,
+                    child: Icon(CupertinoIcons.clear_circled_solid,
+                        size: 14, color: Colors.grey[400]),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              dateText,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: (isEnd && _endDate == null)
+                    ? Colors.grey[500]
+                    : const Color(0xFF1E293B),
+              ),
+            ),
           ],
         ),
       ),
@@ -381,17 +598,17 @@ class _AddJobPageState extends State<AddJobPage> {
 
   Widget _buildTextField(
       TextEditingController controller, String hint, IconData icon,
-      {int maxLines = 1, bool isNumber = false}) {
+      {int maxLines = 1, bool isNumber = false, bool isRequired = true}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       child: TextFormField(
         controller: controller,
         maxLines: maxLines,
         keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-        validator: (v) =>
-            (v == null || v.isEmpty) && hint.contains("Maaş") == false
-                ? "Zorunlu alan"
-                : null,
+        validator: (v) {
+          if (!isRequired) return null;
+          return (v == null || v.trim().isEmpty) ? "Zorunlu alan" : null;
+        },
         style: const TextStyle(fontSize: 15),
         decoration: InputDecoration(
           prefixIcon: maxLines == 1

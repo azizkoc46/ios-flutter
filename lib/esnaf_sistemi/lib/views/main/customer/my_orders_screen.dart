@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/cart.dart';
 import '../../../models/cart.dart';
+import 'order_tracking_screen.dart';
 
 // Trendyol/iOS Tarzı Renk Paleti
 const Color trendyolOrange = Color(0xFFF27A1A);
@@ -141,10 +142,12 @@ class MyOrdersScreen extends StatelessWidget {
 
     return GestureDetector(
       onTap: () {
-        if (isActive) {
-          Navigator.pushNamed(context, 'order-tracking',
-              arguments: doc.id);
-        }
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OrderTrackingScreen(orderId: doc.id),
+          ),
+        );
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -239,16 +242,43 @@ class MyOrdersScreen extends StatelessWidget {
                       ),
                     ),
                     if (isActive) ...[
-                      Text(
-                        'Takip Et',
-                        style: GoogleFonts.inter(
-                            color: statusColor,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12),
+                      InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  OrderTrackingScreen(orderId: doc.id),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: statusColor.withOpacity(0.35), width: 1),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Takip Et',
+                                style: GoogleFonts.inter(
+                                    color: statusColor,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(CupertinoIcons.chevron_right,
+                                  color: statusColor, size: 12),
+                            ],
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 4),
-                      Icon(CupertinoIcons.chevron_right,
-                          color: statusColor, size: 13),
                     ],
                   ],
                 ),
@@ -268,6 +298,47 @@ class MyOrdersScreen extends StatelessWidget {
                       fontSize: 12,
                       color: Colors.grey.shade500,
                       fontWeight: FontWeight.w500),
+                ),
+              ],
+              // Aktif Sipariş için Canlı Takip Butonu
+              if (isActive) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: statusColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => OrderTrackingScreen(orderId: doc.id),
+                        ),
+                      );
+                    },
+                    icon: Icon(
+                      status.contains('Yolda')
+                          ? CupertinoIcons.map_pin_ellipse
+                          : CupertinoIcons.timer,
+                      size: 16,
+                    ),
+                    label: Text(
+                      status.contains('Yolda')
+                          ? '🛵 Canlı Konum ve Siparişi Takip Et'
+                          : 'Siparişi Canlı Takip Et',
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
                 ),
               ],
               // FIX: Tekrar Sipariş Özelliği (Item 11)
@@ -351,6 +422,7 @@ class MyOrdersScreen extends StatelessWidget {
     if (status == 'Sipariş Onaylandı') return const Color(0xFF2ECC71);
     if (status == 'Hazırlanıyor') return const Color(0xFF3498DB);
     if (status == 'Yolda') return const Color(0xFF9B59B6);
+    if (status == 'Kapıda') return const Color(0xFF2563EB);
     if (status == 'Teslim Edildi') return const Color(0xFF27AE60);
     if (status == 'İptal Edildi') return const Color(0xFFE74C3C);
     return trendyolOrange;
@@ -361,6 +433,7 @@ class MyOrdersScreen extends StatelessWidget {
     if (status == 'Sipariş Onaylandı') return CupertinoIcons.checkmark_circle_fill;
     if (status == 'Hazırlanıyor') return Icons.restaurant_rounded;
     if (status == 'Yolda') return Icons.delivery_dining_rounded;
+    if (status == 'Kapıda') return CupertinoIcons.bell_fill;
     if (status == 'Teslim Edildi') return CupertinoIcons.checkmark_seal_fill;
     if (status == 'İptal Edildi') return CupertinoIcons.xmark_circle_fill;
     return CupertinoIcons.bag;

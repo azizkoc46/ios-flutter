@@ -293,6 +293,21 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
         return;
       }
 
+      // Genel olarak inceleme aşamasında olan başvuru limiti kontrolü (spam engeli)
+      final anyPendingClaim = await FirebaseFirestore.instance
+          .collection('business_claims')
+          .where('userId', isEqualTo: _currentUserId)
+          .where('status', isEqualTo: 'pending')
+          .limit(2)
+          .get();
+
+      if (anyPendingClaim.docs.length >= 2) {
+        Navigator.pop(context);
+        _showToast(
+            "Zaten inceleme aşamasında olan sahiplik başvurularınız bulunmaktadır. Lütfen yönetimin incelemesini bekleyiniz.");
+        return;
+      }
+
       final claimRef =
           await FirebaseFirestore.instance.collection('business_claims').add({
         'businessId': widget.doc.id,

@@ -11,6 +11,7 @@ import 'package:pazarcik_portal/dernek_sistemi/services/FirebaseStorage_service.
 import 'package:pazarcik_portal/admin/admin_notification_service.dart';
 import 'package:pazarcik_portal/utils/portal_file_upload.dart';
 import 'package:pazarcik_portal/widgets/portal_network_image.dart';
+import 'BusinessDetailPage.dart';
 
 class BusinessAddPage extends StatefulWidget {
   final Map<String, dynamic>? existingBusiness;
@@ -48,6 +49,8 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
   String? _selectedSubCategory;
   List<String> _selectedRegions = [];
   List<String> _tags = [];
+  List<Map<String, dynamic>> _existingBusinesses = [];
+  Map<String, dynamic>? _matchingBusiness;
 
   // 🔥 YENİ EKLENEN: Galeri Değişkenleri
   List<File> _newGalleryImages = [];
@@ -336,10 +339,16 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
     if (data?['galleryUrls'] != null) {
       _existingGalleryUrls = List<String>.from(data!['galleryUrls']);
     }
+
+    if (widget.docId == null) {
+      _loadExistingBusinesses();
+      _nameController.addListener(_onNameChanged);
+    }
   }
 
   @override
   void dispose() {
+    _nameController.removeListener(_onNameChanged);
     _nameController.dispose();
     _descController.dispose();
     _phoneController.dispose();
@@ -351,6 +360,176 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
     _mapLinkController.dispose();
     _addressDescController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadExistingBusinesses() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('businesses')
+          .where('status', isEqualTo: 'approved')
+          .limit(400)
+          .get();
+
+      if (mounted) {
+        _existingBusinesses = snapshot.docs.map((d) {
+          final data = d.data();
+          data['id'] = d.id;
+          return data;
+        }).toList();
+      }
+    } catch (e) {
+      debugPrint("Mevcut işletmeler yüklenemedi: $e");
+    }
+  }
+
+  void _onNameChanged() {
+    final query = _nameController.text.trim().toLowerCase();
+    if (query.length < 3) {
+      if (_matchingBusiness != null) {
+        setState(() => _matchingBusiness = null);
+      }
+      return;
+    }
+
+    Map<String, dynamic>? match;
+    for (final b in _existingBusinesses) {
+      final name =
+          (b['businessName'] ?? b['name'] ?? '').toString().trim().toLowerCase();
+      if (name.isNotEmpty &&
+          (name == query || name.contains(query) || query.contains(name))) {
+        match = b;
+        break;
+      }
+    }
+
+    if (match != _matchingBusiness) {
+      setState(() => _matchingBusiness = match);
+    }
+  }
+
+  Future<void> _navigateToExistingBusiness(
+      Map<String, dynamic> businessData) async {
+    final bId = businessData['id']?.toString() ?? '';
+    if (bId.isEmpty) return;
+
+    try {
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection('businesses')
+          .doc(bId)
+          .get();
+      if (!docSnapshot.exists || !mounted) return;
+
+      Navigator.push(
+        context,
+        CupertinoPageRoute(
+          builder: (_) => BusinessDetailPage(doc: docSnapshot),
+        ),
+      );
+    } catch (e) {
+      debugPrint("İşletme sayfasına gidilemedi: $e");
+    }
+  }
+
+  Widget _buildMatchingBusinessSuggestion() {
+    final matchName = (_matchingBusiness!['businessName'] ??
+            _matchingBusiness!['name'] ??
+            'İşletme')
+        .toString();
+    final matchCat = (_matchingBusiness!['category'] ??
+            _matchingBusiness!['mainCategory'] ??
+            '')
+        .toString();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8, bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: const Color(0xFF16A34A).withOpacity(0.35), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(CupertinoIcons.sparkles,
+                  color: Color(0xFF15803D), size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "Sistemde Kayıtlı Benzer Bir İşletme Var!",
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    color: const Color(0xFF15803D),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "'$matchName'${matchCat.isNotEmpty ? ' ($matchCat)' : ''} rehberde kayıtlı görünüyor. Bu işletme size mi ait? Sıfırdan eklemek yerine sahiplik başvurusu yapabilirsiniz.",
+            style: GoogleFonts.inter(
+              fontSize: 12.5,
+              height: 1.35,
+              color: const Color(0xFF166534),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  icon: const Icon(CupertinoIcons.checkmark_seal_fill,
+                      size: 16, color: Colors.white),
+                  label: Text(
+                    "Bu İşletme Bana Ait (Sahiplen)",
+                    style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF15803D),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 10, horizontal: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
+                  ),
+                  onPressed: () {
+                    _navigateToExistingBusiness(_matchingBusiness!);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () {
+                  setState(() => _matchingBusiness = null);
+                },
+                child: Text(
+                  "Farklı İşletme",
+                  style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade700),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   // Profil resmi seçici
@@ -403,6 +582,63 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
     if (_nameController.text.isEmpty || _selectedSubCategory == null) {
       _showToast("Lütfen isim ve alt kategori seçin.", Colors.orange);
       return;
+    }
+
+    // Yeni kayıt ekleniyorsa mükerrer ve spam kontrolleri yap
+    if (widget.docId == null || widget.docId!.isEmpty) {
+      // 1. Aynı İsim Kontrolü
+      final enteredName = _nameController.text.trim().toLowerCase();
+      final exactMatch = _existingBusinesses.any((b) =>
+          (b['businessName'] ?? b['name'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase() ==
+          enteredName);
+
+      if (exactMatch) {
+        _showToast(
+          "Bu isimde bir işletme rehberde zaten kayıtlıdır. Lütfen yeni kayıt açmak yerine mevcut işletmenin sayfasından 'Sahipliğini Doğrula' başvurusu yapınız.",
+          Colors.orange,
+        );
+        return;
+      }
+
+      // 2. Kullanıcının Zaten Bekleyen Başvurusu veya Art Arda Spam Gönderimi
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        // Zaten onay bekleyen bir işletme başvurusu var mı?
+        final pendingQuery = await FirebaseFirestore.instance
+            .collection('businesses')
+            .where('editorId', isEqualTo: uid)
+            .where('status', isEqualTo: 'pending')
+            .limit(1)
+            .get();
+
+        if (pendingQuery.docs.isNotEmpty) {
+          _showToast(
+            "Zaten inceleme aşamasında olan bir işletme başvurunuz bulunmaktadır. Yönetim inceledikten sonra yeni başvuru yapabilirsiniz.",
+            Colors.orange,
+          );
+          return;
+        }
+
+        // Son 1 saat içinde gönderilmiş başvuru var mı (cooldown)?
+        final oneHourAgo = DateTime.now().subtract(const Duration(hours: 1));
+        final recentQuery = await FirebaseFirestore.instance
+            .collection('businesses')
+            .where('editorId', isEqualTo: uid)
+            .where('createdAt', isGreaterThan: Timestamp.fromDate(oneHourAgo))
+            .limit(1)
+            .get();
+
+        if (recentQuery.docs.isNotEmpty) {
+          _showToast(
+            "Arka arkaya işletme başvurusu gönderemezsiniz. Lütfen yeni bir başvuru yapabilmek için en az 1 saat bekleyiniz.",
+            Colors.orange,
+          );
+          return;
+        }
+      }
     }
 
     setState(() => _isLoading = true);
@@ -521,6 +757,8 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
                   _buildSectionTitle("TEMEL BİLGİLER"),
                   _buildTextField("Kurum/İşletme Adı *", _nameController,
                       CupertinoIcons.building_2_fill, themeColor),
+                  if (_matchingBusiness != null)
+                    _buildMatchingBusinessSuggestion(),
                   _buildMainCategoryPicker(),
                   if (_selectedMainCategory != null)
                     _buildSubCategoryPicker(themeColor),

@@ -123,6 +123,29 @@ class AdminPendingCenterTab extends StatelessWidget {
     }
 
     await batch.commit();
+
+    if (uid.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'to': uid,
+          'title': isVendor
+              ? '🎉 Esnaf Başvurunuz Onaylandı!'
+              : '🎉 Kurumsal Satıcı Başvurunuz Onaylandı!',
+          'body': isVendor
+              ? 'Tebrikler! Esnaf mağaza başvurunuz onaylandı. Artık menü ve ürünlerinizi yönetebilirsiniz.'
+              : 'Tebrikler! Kurumsal satıcı başvurunuz onaylandı. Artık ilanlarınızı yönetebilirsiniz.',
+          'message': isVendor
+              ? 'Tebrikler! Esnaf mağaza başvurunuz onaylandı.'
+              : 'Tebrikler! Kurumsal satıcı başvurunuz onaylandı.',
+          'type': 'corporate_approved',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint("Bildirim hatası: $e");
+      }
+    }
+
     _toast(
         context, isVendor ? 'Esnaf onaylandı.' : 'Kurumsal satıcı onaylandı.',
         Colors.green);
@@ -131,6 +154,7 @@ class AdminPendingCenterTab extends StatelessWidget {
   Future<void> _rejectCorporateSeller(BuildContext context,
       String applicationId, Map<String, dynamic> data) async {
     final uid = (data['uid'] ?? data['userId'] ?? '').toString();
+    final isVendor = _isVendorApplication(data);
 
     final batch = FirebaseFirestore.instance.batch();
 
@@ -165,6 +189,27 @@ class AdminPendingCenterTab extends StatelessWidget {
     }
 
     await batch.commit();
+
+    if (uid.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'to': uid,
+          'title': isVendor
+              ? '❌ Esnaf Başvurunuz Reddedildi'
+              : '❌ Kurumsal Satıcı Başvurunuz Reddedildi',
+          'body':
+              'Yaptığınız başvuru yönetim tarafından incelenmiş ve uygun bulunmayarak reddedilmiştir.',
+          'message':
+              'Yaptığınız başvuru yönetim tarafından incelenmiş ve uygun bulunmayarak reddedilmiştir.',
+          'type': 'corporate_rejected',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint("Bildirim hatası: $e");
+      }
+    }
+
     _toast(context, 'Başvuru reddedildi.', Colors.orange);
   }
 
@@ -180,6 +225,86 @@ class AdminPendingCenterTab extends StatelessWidget {
     });
 
     _toast(context, 'Durum güncellendi: $status', Colors.green);
+  }
+
+  Future<void> _approvePendingBusiness(
+    BuildContext context,
+    String docId,
+    Map<String, dynamic> data,
+  ) async {
+    await FirebaseFirestore.instance
+        .collection(businessesCollection)
+        .doc(docId)
+        .update({
+      'status': 'approved',
+      'isActive': true,
+      'approvedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final editorId =
+        (data['editorId'] ?? data['ownerId'] ?? data['userId'] ?? '')
+            .toString();
+    final title =
+        _pick(data, ['name', 'businessName', 'title'], fallback: 'İşletme');
+
+    if (editorId.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'to': editorId,
+          'title': '🎉 İşletme Başvurunuz Onaylandı!',
+          'body':
+              'Tebrikler! $title işletme kaydınız onaylanarak Pazarcık Rehberi\'nde yayına alındı.',
+          'message': 'Tebrikler! $title işletme kaydınız onaylandı.',
+          'type': 'business_approved',
+          'businessId': docId,
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint("Bildirim hatası: $e");
+      }
+    }
+
+    _toast(context, 'İşletme onaylandı ve yayına alındı.', Colors.green);
+  }
+
+  Future<void> _rejectPendingBusiness(
+    BuildContext context,
+    String docId,
+    Map<String, dynamic> data,
+  ) async {
+    final editorId =
+        (data['editorId'] ?? data['ownerId'] ?? data['userId'] ?? '')
+            .toString();
+    final title =
+        _pick(data, ['name', 'businessName', 'title'], fallback: 'İşletme');
+
+    // Kalıcı olarak sil
+    await FirebaseFirestore.instance
+        .collection(businessesCollection)
+        .doc(docId)
+        .delete();
+
+    if (editorId.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'to': editorId,
+          'title': '❌ İşletme Başvurunuz Reddedildi',
+          'body':
+              '$title için yaptığınız işletme kaydı başvurusu yönetim tarafından uygun bulunmayarak reddedilmiştir.',
+          'message':
+              '$title için yaptığınız işletme kaydı başvurusu reddedildi.',
+          'type': 'business_rejected',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint("Bildirim hatası: $e");
+      }
+    }
+
+    _toast(context, 'İşletme başvurusu reddedildi ve silindi.', Colors.orange);
   }
 
   void _toast(BuildContext context, String msg, Color color) {
@@ -293,10 +418,10 @@ class AdminPendingCenterTab extends StatelessWidget {
                 title: title,
                 subtitle: subtitle,
                 badge: data['type']?.toString() ?? 'İşletme',
-                onApprove: () => _updateDocStatus(
-                    ctx, businessesCollection, doc.id, 'approved'),
-                onReject: () => _updateDocStatus(
-                    ctx, businessesCollection, doc.id, 'rejected'),
+                onApprove: () =>
+                    _approvePendingBusiness(ctx, doc.id, data),
+                onReject: () =>
+                    _rejectPendingBusiness(ctx, doc.id, data),
               );
             },
           );

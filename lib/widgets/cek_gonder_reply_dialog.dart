@@ -167,6 +167,9 @@ class _CekGonderReplyDialogState extends State<CekGonderReplyDialog> {
         _data?['phoneVerified'] == true || _data?['isVerified'] == true;
     final createdAt = _data?['createdAt'] ?? _data?['time'];
     final replyDate = _data?['replyDate'] ?? _data?['updatedAt'];
+    final institutionName =
+        (_data?['repliedByInstitution'] ?? _data?['institutionName'] ?? '')
+            .toString();
 
     return Container(
       constraints: BoxConstraints(
@@ -288,15 +291,17 @@ class _CekGonderReplyDialogState extends State<CekGonderReplyDialog> {
                                 color: const Color(0xFF10B981),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Row(
+                              child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.verified,
+                                  const Icon(Icons.verified,
                                       color: Colors.white, size: 14),
-                                  SizedBox(width: 4),
+                                  const SizedBox(width: 4),
                                   Text(
-                                    'YETKİLİ YANITI',
-                                    style: TextStyle(
+                                    institutionName.isNotEmpty
+                                        ? '${institutionName.toUpperCase()} YANITI'
+                                        : 'YETKİLİ YANITI',
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 11,
                                       fontWeight: FontWeight.w900,

@@ -18,6 +18,11 @@ service cloud.firestore {
          currentUser().data.get('admin', false) == true);
     }
 
+    function isViewCountOnlyUpdate() {
+      return resource != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'lastViewedAt']);
+    }
+
     function ownsRestaurant(restaurantId) {
       return signedIn() && request.auth.uid == restaurantId;
     }
@@ -231,14 +236,15 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    match /cek_gonder_institutions/{instId} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
     match /cek_gonder_reports/{docId} {
-      // FIX: Sadece kendi raporunu okuyabilir
-      allow read: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow read: if signedIn();
       allow create: if signedIn();
-      allow update, delete: if signedIn() && (
-        resource.data.uid == request.auth.uid ||
-        isAdmin()
-      );
+      allow update: if signedIn();
+      allow delete: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
     }
     match /classified_ads/{adId} {
       allow read: if true;
@@ -248,7 +254,13 @@ service cloud.firestore {
         request.resource.data.get('ownerId', request.auth.uid) == request.auth.uid ||
         isAdmin()
       );
-      allow update, delete: if signedIn() && (
+      allow update: if isViewCountOnlyUpdate() || (signedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.sellerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      ));
+      allow delete: if signedIn() && (
         resource.data.ownerId == request.auth.uid ||
         resource.data.sellerId == request.auth.uid ||
         resource.data.userId == request.auth.uid ||
@@ -336,10 +348,20 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    match /announcements/{docId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isViewCountOnlyUpdate() || isAdmin();
+    }
     match /job_ads/{adId} {
       allow read: if true;
       allow create: if signedIn();
-      allow update, delete: if signedIn() && (
+      allow update: if isViewCountOnlyUpdate() || (signedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      ));
+      allow delete: if signedIn() && (
         resource.data.ownerId == request.auth.uid ||
         resource.data.userId == request.auth.uid ||
         isAdmin()
@@ -348,7 +370,12 @@ service cloud.firestore {
     match /job_postings/{adId} {
       allow read: if true;
       allow create: if signedIn();
-      allow update, delete: if signedIn() && (
+      allow update: if isViewCountOnlyUpdate() || (signedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      ));
+      allow delete: if signedIn() && (
         resource.data.ownerId == request.auth.uid ||
         resource.data.userId == request.auth.uid ||
         isAdmin()
@@ -483,6 +510,28 @@ service cloud.firestore {
       allow update, delete: if signedIn() && (
         resource.data.get('userId', '') == request.auth.uid || isAdmin()
       );
+    }
+
+    // ── Çek Gönder: Kurumlar & Bildirim Raporları ──────────────────────────────
+    match /cek_gonder_institutions/{instId} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
+    // ── Kuryeler & Siparişler ────────────────────────────────────────────────
+    match /couriers/{courierId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (
+        resource.data.sellerId == request.auth.uid || isAdmin()
+      );
+    }
+
+    match /orders/{orderId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn();
+      allow delete: if isAdmin();
     }
   }
 }

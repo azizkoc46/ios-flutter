@@ -233,6 +233,24 @@ class AdminBusinessTab extends StatelessWidget {
     );
 
     await batch.commit();
+
+    if (userId.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'to': userId,
+          'title': '🎉 Kurumsal Satıcı Başvurunuz Onaylandı!',
+          'body':
+              'Tebrikler! Kurumsal satıcı başvurunuz onaylandı. Artık ilanlarınızı ve mağazanızı yönetebilirsiniz.',
+          'message':
+              'Tebrikler! Kurumsal satıcı başvurunuz onaylandı. Artık ilanlarınızı ve mağazanızı yönetebilirsiniz.',
+          'type': 'corporate_approved',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint("Bildirim gönderme hatası: $e");
+      }
+    }
   }
 
   Future<void> _rejectCorporateApplication(
@@ -278,6 +296,24 @@ class AdminBusinessTab extends StatelessWidget {
     }
 
     await batch.commit();
+
+    if (userId.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'to': userId,
+          'title': '❌ Kurumsal Satıcı Başvurusu',
+          'body':
+              'Kurumsal satıcı başvurunuz yönetim tarafından incelenmiş ve uygun bulunmayarak reddedilmiştir.',
+          'message':
+              'Kurumsal satıcı başvurunuz yönetim tarafından incelenmiş ve uygun bulunmayarak reddedilmiştir.',
+          'type': 'corporate_rejected',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint("Bildirim gönderme hatası: $e");
+      }
+    }
   }
 
   Future<void> _approveOwnershipClaim(
@@ -336,6 +372,27 @@ class AdminBusinessTab extends StatelessWidget {
     );
 
     await batch.commit();
+
+    // Kullanıcıya onay bildirimi gönder
+    if (userId.isNotEmpty) {
+      final businessName = (data['businessName'] ?? 'İşletme').toString();
+      try {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'to': userId,
+          'title': '🎉 İşletme Doğrulama Başvurunuz Onaylandı!',
+          'body':
+              'Tebrikler! $businessName işletmesinin sahiplik doğrulaması onaylandı. Artık işletme profilinizi yönetebilirsiniz.',
+          'message':
+              'Tebrikler! $businessName işletmesinin sahiplik doğrulaması onaylandı. Artık işletme profilinizi yönetebilirsiniz.',
+          'type': 'business_claim_approved',
+          'businessId': businessId,
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint("Bildirim gönderme hatası: $e");
+      }
+    }
   }
 
   Future<void> _rejectOwnershipClaim(
@@ -343,14 +400,33 @@ class AdminBusinessTab extends StatelessWidget {
     String claimId,
     Map<String, dynamic> data,
   ) async {
+    final String userId = (data['userId'] ?? '').toString();
+    final String businessName = (data['businessName'] ?? 'İşletme').toString();
+
+    // Kalıcı olarak sil (Kullanıcının talebi üzerine listeden kaldır)
     await FirebaseFirestore.instance
         .collection('business_claims')
         .doc(claimId)
-        .set({
-      'status': 'rejected',
-      'rejectedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+        .delete();
+
+    // Kullanıcıya red bildirimi gönder
+    if (userId.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'to': userId,
+          'title': '❌ İşletme Doğrulama Başvurunuz Reddedildi',
+          'body':
+              '$businessName için yaptığınız işletme sahiplik doğrulama başvurusu yönetim tarafından incelenmiş ve uygun bulunmayarak reddedilmiştir.',
+          'message':
+              '$businessName için yaptığınız işletme sahiplik doğrulama başvurusu yönetim tarafından incelenmiş ve uygun bulunmayarak reddedilmiştir.',
+          'type': 'business_claim_rejected',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint("Bildirim gönderme hatası: $e");
+      }
+    }
   }
 
   Future<void> _handleApprove(
@@ -571,7 +647,8 @@ class AdminBusinessTab extends StatelessWidget {
         if (_isOwnershipClaims) {
           docs = docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
-            return (data['status'] ?? 'pending') != 'archived';
+            final status = data['status'] ?? 'pending';
+            return status != 'archived' && status != 'rejected';
           }).toList();
         }
 

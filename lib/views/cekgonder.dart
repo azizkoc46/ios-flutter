@@ -17,6 +17,7 @@ import 'package:intl/intl.dart';
 import 'package:pazarcik_portal/auth/auth.dart';
 import 'package:pazarcik_portal/auth/phone_otp_page.dart';
 import 'package:pazarcik_portal/services/system_settings_service.dart';
+import 'package:pazarcik_portal/services/cek_gonder_institution_service.dart';
 
 class CekGonderPage extends StatefulWidget {
   final int initialTabIndex;
@@ -46,6 +47,11 @@ class _CekGonderPageState extends State<CekGonderPage>
   bool _isLoading = false;
   bool _isVideo = false;
 
+  // Kurum seçimi
+  String _selectedInstitutionId = 'genel';
+  String _selectedInstitutionName = 'Genel / Pazarcık Portalı & Belediye';
+  String _selectedInstitutionDesc = 'İlçe genelindeki her türlü talep ve sorun';
+
   // Kullanıcı bilgileri ve telefon doğrulama durumu
   String _userPhone = '';
   bool _isPhoneVerified = false;
@@ -61,6 +67,7 @@ class _CekGonderPageState extends State<CekGonderPage>
     );
 
     _loadUserData();
+    CekGonderInstitutionService.instance.seedDefaultsIfNeeded();
 
     // Eğer doğrudan belirli bir rapor ID ile açıldıysa yanıt dialogunu göster
     if (widget.selectedReportId != null && widget.selectedReportId!.isNotEmpty) {
@@ -266,7 +273,7 @@ class _CekGonderPageState extends State<CekGonderPage>
           ? _userPhone
           : (user.phoneNumber ?? '');
 
-      // 3. Veriyi Firestore'a kaydet (Doğrulanmış ad soyad ve telefon ile)
+      // 3. Veriyi Firestore'a kaydet (Doğrulanmış ad soyad, telefon ve ilgili kurum ile)
       final reportRef =
           await FirebaseFirestore.instance.collection('cek_gonder_reports').add({
         'uid': user.uid,
@@ -275,6 +282,8 @@ class _CekGonderPageState extends State<CekGonderPage>
         'userEmail': user.email ?? '',
         'phoneVerified': true,
         'isVerified': true,
+        'institutionId': _selectedInstitutionId,
+        'institutionName': _selectedInstitutionName,
         'title': _titleController.text.trim().isNotEmpty
             ? _titleController.text.trim()
             : 'İsimsiz Bildirim',
@@ -286,9 +295,23 @@ class _CekGonderPageState extends State<CekGonderPage>
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // 4. Yöneticiye Bildirim İlet
+      // 4. İlgili Kurum Yetkililerine Özel Bildirim İlet
+      if (_selectedInstitutionId.isNotEmpty && _selectedInstitutionId != 'genel') {
+        await CekGonderInstitutionService.instance.notifyInstitutionAuthorities(
+          institutionId: _selectedInstitutionId,
+          institutionName: _selectedInstitutionName,
+          reportId: reportRef.id,
+          reportTitle: _titleController.text.trim().isNotEmpty
+              ? _titleController.text.trim()
+              : 'Yeni bir bildirim iletildi',
+          senderName: fullName,
+          senderPhone: senderPhone,
+        );
+      }
+
+      // 5. Genel Yöneticiye Bildirim İlet
       await AdminNotificationService.instance.notifyAdmin(
-        title: '📸 Yeni Çek Gönder: $fullName',
+        title: '📸 Yeni Çek Gönder: $fullName ($_selectedInstitutionName)',
         body: _titleController.text.trim().isNotEmpty
             ? _titleController.text.trim()
             : 'Yeni bir vatandaş bildirimi geldi.',
@@ -299,6 +322,8 @@ class _CekGonderPageState extends State<CekGonderPage>
           'userName': fullName,
           'userPhone': senderPhone,
           'userEmail': user.email ?? '',
+          'institutionId': _selectedInstitutionId,
+          'institutionName': _selectedInstitutionName,
           'phoneVerified': 'true',
           'hasMedia': (_mediaFile != null).toString(),
           'mediaType': _isVideo ? 'video' : 'image',
@@ -724,6 +749,10 @@ class _CekGonderPageState extends State<CekGonderPage>
           ),
           const SizedBox(height: 18),
 
+          // İLGİLİ KURUM / BİRİM SEÇİCİ
+          _buildInstitutionSelector(isDark),
+          const SizedBox(height: 16),
+
           // BAŞLIK GİRİŞİ
           TextField(
             controller: _titleController,
@@ -862,6 +891,239 @@ class _CekGonderPageState extends State<CekGonderPage>
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildInstitutionSelector(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(CupertinoIcons.building_2_fill, size: 18, color: Color(0xFF0056D2)),
+            const SizedBox(width: 8),
+            Text(
+              "İlgili Kurum / Yönetim *",
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: _openInstitutionPickerSheet,
+          borderRadius: BorderRadius.circular(15),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0F172A) : Colors.white,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(
+                color: const Color(0xFF0056D2).withOpacity(0.35),
+                width: 1.4,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _selectedInstitutionName,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : const Color(0xFF0056D2),
+                        ),
+                      ),
+                      if (_selectedInstitutionDesc.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          _selectedInstitutionDesc,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: isDark ? Colors.white60 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0056D2).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "Değiştir",
+                        style: TextStyle(
+                          color: Color(0xFF0056D2),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      SizedBox(width: 2),
+                      Icon(CupertinoIcons.chevron_down, size: 12, color: Color(0xFF0056D2)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_selectedInstitutionId != 'genel') ...[
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              children: [
+                const Icon(CupertinoIcons.checkmark_shield_fill, size: 14, color: Color(0xFF10B981)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    "Bu bildirim doğrudan $_selectedInstitutionName yetkililerine iletilecektir.",
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF10B981),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _openInstitutionPickerSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.black12,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  children: [
+                    const Icon(CupertinoIcons.building_2_fill, color: Color(0xFF0056D2)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        "İlgili Kurum veya Birim Seçin",
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: StreamBuilder<List<CekGonderInstitution>>(
+                  stream: CekGonderInstitutionService.instance.streamActiveInstitutions(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CupertinoActivityIndicator());
+                    }
+                    final institutions = snapshot.data ?? [];
+                    if (institutions.isEmpty) {
+                      return const Center(
+                        child: Text("Tanımlı kurum bulunamadı."),
+                      );
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: institutions.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final inst = institutions[index];
+                        final isSelected = _selectedInstitutionId == inst.id;
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: isSelected
+                                ? const Color(0xFF0056D2)
+                                : const Color(0xFF0056D2).withOpacity(0.1),
+                            child: Icon(
+                              inst.id == 'genel'
+                                  ? CupertinoIcons.placemark_fill
+                                  : CupertinoIcons.building_2_fill,
+                              color: isSelected ? Colors.white : const Color(0xFF0056D2),
+                              size: 20,
+                            ),
+                          ),
+                          title: Text(
+                            inst.name,
+                            style: TextStyle(
+                              fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                              color: isSelected ? const Color(0xFF0056D2) : null,
+                            ),
+                          ),
+                          subtitle: inst.description.isNotEmpty
+                              ? Text(
+                                  inst.description,
+                                  style: const TextStyle(fontSize: 12),
+                                )
+                              : Text(
+                                  inst.category,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                          trailing: isSelected
+                              ? const Icon(CupertinoIcons.checkmark_circle_fill,
+                                  color: Color(0xFF0056D2))
+                              : null,
+                          onTap: () {
+                            setState(() {
+                              _selectedInstitutionId = inst.id;
+                              _selectedInstitutionName = inst.name;
+                              _selectedInstitutionDesc = inst.description;
+                            });
+                            Navigator.pop(ctx);
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

@@ -23,6 +23,8 @@ import 'package:pazarcik_portal/auth/forgot_password.dart';
 import 'package:pazarcik_portal/business/BusinessDetailPage.dart';
 import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/store/store_details.dart';
 import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/product/details.dart';
+import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/customer/order_tracking_screen.dart';
+import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/customer/my_orders_screen.dart';
 import 'package:pazarcik_portal/isilani/job_detail_page.dart';
 import 'firebase_options.dart';
 import 'onboarding/portal_welcome.dart';
@@ -421,6 +423,27 @@ class MyApp extends StatelessWidget {
                   settings: settings,
                 );
               }
+              if (path == '/order-tracking' ||
+                  path == 'order-tracking' ||
+                  settings.name == 'order-tracking') {
+                final orderId = (settings.arguments is String)
+                    ? settings.arguments as String
+                    : (mergedParams['orderId'] ??
+                        mergedParams['id'] ??
+                        id);
+                return MaterialPageRoute(
+                  builder: (_) => OrderTrackingScreen(orderId: orderId),
+                  settings: settings,
+                );
+              }
+              if (path == '/my-orders' ||
+                  path == 'my-orders' ||
+                  settings.name == 'my-orders') {
+                return MaterialPageRoute(
+                  builder: (_) => const MyOrdersScreen(),
+                  settings: settings,
+                );
+              }
 
               return null;
             },
@@ -438,6 +461,8 @@ class MyApp extends StatelessWidget {
               '/is-ilanlari': (context) => const JobListingPage(),
               '/haberler': (context) => const NewsPage(),
               '/cekgonder': (context) => const CekGonderPage(),
+              '/my-orders': (context) => const MyOrdersScreen(),
+              'my-orders': (context) => const MyOrdersScreen(),
             },
           );
         },

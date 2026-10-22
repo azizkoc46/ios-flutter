@@ -25,6 +25,7 @@ import 'dashboard_screens/store_setup.dart';
 import 'dashboard_screens/upload_product.dart';
 import 'dashboard_screens/manage_extras.dart';
 import 'dashboard_screens/notifications_screen.dart';
+import 'dashboard_screens/manage_couriers.dart';
 import '../../../masa_sistemi/table_system_screen.dart';
 
 // Tema Renkleri
@@ -95,6 +96,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       'icon': CupertinoIcons.settings_solid,
       'color': const Color(0xFF8E8E93),
       'page': const StoreSetupScreen()
+    },
+    {
+      'title': 'Kurye Yönetimi',
+      'icon': CupertinoIcons.person_crop_circle_badge_checkmark,
+      'color': const Color(0xFF007AFF),
+      'page': const ManageCouriersScreen()
     },
     {
       'title': 'Masa Yönetimi',

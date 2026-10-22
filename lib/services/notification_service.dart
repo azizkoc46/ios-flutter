@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -73,6 +72,16 @@ class NotificationService {
     enableVibration: true,
   );
 
+  static const AndroidNotificationChannel jobChannel =
+      AndroidNotificationChannel(
+    'job_alerts_channel_v1',
+    'İş İlanları Bildirimleri',
+    description: 'Pazarcık yeni iş ve kariyer ilanları bildirimleri.',
+    importance: Importance.max,
+    playSound: true,
+    enableVibration: true,
+  );
+
   Future<void> initialize(GlobalKey<NavigatorState> key) async {
     navigatorKey = key;
 
@@ -105,6 +114,7 @@ class NotificationService {
     await androidPlugin?.createNotificationChannel(customerOrderChannel);
     await androidPlugin?.createNotificationChannel(namazChannel);
     await androidPlugin?.createNotificationChannel(earthquakeChannel);
+    await androidPlugin?.createNotificationChannel(jobChannel);
 
     // 4. Local Notifications Başlatma
     const initSettings = InitializationSettings(
@@ -131,6 +141,15 @@ class NotificationService {
       await FirebaseMessaging.instance.subscribeToTopic('earthquake_alerts');
     } else {
       await FirebaseMessaging.instance.unsubscribeFromTopic('earthquake_alerts');
+    }
+
+    // 5c. İş İlanları bildirimleri (varsayılan: pasif)
+    final jobNotifEnabled =
+        prefs.getBool('is_job_notifications_enabled') ?? false;
+    if (jobNotifEnabled) {
+      await FirebaseMessaging.instance.subscribeToTopic('is_ilanlari');
+    } else {
+      await FirebaseMessaging.instance.unsubscribeFromTopic('is_ilanlari');
     }
 
     // 6. Dinleyiciler
@@ -165,6 +184,8 @@ class NotificationService {
       targetChannel = namazChannel;
     } else if (type == 'earthquake') {
       targetChannel = earthquakeChannel;
+    } else if (type == 'job' || type == 'job_posting' || type == 'is_ilani') {
+      targetChannel = jobChannel;
     }
 
     BigPictureStyleInformation? bigPictureStyle;

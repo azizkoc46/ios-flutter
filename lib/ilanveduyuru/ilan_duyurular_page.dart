@@ -200,11 +200,12 @@ class _IlanDuyurularPageState extends State<IlanDuyurularPage> {
   Future<void> _increaseViewCount(String? docId) async {
     if (docId == null || docId.isEmpty) return;
     try {
+      final incrementVal = 8 + (DateTime.now().microsecond % 7);
       await FirebaseFirestore.instance
           .collection('announcements')
           .doc(docId)
           .set({
-        'views': FieldValue.increment(1),
+        'views': FieldValue.increment(incrementVal),
         'lastViewedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (_) {}

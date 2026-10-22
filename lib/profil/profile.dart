@@ -26,6 +26,10 @@ import '../esnaf_sistemi/lib/views/main/customer/my_orders_screen.dart';
 import 'package:pazarcik_portal/profil/vendor_application_page.dart';
 import 'package:pazarcik_portal/isilani/add_job_page.dart';
 import 'package:pazarcik_portal/utils/portal_file_upload.dart';
+import 'package:pazarcik_portal/services/cek_gonder_institution_service.dart';
+import 'package:pazarcik_portal/views/institution_cek_gonder_desk_page.dart';
+import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/courier/courier_orders_screen.dart';
+import 'package:pazarcik_portal/esnaf_sistemi/lib/services/courier_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -595,9 +599,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             });
           }
           bool isApproved = userData['isApproved'] ?? false;
-          String imageUrl = userData['image'] ?? "";
           String fullname = userData['fullname'] ?? "Pazarcıklı";
+          String imageUrl = userData['image'] ?? "";
           String phone = userData['phone'] ?? "Telefon kayıtlı değil";
+          final String rawUserPhone = (userData['phone'] ??
+                  userData['phoneNumber'] ??
+                  FirebaseAuth.instance.currentUser?.phoneNumber ??
+                  '')
+              .toString();
+          final String cleanPhone = CourierService.normalizePhone(rawUserPhone);
 
           return SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
@@ -664,7 +674,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         color: isDark ? Colors.white : Colors.black)),
                 Text(phone,
                     style: const TextStyle(color: Colors.grey, fontSize: 14)),
-                const SizedBox(height: 30),
+                const SizedBox(height: 24),
+
+                // --- KURUM YÖNETİM MASASI KARTI ---
+                StreamBuilder<List<CekGonderInstitution>>(
+                  stream: CekGonderInstitutionService.instance
+                      .streamInstitutionsForUser(
+                    uid: currentUserId,
+                    phone: phone,
+                  ),
+                  builder: (context, instSnap) {
+                    final insts = instSnap.data ?? [];
+                    if (insts.isEmpty) return const SizedBox.shrink();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionTitle("Kurum Yetkili Masası"),
+                        _buildMenuCard(
+                          isDark,
+                          insts.map((inst) {
+                            return _menuItem(
+                              CupertinoIcons.building_2_fill,
+                              "${inst.name} Masası",
+                              isDark: isDark,
+                              color: const Color(0xFF0056D2),
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      InstitutionCekGonderDeskPage(institution: inst),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                    );
+                  },
+                ),
 
                 // --- 1. GRUP: HESAP ---
                 _buildSectionTitle("Hesap Ayarları"),
@@ -715,6 +763,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (role == 'vendor_pending')
                     _menuItem(Icons.hourglass_empty, "Başvuru İnceleniyor",
                         isDark: isDark, color: Colors.grey),
+
+                  // 🛵 Kurye Paneli (Eğer bu telefon numarası bir restorana kurye olarak kayıtlıysa)
+                  StreamBuilder<QuerySnapshot>(
+                    stream: cleanPhone.isNotEmpty
+                        ? FirebaseFirestore.instance
+                            .collection('couriers')
+                            .where('phone', isEqualTo: cleanPhone)
+                            .where('isActive', isEqualTo: true)
+                            .snapshots()
+                        : null,
+                    builder: (context, courierSnap) {
+                      if (!courierSnap.hasData ||
+                          courierSnap.data!.docs.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      final courierDoc = courierSnap.data!.docs.first;
+                      final courierData =
+                          courierDoc.data() as Map<String, dynamic>;
+                      courierData['id'] = courierDoc.id;
+                      final storeName =
+                          courierData['storeName'] ?? 'Restoran';
+
+                      return _menuItem(
+                        CupertinoIcons.cube_box_fill,
+                        "🛵 Kurye Paneli ($storeName)",
+                        isDark: isDark,
+                        color: Colors.deepOrange,
+                        onTap: () => Navigator.push(
+                          context,
+                          CupertinoPageRoute(
+                            builder: (_) => CourierOrdersScreen(
+                                courierData: courierData),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ]),
 
                 const SizedBox(height: 25),

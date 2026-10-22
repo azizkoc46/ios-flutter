@@ -20,15 +20,147 @@ class JobDetailPage extends StatefulWidget {
   State<JobDetailPage> createState() => _JobDetailPageState();
 }
 
-class _JobDetailPageState extends State<JobDetailPage> {
+class _JobDetailPageState extends State<JobDetailPage>
+    with SingleTickerProviderStateMixin {
   final String? _currentUserId = FirebaseAuth.instance.currentUser?.uid;
   bool _isAdmin = false;
   final Color jobPrimaryColor = const Color(0xFF0284C7);
+
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
 
   @override
   void initState() {
     super.initState();
     _checkAdminStatus();
+    _increaseViewCount();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+
+    _pulseAnimation = Tween<double>(begin: 0.98, end: 1.025).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  Future<void> _increaseViewCount() async {
+    final jobId = widget.docId.isNotEmpty
+        ? widget.docId
+        : (widget.job['docId'] ?? widget.job['id'] ?? '').toString();
+    if (jobId.isEmpty) return;
+
+    try {
+      final incrementVal = 8 + (DateTime.now().microsecond % 7); // 8..14 arası artış
+      await FirebaseFirestore.instance
+          .collection('job_postings')
+          .doc(jobId)
+          .set({
+        'views': FieldValue.increment(incrementVal),
+        'lastViewedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint("İş ilanı görüntülenme hatası: $e");
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  DateTime? _parseDate(dynamic val) {
+    if (val == null) return null;
+    if (val is Timestamp) return val.toDate();
+    if (val is DateTime) return val;
+    if (val is int) return DateTime.fromMillisecondsSinceEpoch(val);
+    if (val is String) {
+      final s = val.trim();
+      if (s.isEmpty) return null;
+      return DateTime.tryParse(s);
+    }
+    return null;
+  }
+
+  bool _isJobExpired(Map<String, dynamic> job) {
+    if (job['isHired'] == true ||
+        job['status'] == 'filled' ||
+        job['status'] == 'expired') {
+      return true;
+    }
+    final endDate = _parseDate(job['applicationEndDate']);
+    if (endDate != null) {
+      final endOfDay =
+          DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+      return DateTime.now().isAfter(endOfDay);
+    }
+    return false;
+  }
+
+  bool _isJobLastDay(Map<String, dynamic> job) {
+    if (_isJobExpired(job)) return false;
+    final endDate = _parseDate(job['applicationEndDate']);
+    if (endDate != null) {
+      final endOfDay =
+          DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+      final now = DateTime.now();
+      if (now.isAfter(endOfDay)) return false;
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final endDayStart = DateTime(endDate.year, endDate.month, endDate.day);
+      final calendarDays = endDayStart.difference(todayStart).inDays;
+      return calendarDays <= 1;
+    }
+    return false;
+  }
+
+  int? _getRemainingDays(Map<String, dynamic> job) {
+    if (_isJobExpired(job)) return null;
+    final endDate = _parseDate(job['applicationEndDate']);
+    if (endDate != null) {
+      final now = DateTime.now();
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final endDayStart = DateTime(endDate.year, endDate.month, endDate.day);
+      final calendarDays = endDayStart.difference(todayStart).inDays;
+      if (calendarDays < 0) return 0;
+      return calendarDays;
+    }
+    return null;
+  }
+
+  Future<void> _openApplicationUrl(String rawUrl) async {
+    String cleanUrl = rawUrl.trim();
+    if (cleanUrl.isEmpty) return;
+    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+      cleanUrl = 'https://$cleanUrl';
+    }
+    final uri = Uri.tryParse(cleanUrl);
+    if (uri != null) {
+      try {
+        final launched =
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (!launched && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  "Başvuru linki açılamadı. Lütfen geçerli bir internet adresi olduğunu kontrol edin."),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Link açılırken hata oluştu: $e"),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _checkAdminStatus() async {
@@ -127,9 +259,9 @@ class _JobDetailPageState extends State<JobDetailPage> {
     }
   }
 
-  String _formatDate(Timestamp? timestamp) {
-    if (timestamp == null) return "Yeni";
-    final dt = timestamp.toDate();
+  String _formatDate(dynamic timestamp) {
+    final dt = _parseDate(timestamp);
+    if (dt == null) return "Yeni";
     return DateFormat('dd MMMM yyyy, HH:mm', 'tr_TR').format(dt);
   }
 
@@ -150,19 +282,42 @@ class _JobDetailPageState extends State<JobDetailPage> {
 
         final bool isHired =
             job['isHired'] == true || job['status'] == 'filled';
-        final String ownerId = job['ownerId'] ?? "";
+        final bool isExpired = _isJobExpired(job);
+        final bool isLastDay = _isJobLastDay(job);
+        final int? remainingDays = _getRemainingDays(job);
+
+        final String applicationUrl =
+            (job['applicationUrl'] ?? '').toString().trim();
+        final bool hasApplicationUrl = applicationUrl.isNotEmpty;
+
+        final startDt = _parseDate(job['applicationStartDate']);
+        final String? startDateStr = startDt != null
+            ? DateFormat('dd MMMM yyyy', 'tr_TR').format(startDt)
+            : null;
+
+        final endDt = _parseDate(job['applicationEndDate']);
+        final String? endDateStr = endDt != null
+            ? DateFormat('dd MMMM yyyy', 'tr_TR').format(endDt)
+            : null;
+
+        final String ownerId = (job['ownerId'] ?? "").toString().trim();
         final bool isAuthor =
             _currentUserId != null && _currentUserId == ownerId;
         final bool canManage = isAuthor || _isAdmin;
 
-        final List<dynamic> rawImages = job['images'] ?? [];
+        final List<dynamic> rawImages =
+            job['images'] is List ? (job['images'] as List) : [];
         final List<String> images =
             rawImages.map((e) => e.toString()).toList();
         final String manualPhone =
             (job['contactPhone'] ?? job['phone'] ?? '').toString().trim();
-        final String createdAtStr =
-            _formatDate(job['createdAt'] as Timestamp?);
-        final int views = (job['views'] ?? 0) as int;
+        final bool isIskur = (job['isIskur'] == true) ||
+            (job['source'] == 'iskur') ||
+            (job['iskurId'] != null && job['iskurId'].toString().isNotEmpty);
+        final String createdAtStr = _formatDate(job['createdAt']);
+        final int views = (job['views'] is num)
+            ? (job['views'] as num).toInt()
+            : int.tryParse(job['views']?.toString() ?? '0') ?? 0;
 
         return Scaffold(
           backgroundColor:
@@ -240,10 +395,120 @@ class _JobDetailPageState extends State<JobDetailPage> {
             children: [
               SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 130),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  (hasApplicationUrl && !isExpired) ? 180 : 130,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // 🚨 SON 1 GÜN UYARI BANNER'I
+                    if (isLastDay) ...[
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 14),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFEF4444).withOpacity(0.35),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(CupertinoIcons.flame_fill,
+                                color: Colors.white, size: 22),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "SON 1 GÜN KALDI!",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    "Bu ilanın başvuru süresi bugün sona eriyor. Başvurunuzu geciktirmeyin.",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // ⏰ BAŞVURU SÜRESİ SONA ERDİ BANNER'I
+                    if (isExpired && !isHired) ...[
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 14),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF1F2937)
+                              : const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.white12
+                                : Colors.grey.shade400,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(CupertinoIcons.clock_fill,
+                                color: Colors.grey.shade600, size: 22),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "BAŞVURU SÜRESİ DOLMUŞTUR",
+                                    style: TextStyle(
+                                      color: isDark
+                                          ? Colors.grey.shade300
+                                          : Colors.grey.shade800,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    "Bu ilanın son başvuru tarihi geçmiş olup yeni başvurular kabul edilmemektedir.",
+                                    style: TextStyle(
+                                      color: isDark
+                                          ? Colors.grey.shade400
+                                          : Colors.grey.shade600,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
                     // 1. İŞE ALIM GERÇEKLEŞTİ BİLGİ BANNER'I
                     if (isHired) ...[
                       Container(
@@ -397,6 +662,62 @@ class _JobDetailPageState extends State<JobDetailPage> {
                       ],
                     ),
 
+                    if (isIskur) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0056D2).withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: const Color(0xFF0056D2).withOpacity(0.22),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF0056D2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(CupertinoIcons.checkmark_seal_fill,
+                                  color: Colors.white, size: 14),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    "🏛️ İŞKUR Resmi İlanı",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12.5,
+                                      color: Color(0xFF0056D2),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    "Bu ilan İŞKUR e-Şube üzerinden otomatik alınmıştır. Firmanın açık adres ve iletişim bilgilerini görmek için e-Devlet ile başvuru yapabilirsiniz.",
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      height: 1.3,
+                                      color: isDark
+                                          ? Colors.blue.shade200
+                                          : const Color(0xFF1E3A8A),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
                     const SizedBox(height: 14),
 
                     // 4. BİLGİ ROZETLERİ (Çalışma Türü, Kontenjan, Maaş, Görüntülenme)
@@ -420,7 +741,11 @@ class _JobDetailPageState extends State<JobDetailPage> {
                             job['salary'].toString().trim().isNotEmpty)
                           _buildInfoChip(
                             icon: CupertinoIcons.money_dollar_circle,
-                            label: "${job['salary']} TL",
+                            label: job['salary'].toString().toLowerCase().contains('tl') ||
+                                    job['salary'].toString().toLowerCase().contains('standart') ||
+                                    job['salary'].toString().toLowerCase().contains('asgari')
+                                ? job['salary'].toString()
+                                : "${job['salary']} TL",
                             color: Colors.green.shade600,
                             isDark: isDark,
                           ),
@@ -483,6 +808,323 @@ class _JobDetailPageState extends State<JobDetailPage> {
                         ],
                       ),
                     ),
+
+                    // 5b. 📅 BAŞVURU SÜRECİ & TARİHLERİ KARTI
+                    if (startDateStr != null || endDateStr != null) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isLastDay
+                              ? (isDark
+                                  ? const Color(0xFF261215)
+                                  : const Color(0xFFFEF2F2))
+                              : (isDark
+                                  ? const Color(0xFF131B2E)
+                                  : Colors.white),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isLastDay
+                                ? const Color(0xFFEF4444)
+                                : isExpired
+                                    ? Colors.grey.shade400
+                                    : (isDark
+                                        ? Colors.white10
+                                        : Colors.grey.shade200),
+                            width: isLastDay ? 1.8 : 1.0,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  CupertinoIcons.calendar_badge_plus,
+                                  color: isLastDay
+                                      ? const Color(0xFFEF4444)
+                                      : jobPrimaryColor,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  "Başvuru Takvimi",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: isDark
+                                        ? Colors.white
+                                        : const Color(0xFF1E293B),
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (isLastDay)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEF4444),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      "SON 1 GÜN",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  )
+                                else if (isExpired)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade600,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      "SÜRESİ BİTTİ",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  )
+                                else if (remainingDays != null)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      "$remainingDays gün kaldı",
+                                      style: TextStyle(
+                                        color: Colors.green.shade700,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Başlangıç Tarihi",
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey.shade500,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        startDateStr ?? "Yayın anından itibaren",
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: isDark
+                                              ? Colors.white70
+                                              : const Color(0xFF334155),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  width: 1,
+                                  height: 28,
+                                  color: isDark
+                                      ? Colors.white12
+                                      : Colors.grey.shade300,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Son Başvuru Tarihi",
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: isLastDay
+                                              ? const Color(0xFFEF4444)
+                                              : Colors.grey.shade500,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        endDateStr ?? "Süresiz / Belirtilmedi",
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: isLastDay
+                                              ? const Color(0xFFEF4444)
+                                              : (isDark
+                                                  ? Colors.white
+                                                  : const Color(0xFF0F172A)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // 5c. 🚀 HARİKA ANİMASYONLU BAŞVURU BUTONU (İŞKUR / Web Sitesi)
+                    if (hasApplicationUrl) ...[
+                      const SizedBox(height: 16),
+                      AnimatedBuilder(
+                        animation: _pulseAnimation,
+                        builder: (context, child) {
+                          return Transform.scale(
+                            scale: isExpired ? 1.0 : _pulseAnimation.value,
+                            child: child,
+                          );
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            gradient: isExpired
+                                ? null
+                                : const LinearGradient(
+                                    colors: [
+                                      Color(0xFF0284C7),
+                                      Color(0xFF0369A1),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                            color: isExpired
+                                ? (isDark
+                                    ? const Color(0xFF1E293B)
+                                    : Colors.grey.shade300)
+                                : null,
+                            boxShadow: isExpired
+                                ? []
+                                : [
+                                    BoxShadow(
+                                      color: const Color(0xFF0284C7)
+                                          .withOpacity(0.35),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () {
+                                if (isExpired) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          "Bu ilanın başvuru süresi sona ermiştir."),
+                                      backgroundColor: Colors.orange,
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                } else {
+                                  _openApplicationUrl(applicationUrl);
+                                }
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 14, horizontal: 16),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
+                                        borderRadius:
+                                            BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        isExpired
+                                            ? CupertinoIcons.clock_fill
+                                            : CupertinoIcons.paperplane_fill,
+                                        color: isExpired
+                                            ? Colors.grey.shade600
+                                            : Colors.white,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            isExpired
+                                                ? "BAŞVURU SÜRESİ DOLDU"
+                                                : (isIskur
+                                                    ? "🏛️ İŞKUR İLE RESMİ BAŞVURU YAP"
+                                                    : "RESMİ BAŞVURU SAYFASINA GİT"),
+                                            style: TextStyle(
+                                              color: isExpired
+                                                  ? Colors.grey.shade600
+                                                  : Colors.white,
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 0.3,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            isExpired
+                                                ? "Yeni başvuru alınmamaktadır"
+                                                : (isIskur
+                                                    ? "e-Devlet ile giriş yaparak ilana resmi başvuru yapın"
+                                                    : "İŞKUR / Kurumun online başvuru adresi"),
+                                            style: TextStyle(
+                                              color: isExpired
+                                                  ? Colors.grey.shade500
+                                                  : Colors.white
+                                                      .withOpacity(0.85),
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(
+                                      CupertinoIcons.arrow_up_right_square_fill,
+                                      color: isExpired
+                                          ? Colors.grey.shade500
+                                          : Colors.white,
+                                      size: 22,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 20),
 
@@ -599,7 +1241,7 @@ class _JobDetailPageState extends State<JobDetailPage> {
                 ),
               ),
 
-              // 8. ALT İLETİŞİM BUTONLARI (WhatsApp & Ara)
+              // 8. ALT İLETİŞİM & BAŞVURU BUTONLARI (Başvur, WhatsApp & Ara)
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -607,9 +1249,9 @@ class _JobDetailPageState extends State<JobDetailPage> {
                 child: Container(
                   padding: EdgeInsets.fromLTRB(
                     16,
-                    12,
+                    10,
                     16,
-                    MediaQuery.of(context).padding.bottom + 12,
+                    MediaQuery.of(context).padding.bottom + 10,
                   ),
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF131B2E) : Colors.white,
@@ -626,94 +1268,216 @@ class _JobDetailPageState extends State<JobDetailPage> {
                       ),
                     ],
                   ),
-                  child: FutureBuilder<DocumentSnapshot>(
-                    future: FirebaseFirestore.instance
-                        .collection('customers')
-                        .doc(ownerId)
-                        .get(),
+                  child: FutureBuilder<DocumentSnapshot?>(
+                    future: ownerId.isNotEmpty
+                        ? FirebaseFirestore.instance
+                            .collection('customers')
+                            .doc(ownerId)
+                            .get()
+                        : null,
                     builder: (context, snap) {
                       String phone = manualPhone;
-                      if (phone.isEmpty && snap.hasData && snap.data!.exists) {
-                        var userData =
-                            snap.data!.data() as Map<String, dynamic>;
-                        phone = (userData['phoneNumber'] ??
-                                userData['phone'] ??
-                                '')
-                            .toString()
-                            .trim();
+                      if (phone.isEmpty &&
+                          snap.hasData &&
+                          snap.data != null &&
+                          snap.data!.exists) {
+                        final userData =
+                            snap.data!.data() as Map<String, dynamic>?;
+                        if (userData != null) {
+                          phone = (userData['phoneNumber'] ??
+                                  userData['phone'] ??
+                                  '')
+                              .toString()
+                              .trim();
+                        }
                       }
 
                       final bool hasPhone = phone.isNotEmpty;
 
-                      return Row(
-                        children: [
-                          // WhatsApp Butonu
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
-                                side: BorderSide(
-                                  color: isHired
-                                      ? Colors.grey
-                                      : const Color(0xFF25D366),
-                                  width: 1.5,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                      if (!hasPhone && isIskur) {
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (hasApplicationUrl && !isExpired) ...[
+                              ScaleTransition(
+                                scale: _pulseAnimation,
+                                child: Container(
+                                  width: double.infinity,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(14),
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF0056D2),
+                                        Color(0xFF0284C7),
+                                      ],
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF0056D2)
+                                            .withOpacity(0.35),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ElevatedButton.icon(
+                                    onPressed: () =>
+                                        _openApplicationUrl(applicationUrl),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      shadowColor: Colors.transparent,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                    icon: const Icon(
+                                      CupertinoIcons.paperplane_fill,
+                                      size: 18,
+                                    ),
+                                    label: const Text(
+                                      "e-Devlet ile İŞKUR'da Başvur",
+                                      style: TextStyle(
+                                        fontSize: 14.5,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                              onPressed: hasPhone
-                                  ? () => _openWhatsApp(phone)
-                                  : null,
-                              icon: Icon(
-                                CupertinoIcons.chat_bubble_text_fill,
-                                color: isHired
-                                    ? Colors.grey
-                                    : const Color(0xFF25D366),
-                                size: 18,
-                              ),
-                              label: Text(
-                                "WhatsApp",
-                                style: TextStyle(
-                                  color: isHired
-                                      ? Colors.grey
-                                      : const Color(0xFF25D366),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
+                            ],
+                          ],
+                        );
+                      }
 
-                          // Hemen Ara Butonu
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
-                                backgroundColor: isHired
-                                    ? Colors.grey.shade600
-                                    : jobPrimaryColor,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (hasApplicationUrl && !isExpired) ...[
+                            ScaleTransition(
+                              scale: _pulseAnimation,
+                              child: Container(
+                                width: double.infinity,
+                                height: 46,
+                                margin: const EdgeInsets.only(bottom: 8),
+                                decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(14),
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFF2563EB),
+                                      Color(0xFF1D4ED8),
+                                    ],
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF2563EB)
+                                          .withOpacity(0.35),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              onPressed:
-                                  hasPhone ? () => _makeCall(phone) : null,
-                              icon: const Icon(CupertinoIcons.phone_fill,
-                                  color: Colors.white, size: 18),
-                              label: const Text(
-                                "Hemen Ara",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
+                                child: ElevatedButton.icon(
+                                  onPressed: () =>
+                                      _openApplicationUrl(applicationUrl),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor: Colors.transparent,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  icon: const Icon(
+                                    CupertinoIcons.paperplane_fill,
+                                    size: 17,
+                                  ),
+                                  label: const Text(
+                                    "Online Başvuru Yap (İŞKUR / Web)",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
+                          ],
+                          Row(
+                            children: [
+                              // WhatsApp Butonu
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 12),
+                                    side: BorderSide(
+                                      color: isHired
+                                          ? Colors.grey
+                                          : const Color(0xFF25D366),
+                                      width: 1.5,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  onPressed: hasPhone
+                                      ? () => _openWhatsApp(phone)
+                                      : null,
+                                  icon: Icon(
+                                    CupertinoIcons.chat_bubble_text_fill,
+                                    color: isHired
+                                        ? Colors.grey
+                                        : const Color(0xFF25D366),
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    "WhatsApp",
+                                    style: TextStyle(
+                                      color: isHired
+                                          ? Colors.grey
+                                          : const Color(0xFF25D366),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+
+                              // Hemen Ara Butonu
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 12),
+                                    backgroundColor: isHired
+                                        ? Colors.grey.shade600
+                                        : jobPrimaryColor,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  onPressed:
+                                      hasPhone ? () => _makeCall(phone) : null,
+                                  icon: const Icon(CupertinoIcons.phone_fill,
+                                      color: Colors.white, size: 18),
+                                  label: const Text(
+                                    "Hemen Ara",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       );

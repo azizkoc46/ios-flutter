@@ -1,0 +1,25 @@
+name: İŞKUR Pazarcık Otomatik İlan Senkronizasyonu
+
+on:
+  schedule:
+    # Her gün Türkiye saati ile 09:00 ve 18:00 (UTC 06:00 ve 15:00)
+    - cron: '0 6,15 * * *'
+  workflow_dispatch: # GitHub Actions panelinden tek tıkla manuel çalıştırma
+
+jobs:
+  sync-iskur:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kodu Çek
+        uses: actions/checkout@v4
+
+      - name: Node.js Kurulumu
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: İŞKUR Pazarcık İlanlarını Tara & Portala Senkronize Et
+        env:
+          FIREBASE_PROJECT_ID: pazarcik-portal-7faf2
+        run: |
+          node scripts/sync_iskur_jobs.js

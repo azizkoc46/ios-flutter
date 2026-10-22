@@ -1,7 +1,7 @@
 name: pazarcik_portal
 description: "Pazarcik Portal"
 publish_to: 'none'
-version: 1.0.6+57
+version: 1.0.7+58
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -77,6 +77,8 @@ dependencies:
   story_view: ^0.16.6
   googleapis_auth: ^2.3.0
   app_links: ^7.0.0
+  flutter_map: ^8.3.2
+  latlong2: ^0.10.1
 
 dev_dependencies:
   flutter_test:

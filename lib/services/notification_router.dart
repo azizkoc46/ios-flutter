@@ -3,16 +3,25 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:pazarcik_portal/sahibinden/ad_detail_page.dart';
+import 'package:pazarcik_portal/sahibinden/ads_main_page.dart';
+import 'package:pazarcik_portal/sahibinden/add_ad_page.dart';
 import 'package:pazarcik_portal/business/BusinessDetailPage.dart';
+import 'package:pazarcik_portal/business/BusinessDirectoryPage.dart';
+import 'package:pazarcik_portal/business/business_add_page.dart';
 import 'package:pazarcik_portal/isilani/job_detail_page.dart';
+import 'package:pazarcik_portal/isilani/job_listing_page.dart';
+import 'package:pazarcik_portal/isilani/add_job_page.dart';
 import 'package:pazarcik_portal/sahibinden/seller_store_page.dart';
 import 'package:pazarcik_portal/dernek_sistemi/views/pazarcik_meydan_screen.dart';
 import 'package:pazarcik_portal/grup/grup_ana_ekran.dart';
 import 'package:pazarcik_portal/news_page.dart';
+import 'package:pazarcik_portal/views/pharmacy_screen.dart';
+import 'package:pazarcik_portal/views/cekgonder.dart';
 import 'package:pazarcik_portal/services/earthquake_page.dart';
 import 'package:pazarcik_portal/views/bildirimkutusuanasayfa.dart';
 import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/seller/dashboard_screens/orders.dart';
 import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/customer/my_orders_screen.dart';
+import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/customer/order_tracking_screen.dart';
 import 'package:pazarcik_portal/profil/profile.dart';
 import 'package:pazarcik_portal/widgets/interactive_poll_dialog.dart';
 import 'package:pazarcik_portal/ilanveduyuru/ilan_duyurular_page.dart';
@@ -24,8 +33,10 @@ class NotificationRouter {
     final targetType = (data['targetType'] ?? '').toString().trim();
     final linkUrl = (data['linkUrl'] ?? data['url'] ?? '').toString().trim();
     final type = (data['type'] ?? '').toString().trim();
+    final orderId = (data['orderId'] ?? '').toString().trim();
 
     if (linkUrl.isNotEmpty) return true;
+    if (orderId.isNotEmpty) return true;
     if (targetType.isNotEmpty && targetType != 'none') return true;
     if (type == 'cek_gonder_reply' ||
         type == 'cek_gonder' ||
@@ -39,6 +50,9 @@ class NotificationRouter {
         type == 'order' ||
         type == 'order_status' ||
         type == 'order_update' ||
+        type == 'courier_at_door' ||
+        type == 'order_delivered' ||
+        targetType == 'order_tracking' ||
         type == 'Anket') {
       return true;
     }
@@ -64,19 +78,47 @@ class NotificationRouter {
     }
 
     switch (targetType) {
-      case 'announcement':
-        return 'Bülteni Görüntüle';
-      case 'ad':
-        return 'İlanı Görüntüle';
-      case 'business':
-        return 'İşletmeyi Gör';
+      case 'url':
+        return 'Bağlantıyı Aç';
+      case 'meydan':
+        return 'Meydan\'a Git';
+      case 'meydan_post':
+        return 'Meydan Gönderisine Git';
+      case 'jobs':
+      case 'job_listing':
+        return 'İş İlanlarına Git';
+      case 'add_job':
+      case 'job_add':
+        return 'İş İlanı Ver';
       case 'job':
         return 'İş İlanını İncele';
+      case 'classified_ads':
+      case 'ads':
+        return 'İlanlara Göz At';
+      case 'add_ad':
+        return 'İlan Ver';
+      case 'ad':
+        return 'İlanı Görüntüle';
+      case 'businesses':
+      case 'business_directory':
+        return 'Esnaf Rehberini Gör';
+      case 'add_business':
+        return 'İşletme Ekle';
+      case 'business':
+        return 'İşletmeyi Gör';
+      case 'pharmacy':
+      case 'eczane':
+        return 'Nöbetçi Eczaneleri Gör';
+      case 'cek_gonder':
+        return 'Çek Gönder\'e Git';
       case 'seller':
       case 'food_store':
         return 'Mağazayı Ziyaret Et';
-      case 'meydan_post':
-        return 'Meydan Gönderisine Git';
+      case 'food_orders':
+        return 'Siparişlere Git';
+      case 'announcement':
+      case 'announcements':
+        return 'Bülteni Görüntüle';
       case 'group':
         return 'Gruba Git';
       case 'group_poll':
@@ -85,9 +127,11 @@ class NotificationRouter {
         return 'Haberi Oku';
       case 'profile':
         return 'Profile Git';
-      case 'url':
-        return 'Tarayıcıda Aç';
+      case 'notifications':
+        return 'Bildirimlere Git';
     }
+
+    if (linkUrl.isNotEmpty) return 'Bağlantıyı Aç';
 
     if (type == 'cek_gonder_reply' || targetType == 'cek_gonder') {
       return 'Yanıtı ve Detayı Gör';
@@ -102,11 +146,15 @@ class NotificationRouter {
     if (type == 'news' || type == 'haber') return 'Haberi Oku';
     if (type == 'earthquake') return 'Deprem Bilgisini Gör';
     if (type == 'new_order' || type == 'order') return 'Siparişlere Git';
-    if (type == 'order_status' || type == 'order_update') {
-      return 'Siparişimi Gör';
+    if (type == 'order_status' ||
+        type == 'order_update' ||
+        type == 'courier_at_door' ||
+        type == 'order_delivered' ||
+        targetType == 'order_tracking' ||
+        (data['orderId'] != null && data['orderId'].toString().isNotEmpty)) {
+      return 'Siparişi Canlı Takip Et 🛵';
     }
     if (type == 'Anket') return 'Ankete Katıl';
-    if (linkUrl.isNotEmpty) return 'Tarayıcıda Aç';
 
     return 'Detayları Gör';
   }
@@ -129,19 +177,39 @@ class NotificationRouter {
     }
 
     switch (targetType) {
-      case 'announcement':
-        return CupertinoIcons.sparkles;
-      case 'ad':
-        return Icons.shopping_bag_outlined;
-      case 'business':
-        return Icons.storefront_outlined;
-      case 'job':
-        return Icons.work_outline;
-      case 'seller':
-      case 'food_store':
-        return Icons.restaurant_menu;
+      case 'url':
+        return CupertinoIcons.globe;
+      case 'meydan':
       case 'meydan_post':
         return Icons.forum_outlined;
+      case 'jobs':
+      case 'job_listing':
+      case 'add_job':
+      case 'job_add':
+      case 'job':
+        return Icons.work_outline;
+      case 'classified_ads':
+      case 'ads':
+      case 'add_ad':
+      case 'ad':
+        return Icons.shopping_bag_outlined;
+      case 'businesses':
+      case 'business_directory':
+      case 'add_business':
+      case 'business':
+        return Icons.storefront_outlined;
+      case 'pharmacy':
+      case 'eczane':
+        return CupertinoIcons.bandage_fill;
+      case 'cek_gonder':
+        return CupertinoIcons.camera_fill;
+      case 'seller':
+      case 'food_store':
+      case 'food_orders':
+        return Icons.restaurant_menu;
+      case 'announcement':
+      case 'announcements':
+        return CupertinoIcons.sparkles;
       case 'group':
         return Icons.groups_outlined;
       case 'group_poll':
@@ -150,9 +218,11 @@ class NotificationRouter {
         return Icons.newspaper;
       case 'profile':
         return Icons.person_outline;
-      case 'url':
-        return CupertinoIcons.globe;
+      case 'notifications':
+        return CupertinoIcons.bell_fill;
     }
+
+    if (linkUrl.isNotEmpty) return CupertinoIcons.globe;
 
     if (type == 'cek_gonder_reply' || targetType == 'cek_gonder') {
       return Icons.mark_chat_read_outlined;
@@ -168,8 +238,13 @@ class NotificationRouter {
     if (type == 'news' || type == 'haber') return Icons.newspaper;
     if (type == 'earthquake') return Icons.waves;
     if (type == 'new_order' || type == 'order') return Icons.receipt_long;
-    if (type == 'order_status' || type == 'order_update') {
-      return CupertinoIcons.cube_box;
+    if (type == 'order_status' ||
+        type == 'order_update' ||
+        type == 'courier_at_door' ||
+        type == 'order_delivered' ||
+        targetType == 'order_tracking' ||
+        (data['orderId'] != null && data['orderId'].toString().isNotEmpty)) {
+      return CupertinoIcons.map_pin_ellipse;
     }
     if (type == 'Anket') return Icons.poll_outlined;
 
@@ -254,7 +329,106 @@ class NotificationRouter {
     final linkUrl = (data['linkUrl'] ?? data['url'] ?? '').toString().trim();
     final type = (data['type'] ?? '').toString().trim();
 
-    // 1. Hedef: Sahibinden İlanı (Ad)
+    // ── 1. ÖNCELİK: Web / Sosyal Medya Linki ──
+    // Eğer hedef tipi 'url' ise veya bir linkUrl girilmiş ve belirli bir sayfa hedefi seçilmemişse
+    if (targetType == 'url' ||
+        (linkUrl.isNotEmpty && (targetType.isEmpty || targetType == 'none'))) {
+      await openExternalOrSocialUrl(linkUrl);
+      return;
+    }
+
+    // ── 2. MEYDAN SAYFASI VE GÖNDERİLERİ ──
+    if (targetType == 'meydan') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const PazarcikMeydanScreen()),
+      );
+      return;
+    }
+
+    if (targetType == 'meydan_post') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const PazarcikMeydanScreen()),
+      );
+      return;
+    }
+
+    // ── 3. İŞ İLANLARI SAYFALARI ──
+    if (targetType == 'jobs' || targetType == 'job_listing') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const JobListingPage()),
+      );
+      return;
+    }
+
+    if (targetType == 'add_job' || targetType == 'job_add') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AddJobPage()),
+      );
+      return;
+    }
+
+    // Belirli İş İlanı Detayı
+    if (targetType == 'job' ||
+        targetType == 'job_posting' ||
+        targetType == 'is_ilani') {
+      if (targetId.isNotEmpty) {
+        try {
+          var doc = await FirebaseFirestore.instance
+              .collection('job_postings')
+              .doc(targetId)
+              .get();
+          if (!doc.exists) {
+            doc = await FirebaseFirestore.instance
+                .collection('job_ads')
+                .doc(targetId)
+                .get();
+          }
+
+          if (doc.exists && context.mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    JobDetailPage(job: doc.data()!, docId: targetId),
+              ),
+            );
+            return;
+          }
+        } catch (e) {
+          debugPrint("İş ilanı yönlendirme hatası: $e");
+        }
+      }
+
+      if (context.mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const JobListingPage()),
+        );
+        return;
+      }
+    }
+
+    // ── 4. SAHİBİNDEN / SERİ İLANLAR ──
+    if (targetType == 'classified_ads' || targetType == 'ads') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AdsMainPage()),
+      );
+      return;
+    }
+
+    if (targetType == 'add_ad') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AddAdPage()),
+      );
+      return;
+    }
+
     if (targetType == 'ad' && targetId.isNotEmpty) {
       try {
         final doc = await FirebaseFirestore.instance
@@ -275,7 +449,23 @@ class NotificationRouter {
       }
     }
 
-    // 2. Hedef: İşletme (Business)
+    // ── 5. İŞLETME & ESNAF REHBERİ ──
+    if (targetType == 'businesses' || targetType == 'business_directory') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const BusinessDirectoryPage()),
+      );
+      return;
+    }
+
+    if (targetType == 'add_business') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const BusinessAddPage()),
+      );
+      return;
+    }
+
     if (targetType == 'business' && targetId.isNotEmpty) {
       try {
         final doc = await FirebaseFirestore.instance
@@ -294,29 +484,7 @@ class NotificationRouter {
       }
     }
 
-    // 3. Hedef: İş İlanı (Job)
-    if (targetType == 'job' && targetId.isNotEmpty) {
-      try {
-        final doc = await FirebaseFirestore.instance
-            .collection('job_ads')
-            .doc(targetId)
-            .get();
-        if (doc.exists && context.mounted) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) =>
-                  JobDetailPage(job: doc.data()!, docId: targetId),
-            ),
-          );
-          return;
-        }
-      } catch (e) {
-        debugPrint("İş ilanı yönlendirme hatası: $e");
-      }
-    }
-
-    // 4. Hedef: Esnaf / Mağaza / Restoran (Seller / Food Store)
+    // ── 6. MAĞAZA / YEMEK ESNAFI ──
     if ((targetType == 'seller' || targetType == 'food_store') &&
         targetId.isNotEmpty) {
       Navigator.push(
@@ -328,16 +496,60 @@ class NotificationRouter {
       return;
     }
 
-    // 5. Hedef: Meydan Gönderisi (Meydan Post)
-    if (targetType == 'meydan_post') {
+    if (targetType == 'food_orders') {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const PazarcikMeydanScreen()),
+        MaterialPageRoute(builder: (_) => const OrdersScreen()),
       );
       return;
     }
 
-    // 6. Hedef: Grup veya Grup Anketi (Group / Group Poll)
+    if (targetType == 'order_tracking') {
+      final orderId =
+          (data['orderId'] ?? data['targetId'] ?? targetId).toString();
+      if (orderId.isNotEmpty) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OrderTrackingScreen(orderId: orderId),
+          ),
+        );
+        return;
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const MyOrdersScreen()),
+      );
+      return;
+    }
+
+    // ── 7. NÖBETÇİ ECZANELER ──
+    if (targetType == 'pharmacy' || targetType == 'eczane') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const PharmacyScreen()),
+      );
+      return;
+    }
+
+    // ── 8. ÇEK GÖNDER ──
+    if (targetType == 'cek_gonder') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const CekGonderPage()),
+      );
+      return;
+    }
+
+    if (type == 'cek_gonder_reply') {
+      final effectiveDocId =
+          (data['docId'] ?? data['targetId'] ?? '').toString();
+      CekGonderReplyDialog.show(context,
+          data: data, docId: effectiveDocId.isNotEmpty ? effectiveDocId : null);
+      return;
+    }
+
+    // ── 9. GRUPLAR ──
     if (targetType == 'group' || targetType == 'group_poll') {
       Navigator.push(
         context,
@@ -346,7 +558,7 @@ class NotificationRouter {
       return;
     }
 
-    // 7. Hedef: Profil Sayfası
+    // ── 10. PROFİL ──
     if (targetType == 'profile') {
       Navigator.push(
         context,
@@ -355,7 +567,7 @@ class NotificationRouter {
       return;
     }
 
-    // 8. Hedef: Anket Bildirimi (Genel Anket)
+    // ── 11. ANKET BİLDİRİMİ ──
     if (type == 'Anket' && data['pollOptions'] != null) {
       final options = List<String>.from(data['pollOptions'] ?? []);
       final question =
@@ -373,21 +585,7 @@ class NotificationRouter {
       }
     }
 
-    // 9. Hedef: Bülten & Duyurular & Etkinlikler (Announcement)
-    if (targetType == 'announcement' ||
-        type == 'announcement' ||
-        type == 'Duyuru' ||
-        type == 'Etkinlik' ||
-        type == 'Acil' ||
-        type == 'Cenaze') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const IlanDuyurularPage()),
-      );
-      return;
-    }
-
-    // 10. Hedef: Haberler (News)
+    // ── 12. HABERLER ──
     if (targetType == 'news' || type == 'news' || type == 'haber') {
       if (linkUrl.isNotEmpty) {
         await openExternalOrSocialUrl(linkUrl);
@@ -400,13 +598,32 @@ class NotificationRouter {
       return;
     }
 
-    // 10. Hedef: Web Bağlantısı (URL / Instagram / Facebook / Web)
+    // ── 13. BÜLTEN & DUYURULAR ──
+    if (targetType == 'announcements' ||
+        targetType == 'announcement' ||
+        type == 'announcement' ||
+        type == 'Duyuru' ||
+        type == 'Etkinlik' ||
+        type == 'Acil' ||
+        type == 'Cenaze') {
+      // Eğer bir linkUrl varsa ve hedefsiz duyuru ise, linke gitmesi daha önceliklidir!
+      if (linkUrl.isNotEmpty) {
+        await openExternalOrSocialUrl(linkUrl);
+        return;
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const IlanDuyurularPage()),
+      );
+      return;
+    }
+
+    // ── 14. DİĞER LİNK VE TİPLER ──
     if (linkUrl.isNotEmpty) {
       await openExternalOrSocialUrl(linkUrl);
       return;
     }
 
-    // 10. Sipariş ve Özel Tipler
     if (type == 'new_order' || type == 'order') {
       Navigator.push(
         context,
@@ -415,18 +632,25 @@ class NotificationRouter {
       return;
     }
 
-    if (type == 'order_status' || type == 'order_update') {
+    if (type == 'order_status' ||
+        type == 'order_update' ||
+        type == 'courier_at_door' ||
+        type == 'order_delivered' ||
+        targetType == 'order_tracking') {
+      final orderId = (data['orderId'] ?? data['targetId'] ?? '').toString();
+      if (orderId.isNotEmpty) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OrderTrackingScreen(orderId: orderId),
+          ),
+        );
+        return;
+      }
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const MyOrdersScreen()),
       );
-      return;
-    }
-
-    if (type == 'cek_gonder_reply' || targetType == 'cek_gonder') {
-      final effectiveDocId = (data['docId'] ?? data['targetId'] ?? '').toString();
-      CekGonderReplyDialog.show(context,
-          data: data, docId: effectiveDocId.isNotEmpty ? effectiveDocId : null);
       return;
     }
 
@@ -438,7 +662,7 @@ class NotificationRouter {
       return;
     }
 
-    // 11. Varsayılan: Bildirim Kutusu
+    // Varsayılan: Bildirim Kutusu
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const BildirimKutusuAnaSayfa()),

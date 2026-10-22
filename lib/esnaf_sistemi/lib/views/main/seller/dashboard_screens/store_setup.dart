@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:pazarcik_portal/utils/portal_file_upload.dart';
+import 'package:pazarcik_portal/esnaf_sistemi/lib/widgets/restaurant_time_picker_sheet.dart';
 
 // Tema Renkleri (Proje standartlarına uygun)
 const Color trendyolOrange = Color(0xfff27a1a);
@@ -405,44 +406,253 @@ class _StoreSetupScreenState extends State<StoreSetupScreen> {
   }
 
   Widget _buildTimeSection() {
+    final openStr =
+        "${_openTime.hour.toString().padLeft(2, '0')}:${_openTime.minute.toString().padLeft(2, '0')}";
+    final closeStr =
+        "${_closeTime.hour.toString().padLeft(2, '0')}:${_closeTime.minute.toString().padLeft(2, '0')}";
+
+    int startMinutes = _openTime.hour * 60 + _openTime.minute;
+    int endMinutes = _closeTime.hour * 60 + _closeTime.minute;
+    if (endMinutes <= startMinutes) endMinutes += 24 * 60;
+    final diff = endMinutes - startMinutes;
+    final h = diff ~/ 60;
+    final m = diff % 60;
+    final durationText = m == 0 ? "$h saat" : "$h saat $m dk";
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(16)),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
         children: [
-          _timeSelector(
-              "Açılış Saati", _openTime, (t) => setState(() => _openTime = t)),
-          Container(height: 40, width: 1, color: iosBg),
-          _timeSelector("Kapanış Saati", _closeTime,
-              (t) => setState(() => _closeTime = t)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: trendyolOrange.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(CupertinoIcons.clock_fill,
+                          color: trendyolOrange, size: 16),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      "Günlük Mesai Düzeni",
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(CupertinoIcons.check_mark_circled_solid,
+                          size: 12, color: Color(0xFF10B981)),
+                      const SizedBox(width: 4),
+                      Text(
+                        "Günde $durationText",
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF10B981),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, thickness: 0.5, indent: 16, endIndent: 16),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _modernTimeCard(
+                    title: "Açılış Saati",
+                    timeStr: openStr,
+                    subtext: "Sipariş alımı başlar",
+                    icon: CupertinoIcons.sun_max_fill,
+                    accentColor: const Color(0xFFF27A1A),
+                    bgColor: const Color(0xFFFFF7ED),
+                    onTap: () => _openModernTimePicker(isOpening: true),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _modernTimeCard(
+                    title: "Kapanış Saati",
+                    timeStr: closeStr,
+                    subtext: "Dükkan siparişe kapanır",
+                    icon: CupertinoIcons.moon_stars_fill,
+                    accentColor: const Color(0xFF5B5CE5),
+                    bgColor: const Color(0xFFEEF0FD),
+                    onTap: () => _openModernTimePicker(isOpening: false),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          InkWell(
+            onTap: () => _openModernTimePicker(isOpening: true),
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(20),
+              bottomRight: Radius.circular(20),
+            ),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: iosBg.withOpacity(0.7),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(CupertinoIcons.slider_horizontal_3,
+                      size: 14, color: trendyolOrange),
+                  const SizedBox(width: 6),
+                  Text(
+                    "Saatleri Değiştirmek İçin Dokunun (24 Saat)",
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: trendyolOrange,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _timeSelector(
-      String label, TimeOfDay time, Function(TimeOfDay) onPick) {
+  Future<void> _openModernTimePicker({required bool isOpening}) async {
+    final result = await RestaurantTimePickerSheet.show(
+      context: context,
+      openTime: _openTime,
+      closeTime: _closeTime,
+      isOpening: isOpening,
+    );
+
+    if (result != null) {
+      setState(() {
+        if (result['openTime'] != null) _openTime = result['openTime']!;
+        if (result['closeTime'] != null) _closeTime = result['closeTime']!;
+      });
+    }
+  }
+
+  Widget _modernTimeCard({
+    required String title,
+    required String timeStr,
+    required String subtext,
+    required IconData icon,
+    required Color accentColor,
+    required Color bgColor,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
-      onTap: () async {
-        final t = await showTimePicker(context: context, initialTime: time);
-        if (t != null) onPick(t);
-      },
-      child: Column(
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 10,
-                  color: Colors.black45,
-                  fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text(time.format(context),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: accentColor.withOpacity(0.25),
+            width: 1.2,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 16, color: accentColor),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    "Seç",
+                    style: GoogleFonts.inter(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      color: accentColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              timeStr,
               style: GoogleFonts.inter(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: trendyolOrange)),
-        ],
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                color: accentColor,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtext,
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }

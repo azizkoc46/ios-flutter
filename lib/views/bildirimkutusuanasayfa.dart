@@ -10,6 +10,8 @@ import 'package:intl/intl.dart';
 import 'package:pazarcik_portal/services/notification_router.dart';
 import 'package:pazarcik_portal/widgets/interactive_poll_dialog.dart';
 import 'package:pazarcik_portal/widgets/cek_gonder_reply_dialog.dart';
+import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/customer/order_tracking_screen.dart';
+import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/customer/my_orders_screen.dart';
 
 class BildirimKutusuAnaSayfa extends StatefulWidget {
   const BildirimKutusuAnaSayfa({super.key});
@@ -113,6 +115,51 @@ class _BildirimKutusuAnaSayfaState extends State<BildirimKutusuAnaSayfa> {
           docId: (notif['docId'] ?? notif['targetId'])?.toString());
       return;
     }
+
+    final targetType = (notif['targetType'] ?? '').toString().trim();
+    final linkUrl = (notif['linkUrl'] ?? notif['url'] ?? '').toString().trim();
+    final type = (notif['type'] ?? '').toString().trim();
+    final orderId = (notif['orderId'] ?? notif['targetId'] ?? '').toString().trim();
+
+    // 🔥 SİPARİŞ & CANLI TAKİP BİLDİRİMLERİ:
+    // Bildirim merkezine düşen "Kurye yolda", "Kapıda", "Sipariş güncellendi" vb. bildirimlere tıklandığında
+    // POP-UP DETAY AÇMADAN DOĞRUDAN CANLI TAKİP EKRANINA GİT!
+    final bool isOrderRelated = orderId.isNotEmpty ||
+        targetType == 'order_tracking' ||
+        targetType == 'food_orders' ||
+        type == 'order_status' ||
+        type == 'order_update' ||
+        type == 'courier_at_door' ||
+        type == 'order_delivered' ||
+        type == 'new_order' ||
+        type == 'order';
+
+    if (isOrderRelated) {
+      if (orderId.isNotEmpty) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OrderTrackingScreen(orderId: orderId),
+          ),
+        );
+        return;
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const MyOrdersScreen()),
+      );
+      return;
+    }
+
+    // Eğer anket değilse ve geçerli bir sayfa hedefi veya bağlantı varsa doğrudan sayfaya/linke git
+    if (type != 'Anket' &&
+        (linkUrl.isNotEmpty ||
+            (targetType.isNotEmpty && targetType != 'none') ||
+            NotificationRouter.hasAction(notif))) {
+      await NotificationRouter.navigateToTarget(context, notif);
+      return;
+    }
+
     _showNotificationDetail(notif);
   }
 

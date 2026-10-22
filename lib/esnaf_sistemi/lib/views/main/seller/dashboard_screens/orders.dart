@@ -38,6 +38,7 @@ class _OrdersScreenState extends State<OrdersScreen>
     'Sipariş Onaylandı',
     'Hazırlanıyor',
     'Yolda',
+    'Kapıda',
   ];
   final _pastStatuses = ['Teslim Edildi', 'İptal Edildi'];
 
@@ -147,7 +148,7 @@ class _OrdersScreenState extends State<OrdersScreen>
   }
 
   Future<void> _sendCustomerPushNotification(
-      String customerId, String status) async {
+      String customerId, String status, {String? orderId}) async {
     // Bildirim Cloud Function üzerinden gönderilir (güvenli yöntem)
     try {
       await FirebaseFirestore.instance
@@ -155,6 +156,9 @@ class _OrdersScreenState extends State<OrdersScreen>
           .add({
         'customerId': customerId,
         'status': status,
+        'orderId': orderId ?? '',
+        'targetType': 'order_tracking',
+        'targetId': orderId ?? '',
         'requestedBy': _userId,
         'createdAt': FieldValue.serverTimestamp(),
         'statusText': 'queued',
@@ -185,8 +189,10 @@ class _OrdersScreenState extends State<OrdersScreen>
         'isRead': false,
         'type': 'order_update',
         'orderId': orderId,
+        'targetType': 'order_tracking',
+        'targetId': orderId,
       });
-      await _sendCustomerPushNotification(customerId, newStatus);
+      await _sendCustomerPushNotification(customerId, newStatus, orderId: orderId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

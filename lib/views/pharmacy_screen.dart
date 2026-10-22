@@ -13,20 +13,23 @@ import 'package:pazarcik_portal/utils/map_launcher.dart';
 const _kRed = Color(0xFFE53935);
 const _kRedLight = Color(0xFFFFEBEE);
 const _kRedMid = Color(0xFFFFCDD2);
-const _kAfterHour = 17;
+
+// Nöbetçi eczaneler Türkiye genelinde ve Pazarcık'ta sabah 08:00'de devir teslim yapar.
+// Mesai akşam 17:00'de biter ve nöbet başlar.
+const _kDutyShiftHour = 8; // Sabah 08:00 devir teslim saati
+const _kDutyStartHour = 17; // Akşam 17:00 mesai bitişi / nöbet başlangıcı
 
 const _kScriptUrl =
     'https://script.google.com/macros/s/AKfycbyKYLWBU8pkuSljmyXRviOzK8aAVt4VIvTzJ8s7sigHBxShb0-26ch4vygN5h0IOtmV-g/exec';
 
 const _kPrefAll = 'gs_all_v1';
 const _kPrefAllTs = 'gs_all_ts_v1';
-const _kPrefDuty = 'gs_duty_v1';
-const _kPrefDutyTs = 'gs_duty_ts_v1';
-const _kPrefDutyLabel = 'gs_duty_label_v1';
+const _kPrefDuty = 'gs_duty_v2';
+const _kPrefDutyTs = 'gs_duty_ts_v2';
+const _kPrefDutyLabel = 'gs_duty_label_v2';
 
-// DÜZELTME: Önbelleğin hangi tarihe ait olduğunu saklıyoruz.
-// Böylece gece yarısı geçtikten sonra eski önbellek geçersiz sayılır.
-const _kPrefDutyDate = 'gs_duty_date_v1';
+// Nöbetçi önbelleği: Gece yarısı 12'de değil, sabah 08:00'de devir teslim yapılınca yenilenir.
+const _kPrefDutyDate = 'gs_duty_date_v2';
 
 enum PharmacyTab { allPharmacies, onDuty }
 
@@ -36,6 +39,21 @@ enum PharmacyTab { allPharmacies, onDuty }
 class PharmacyService {
   static List<Map<String, dynamic>>? _memoryAll;
   static ({List<Map<String, dynamic>> list, String label})? _memoryDuty;
+
+  /// Nöbetçi eczaneler sabah 08:00'de devir teslim yapar.
+  /// Gece 00:00 - sabah 08:00 arasında bir önceki gün başlayan nöbetçi görevdedir.
+  /// Bu sebeple saat 08:00'den önce aktif nöbet tarihi dündür.
+  static DateTime getOperationalDutyDate([DateTime? target]) {
+    final now = target ?? DateTime.now();
+    if (now.hour < _kDutyShiftHour) {
+      return now.subtract(const Duration(days: 1));
+    }
+    return now;
+  }
+
+  static String getOperationalDutyKey([DateTime? target]) {
+    return _isoDate(getOperationalDutyDate(target));
+  }
 
   // ── Tüm eczaneler ──────────────────────────────────────────────
   static Future<List<Map<String, dynamic>>?> getCachedAll() async {
@@ -96,10 +114,11 @@ class PharmacyService {
 
       final list = (json.decode(raw) as List).cast<Map<String, dynamic>>();
       final cachedDate = prefs.getString(_kPrefDutyDate);
-      final todayStr = _isoDate(DateTime.now());
+      final currentDutyKey = getOperationalDutyKey();
 
       final result = (list: list, label: label);
-      if (cachedDate == todayStr || allowStale) {
+      // Sabah 08:00'e kadar dünün nöbetçi önbelleği geçerliliğini korur!
+      if (cachedDate == currentDutyKey || allowStale) {
         _memoryDuty = result;
         return result;
       }
@@ -108,13 +127,13 @@ class PharmacyService {
   }
 
   static Future<void> _saveDuty(
-      List<Map<String, dynamic>> data, String label, String date) async {
+      List<Map<String, dynamic>> data, String label, String dateKey) async {
     _memoryDuty = (list: data, label: label);
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_kPrefDuty, json.encode(data));
       await prefs.setString(_kPrefDutyLabel, label);
-      await prefs.setString(_kPrefDutyDate, date);
+      await prefs.setString(_kPrefDutyDate, dateKey);
       await prefs.setInt(_kPrefDutyTs, DateTime.now().millisecondsSinceEpoch);
     } catch (_) {}
   }
@@ -122,20 +141,19 @@ class PharmacyService {
   static Future<({List<Map<String, dynamic>> list, String label})?>
       fetchDuty() async {
     final now = DateTime.now();
-    final todayStr = _isoDate(now);
+    final dutyDate = getOperationalDutyDate(now);
+    final dutyDateKey = _isoDate(dutyDate);
+    final dutyDmyStr =
+        '${dutyDate.day.toString().padLeft(2, '0')}.${dutyDate.month.toString().padLeft(2, '0')}.${dutyDate.year}';
 
-    // Google Apps Script endpoint'leri:
-    // Doğrudan `?type=duty` Google Apps Script'te en kararlı çalışan ve bugünün
-    // nöbetçisini döndüren ana sorgudur. &date= parametresi bazı formatlarda Apps Script
-    // tarafında istisnaya (Sayfa Bulunamadı / 500) yol açabildiği için önce doğrudan `type=duty`,
-    // ardından alternatif formatlar denenir.
     List<Map<String, dynamic>> list = [];
     DateTime? apiDate;
 
+    // Google Apps Script endpoint'leri (Öncelikle aktif nöbet tarihini parametre olarak sorgular)
     final endpoints = [
+      '$_kScriptUrl?type=duty&date=$dutyDmyStr',
+      '$_kScriptUrl?type=duty&date=$dutyDateKey',
       '$_kScriptUrl?type=duty',
-      '$_kScriptUrl?type=duty&date=${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}',
-      '$_kScriptUrl?type=duty&date=$todayStr',
     ];
 
     for (final url in endpoints) {
@@ -161,9 +179,12 @@ class PharmacyService {
     }
 
     if (list.isNotEmpty) {
-      final effectiveDate = apiDate ?? now;
-      final label = _turkishDate(effectiveDate);
-      await _saveDuty(list, label, todayStr);
+      // Nöbet etiketi:
+      // Sabah 08:00 öncesi ise: "20 Ekim Pazartesi • Bugün 08:00'e kadar"
+      // Sabah 08:00 sonrası ise: "21 Ekim Salı • Yarın 08:00'e kadar"
+      final effectiveDate = (now.hour < _kDutyShiftHour) ? dutyDate : (apiDate ?? dutyDate);
+      final label = _formatDutyLabel(effectiveDate, now);
+      await _saveDuty(list, label, dutyDateKey);
       return (list: list, label: label);
     }
 
@@ -212,6 +233,23 @@ String _turkishDate(DateTime d) {
 String _isoDate(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
+String _formatDutyLabel(DateTime dutyDate, DateTime now) {
+  final dateText = _turkishDate(dutyDate);
+  if (now.hour < _kDutyShiftHour) {
+    return '$dateText • Bugün 08:00\'e kadar nöbetçi';
+  } else {
+    return '$dateText • Yarın 08:00\'e kadar nöbetçi';
+  }
+}
+
+bool _isDutyShiftHours([DateTime? target]) {
+  final dt = target ?? DateTime.now();
+  // Akşam 17:00'den sabah 08:00'e kadar mesai dışıdır ve nöbetçiler aktiftir. Pazar günleri tam gün nöbetçidir.
+  return dt.hour >= _kDutyStartHour ||
+      dt.hour < _kDutyShiftHour ||
+      dt.weekday == DateTime.sunday;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 //  ANA EKRAN
 // ═══════════════════════════════════════════════════════════════════
@@ -251,9 +289,10 @@ class _PharmacyScreenState extends State<PharmacyScreen>
   @override
   void initState() {
     super.initState();
-    final hour = DateTime.now().hour;
+    // 00:00 - 08:00 arası veya 17:00 sonrası doğrudan Nöbetçi sekmesi seçili gelir
+    final isAfterHours = _isDutyShiftHours();
     _activeTab =
-        hour >= _kAfterHour ? PharmacyTab.onDuty : PharmacyTab.allPharmacies;
+        isAfterHours ? PharmacyTab.onDuty : PharmacyTab.allPharmacies;
     _tabCtrl = TabController(
       length: 2,
       vsync: this,
@@ -353,8 +392,8 @@ class _PharmacyScreenState extends State<PharmacyScreen>
       setState(() {
         _dutyLoading = false;
         final hour = DateTime.now().hour;
-        _dutyError = hour == 0 || hour == 1
-            ? 'Nöbetçi listesi güncelleniyor (00:00-02:00 arası). Lütfen birkaç dakika sonra tekrar deneyin.'
+        _dutyError = (hour == _kDutyShiftHour)
+            ? 'Nöbetçi listesi devir teslim nedeniyle güncelleniyor (08:00 - 08:15). Lütfen birazdan tekrar deneyin.'
             : 'Nöbetçi eczane verisi alınamadı. Aşağı çekerek yenileyin.';
       });
     }
@@ -522,8 +561,7 @@ class _PharmacyScreenState extends State<PharmacyScreen>
   // ════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
-    final hour = DateTime.now().hour;
-    final isAfterHours = hour >= _kAfterHour;
+    final isAfterHours = _isDutyShiftHours();
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: NestedScrollView(
@@ -882,29 +920,74 @@ class _DateBanner extends StatelessWidget {
   final String label;
   final bool isLoading;
   const _DateBanner({required this.label, required this.isLoading});
+
   @override
-  Widget build(BuildContext context) => Container(
-        color: Theme.of(context).colorScheme.surface,
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        child: Row(children: [
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final isNight = now.hour < _kDutyShiftHour;
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Row(
+        children: [
           Container(
-              padding: const EdgeInsets.all(7),
-              decoration: const BoxDecoration(
-                  color: _kRedLight, shape: BoxShape.circle),
-              child: const Icon(CupertinoIcons.clock, size: 15, color: _kRed)),
+            padding: const EdgeInsets.all(8),
+            decoration: const BoxDecoration(
+              color: _kRedLight,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(CupertinoIcons.clock_fill, size: 16, color: _kRed),
+          ),
           const SizedBox(width: 10),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Nöbet tarihi',
-                style: GoogleFonts.nunito(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey)),
-            Text(isLoading ? 'Yükleniyor...' : (label.isNotEmpty ? label : '-'),
-                style: GoogleFonts.nunito(
-                    fontSize: 13, fontWeight: FontWeight.w800, color: _kRed)),
-          ]),
-        ]),
-      );
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Nöbet Bilgisi',
+                      style: GoogleFonts.nunito(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: _kRedLight,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: _kRedMid, width: 0.6),
+                      ),
+                      child: Text(
+                        isNight ? 'Sabah 08:00\'e Kadar' : 'Devir: 08:00',
+                        style: GoogleFonts.nunito(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: _kRed,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isLoading ? 'Yükleniyor...' : (label.isNotEmpty ? label : '-'),
+                  style: GoogleFonts.nunito(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: _kRed,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _LocationBanner extends StatelessWidget {

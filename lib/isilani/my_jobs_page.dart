@@ -16,9 +16,17 @@ class MyJobsPage extends StatefulWidget {
 }
 
 class _MyJobsPageState extends State<MyJobsPage> {
-  String _formatDate(Timestamp? timestamp) {
+  String _formatDate(dynamic timestamp) {
     if (timestamp == null) return "Yeni";
-    final dt = timestamp.toDate();
+    DateTime? dt;
+    if (timestamp is Timestamp) {
+      dt = timestamp.toDate();
+    } else if (timestamp is DateTime) {
+      dt = timestamp;
+    } else if (timestamp is String) {
+      dt = DateTime.tryParse(timestamp);
+    }
+    if (dt == null) return "Yeni";
     return DateFormat('dd.MM.yyyy', 'tr_TR').format(dt);
   }
 

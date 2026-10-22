@@ -48,19 +48,30 @@ class _AdminNotificationSenderPageState
   static const String _projectId = 'pazarcik-portal-7faf2';
 
   final Map<String, String> _targetLabels = const {
-    'none': 'Yönlendirme Yok',
-    'news': 'Haberler Sayfası',
-    'group_poll': 'Grup Anketi (Gruptan Seç)',
-    'ad': 'Sahibinden İlanı',
-    'seller': 'Sahibinden Satıcı / Mağaza',
-    'business': 'İşletme',
-    'job': 'İş İlanı',
-    'meydan_post': 'Meydan Gönderisi',
-    'group': 'Grup',
-    'food_store': 'Yemek Mağazası',
-    'food_product': 'Yemek Ürünü',
-    'profile': 'Profil Sayfası',
-    'notifications': 'Bildirim Merkezi',
+    'none': 'Yönlendirme Yok (Sadece Bilgi)',
+    'url': '🌐 Web / Sosyal Medya Linki (Yukarıdaki Bağlantıya Gider)',
+    'meydan': '🏛️ Pazarcık Meydan (Akış)',
+    'jobs': '💼 İş İlanları Sayfası',
+    'add_job': '➕ İş İlanı Ekle Sayfası',
+    'classified_ads': '🛍️ Sahibinden İlanlar',
+    'add_ad': '➕ Sahibinden İlan Ver',
+    'businesses': '🏢 Esnaf & İşletme Rehberi',
+    'add_business': '➕ Yeni İşletme Ekle',
+    'news': '📰 Haberler Sayfası',
+    'pharmacy': '💊 Nöbetçi Eczaneler',
+    'announcements': '📢 Duyurular & Bülten',
+    'cek_gonder': '📸 Çek Gönder',
+    'profile': '👤 Profil Sayfası',
+    'notifications': '🔔 Bildirim Merkezi',
+    'job': '💼 Belirli Bir İş İlanı (Listeden Seç)',
+    'ad': '🛍️ Belirli Bir Sahibinden İlanı (Listeden Seç)',
+    'business': '🏢 Belirli Bir İşletme (Listeden Seç)',
+    'seller': '🏪 Belirli Bir Mağaza/Esnaf (Listeden Seç)',
+    'meydan_post': '💬 Belirli Bir Meydan Gönderisi (Listeden Seç)',
+    'group': '👥 Belirli Bir Grup (Listeden Seç)',
+    'group_poll': '📊 Grup Anketi (Gruptan Seç)',
+    'food_store': '🍔 Belirli Bir Yemek Mağazası (Listeden Seç)',
+    'food_product': '🍕 Belirli Bir Yemek Ürünü (Listeden Seç)',
   };
 
   @override
@@ -132,7 +143,7 @@ class _AdminNotificationSenderPageState
       case 'business':
         return 'businesses';
       case 'job':
-        return 'job_ads';
+        return 'job_postings';
       case 'meydan_post':
         return 'meydan_posts';
       case 'group':
@@ -140,7 +151,7 @@ class _AdminNotificationSenderPageState
       case 'group_poll':
         return 'group_posts';
       case 'food_store':
-        return 'customers';
+        return 'sellers';
       case 'food_product':
         return 'products';
       default:
@@ -184,9 +195,9 @@ class _AdminNotificationSenderPageState
         );
       case 'job':
         return const _TargetPickerConfig(
-          collection: 'job_ads',
-          titleFields: ['title'],
-          subtitleFields: ['companyName', 'location'],
+          collection: 'job_postings',
+          titleFields: ['title', 'position'],
+          subtitleFields: ['companyName', 'phone', 'location'],
         );
       case 'meydan_post':
         return const _TargetPickerConfig(
@@ -385,6 +396,10 @@ class _AdminNotificationSenderPageState
               .toList()
           : <String>[];
 
+      final targetLabel = _targetLabelController.text.trim().isNotEmpty
+          ? _targetLabelController.text.trim()
+          : (_targetLabels[targetType] ?? '');
+
       final docRef =
           await FirebaseFirestore.instance.collection('app_notifications').add({
         'title': _titleController.text.trim(),
@@ -394,7 +409,7 @@ class _AdminNotificationSenderPageState
         'linkUrl': linkUrl,
         'targetType': targetType,
         'targetId': _targetIdController.text.trim(),
-        'targetLabel': _targetLabelController.text.trim(),
+        'targetLabel': targetLabel,
         'targetExtraId': _targetExtraIdController.text.trim(),
         'targetCollection': targetCollection,
         'pollOptions': pollOptions,
@@ -414,7 +429,7 @@ class _AdminNotificationSenderPageState
         'type': _selectedType,
         'targetType': targetType,
         'targetId': _targetIdController.text.trim(),
-        'targetLabel': _targetLabelController.text.trim(),
+        'targetLabel': targetLabel,
         'targetExtraId': _targetExtraIdController.text.trim(),
         'targetCollection': targetCollection,
         'linkUrl': linkUrl,
@@ -761,8 +776,8 @@ class _AdminNotificationSenderPageState
             _buildSectionTitle("UYGULAMA İÇİ YÖNLENDİRME"),
             _buildTargetSelector(),
             if (_needsPicker(_selectedTargetType)) _buildTargetPickButton(),
-            if (_selectedTargetType == 'profile' ||
-                _selectedTargetType == 'notifications')
+            if (_selectedTargetType != 'none' &&
+                !_needsPicker(_selectedTargetType))
               _buildStaticTargetInfo(),
             if (_selectedType == 'Anket') _buildPollOptions(),
             const SizedBox(height: 22),
@@ -985,22 +1000,37 @@ class _AdminNotificationSenderPageState
   }
 
   Widget _buildStaticTargetInfo() {
+    final isUrl = _selectedTargetType == 'url';
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFEBF3FF),
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.black.withOpacity(0.05)),
+        border: Border.all(color: adminColor.withOpacity(0.15)),
       ),
-      child: Text(
-        "Bu hedef için kayıt seçmeye gerek yok.",
-        style: TextStyle(
-          color: adminColor,
-          fontWeight: FontWeight.w800,
-          fontSize: 13,
-        ),
+      child: Row(
+        children: [
+          Icon(
+            isUrl ? CupertinoIcons.link : CupertinoIcons.info_circle_fill,
+            color: adminColor,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              isUrl
+                  ? "Kullanıcılar yukarıdaki 'Dış Bağlantı' alanında belirtilen web veya sosyal medya linkine yönlendirilir."
+                  : "Bu hedef için liste seçimi gerekmez. Bildirime tıklandığında doğrudan ${_targetLabels[_selectedTargetType]} açılır.",
+              style: TextStyle(
+                color: adminColor,
+                fontWeight: FontWeight.w700,
+                fontSize: 12.5,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

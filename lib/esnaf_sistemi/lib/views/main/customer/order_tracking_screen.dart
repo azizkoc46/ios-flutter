@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'widgets/live_courier_map_card.dart';
 
 const Color _orange = Color(0xFFF27A1A);
 const Color _iosBg = Color(0xFFF2F2F7);
@@ -46,7 +47,7 @@ class OrderTrackingScreen extends StatelessWidget {
   int _currentStage(String status) {
     if (status.contains('Onaylandı') && !status.contains('Bekliyor')) return 1;
     if (status.contains('Hazırlanıyor')) return 2;
-    if (status.contains('Yolda')) return 3;
+    if (status.contains('Yolda') || status.contains('Kapıda')) return 3;
     if (status.contains('Teslim')) return 4;
     return 0;
   }
@@ -109,6 +110,7 @@ class OrderTrackingScreen extends StatelessWidget {
                     // ── Büyük durum başlığı
                     _buildHeroStatus(status, stage, isCancelled),
                     _buildEstimatedDeliveryCard(data, status),
+                    _buildLiveCourierTrackingCard(data),
                     _buildCustomerCancelButton(context, orderId, status),
                     const SizedBox(height: 24),
                     // ── Timeline
@@ -570,6 +572,7 @@ class OrderTrackingScreen extends StatelessWidget {
     if (status.contains('Bekliyor')) return CupertinoIcons.clock_fill;
     if (status.contains('Onaylandı')) return CupertinoIcons.checkmark_circle_fill;
     if (status.contains('Hazırlanıyor')) return Icons.restaurant_rounded;
+    if (status.contains('Kapıda')) return CupertinoIcons.bell_fill;
     if (status.contains('Yolda')) return Icons.delivery_dining_rounded;
     if (status.contains('Teslim')) return CupertinoIcons.checkmark_seal_fill;
     if (status.contains('İptal')) return CupertinoIcons.xmark_circle_fill;
@@ -582,6 +585,8 @@ class OrderTrackingScreen extends StatelessWidget {
       return 'Harika! Esnafımız siparişinizi kabul etti.';
     if (status.contains('Hazırlanıyor'))
       return 'Ürünleriniz özenle hazırlanıyor.';
+    if (status.contains('Kapıda'))
+      return '🔔 Kuryeniz kapınızda! Lütfen kapıyı açıp siparişinizi teslim alınız.';
     if (status.contains('Yolda'))
       return 'Kuryemiz siparişinizi kapınıza getiriyor.';
     if (status.contains('Teslim'))
@@ -590,6 +595,9 @@ class OrderTrackingScreen extends StatelessWidget {
       return 'Siparişiniz maalesef iptal edildi.';
     return '';
   }
+
+  Widget _buildLiveCourierTrackingCard(Map<String, dynamic> data) =>
+      LiveCourierMapCard(orderData: data);
 
   // FIX: Tahmini teslimat süresi rozeti (Item 10)
   Widget _buildEstimatedDeliveryCard(Map<String, dynamic> data, String status) {
