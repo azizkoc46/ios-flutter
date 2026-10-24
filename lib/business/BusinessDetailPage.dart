@@ -40,6 +40,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
     super.initState();
     _checkIfSaved();
     _checkExistingClaim();
+    _updateBusinessRating();
     try {
       final name = (widget.doc.data() as Map<String, dynamic>?)?['businessName']
               ?.toString() ??
@@ -166,53 +167,86 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
     if (hideName == null) return;
     final fullName = await CommentIdentity.currentUserFullName();
 
-    await commentRef.add({
-      'comment': _commentController.text.trim(),
-      'rating': _userRating,
-      'userId': _currentUserId,
-      ...CommentIdentity.authorFields(fullName: fullName, hideName: hideName),
-      'parentId': _replyToId,
-      'replyToName': _replyToName,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    try {
+      await commentRef.add({
+        'comment': _commentController.text.trim(),
+        'rating': _userRating,
+        'userId': _currentUserId,
+        ...CommentIdentity.authorFields(fullName: fullName, hideName: hideName),
+        'parentId': _replyToId,
+        'replyToName': _replyToName,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
 
-    final allComments = await commentRef.get();
-    double totalRating = 0;
-    final ratingDocs = allComments.docs.where((doc) {
-      final data = doc.data();
-      return data['parentId'] == null;
-    }).toList();
-    for (var doc in ratingDocs) {
-      totalRating += doc.data()['rating'] ?? 0;
+      await _updateBusinessRating();
+
+      _commentController.clear();
+      setState(() {
+        _replyToId = null;
+        _replyToName = null;
+      });
+      FocusScope.of(context).unfocus();
+      _showToast("Değerlendirmeniz başarıyla yayınlandı!");
+    } catch (e) {
+      debugPrint("Yorum gönderme hatası: $e");
+      _showToast("Yorum gönderilemedi: $e");
     }
-    double newAverage =
-        ratingDocs.isEmpty ? 0 : totalRating / ratingDocs.length;
+  }
 
-    await FirebaseFirestore.instance
-        .collection('businesses')
-        .doc(widget.doc.id)
-        .update({
-      'rating': double.parse(newAverage.toStringAsFixed(1)),
-      'reviewCount': ratingDocs.length,
-    });
+  Future<void> _updateBusinessRating() async {
+    try {
+      final commentRef = FirebaseFirestore.instance
+          .collection('businesses')
+          .doc(widget.doc.id)
+          .collection('comments');
 
-    _commentController.clear();
-    setState(() {
-      _replyToId = null;
-      _replyToName = null;
-    });
-    FocusScope.of(context).unfocus();
-    _showToast("Değerlendirmeniz başarıyla yayınlandı!");
+      final allComments = await commentRef.get();
+      double totalRating = 0.0;
+      int ratingCount = 0;
+
+      final ratingDocs = allComments.docs.where((doc) {
+        final data = doc.data();
+        return data['parentId'] == null;
+      }).toList();
+
+      for (var doc in ratingDocs) {
+        final data = doc.data();
+        final num? r = data['rating'] as num?;
+        if (r != null && r > 0) {
+          totalRating += r.toDouble();
+          ratingCount++;
+        }
+      }
+
+      final double newAverage =
+          ratingCount == 0 ? 0.0 : totalRating / ratingCount;
+      final int totalReviews = ratingDocs.length;
+
+      await FirebaseFirestore.instance
+          .collection('businesses')
+          .doc(widget.doc.id)
+          .update({
+        'rating': double.parse(newAverage.toStringAsFixed(1)),
+        'reviewCount': totalReviews,
+      });
+    } catch (e) {
+      debugPrint("İşletme puanı ve yorum sayısı güncelleme hatası: $e");
+    }
   }
 
   Future<void> _deleteComment(String commentId) async {
-    await FirebaseFirestore.instance
-        .collection('businesses')
-        .doc(widget.doc.id)
-        .collection('comments')
-        .doc(commentId)
-        .delete();
-    _showToast("Yorum silindi.");
+    try {
+      await FirebaseFirestore.instance
+          .collection('businesses')
+          .doc(widget.doc.id)
+          .collection('comments')
+          .doc(commentId)
+          .delete();
+      await _updateBusinessRating();
+      _showToast("Yorum silindi.");
+    } catch (e) {
+      _showToast("Yorum silinemedi: $e");
+    }
   }
 
   Future<void> _editComment(String commentId, String currentComment) async {
@@ -514,18 +548,25 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
     final bgColor = isDark ? const Color(0xFF0B0F19) : const Color(0xFFF8FAFC);
     final surfaceColor = isDark ? const Color(0xFF131B2E) : Colors.white;
 
-    var data = widget.doc.data() as Map<String, dynamic>;
-    String? ownerId = data['ownerId'];
-    bool isOwner = _currentUserId != null && ownerId == _currentUserId;
-    bool hasOwner = ownerId != null && ownerId.isNotEmpty;
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('businesses')
+          .doc(widget.doc.id)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final data = (snapshot.data?.data() as Map<String, dynamic>?) ??
+            (widget.doc.data() as Map<String, dynamic>);
+        final String? ownerId = data['ownerId'];
+        final bool isOwner = _currentUserId != null && ownerId == _currentUserId;
+        final bool hasOwner = ownerId != null && ownerId.isNotEmpty;
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          // 1. MODERN FOTOĞRAF VE BAŞLIK APPBULL
-          _buildSliverAppBar(data),
+        return Scaffold(
+          backgroundColor: bgColor,
+          body: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // 1. MODERN FOTOĞRAF VE BAŞLIK APPBULL
+              _buildSliverAppBar(data),
 
           // 2. ANA İÇERİK
           SliverToBoxAdapter(
@@ -725,7 +766,9 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
       ),
       bottomSheet: _buildModernCommentBar(surfaceColor, isDark),
     );
-  }
+  },
+);
+}
 
   // --- MODERN SLIVER APP BAR ---
   Widget _buildSliverAppBar(Map<String, dynamic> data) {
