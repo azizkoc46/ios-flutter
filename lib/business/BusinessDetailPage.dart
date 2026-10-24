@@ -170,7 +170,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
     try {
       await commentRef.add({
         'comment': _commentController.text.trim(),
-        'rating': _userRating,
+        'rating': _replyToId != null ? 0 : _userRating,
         'userId': _currentUserId,
         ...CommentIdentity.authorFields(fullName: fullName, hideName: hideName),
         'parentId': _replyToId,
@@ -184,6 +184,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
       setState(() {
         _replyToId = null;
         _replyToName = null;
+        _userRating = 5.0;
       });
       FocusScope.of(context).unfocus();
       _showToast("Değerlendirmeniz başarıyla yayınlandı!");
