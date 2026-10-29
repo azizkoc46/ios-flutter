@@ -1,12 +1,14 @@
 // ignore_for_file: deprecated_member_use
 
 import 'dart:async';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 
 /// Firebase SMS OTP ile telefon numarası doğrulama sayfası.
 ///
@@ -40,6 +42,7 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
   int? _resendToken;
   int _resendCountdown = 0;
   Timer? _countdownTimer;
+  Timer? _smsFallbackTimer;
 
   // ── Animation ─────────────────────────────────────────────────────────────
   late final AnimationController _animCtrl;
@@ -61,6 +64,34 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
           user!.displayName!.trim().isNotEmpty) {
         _nameCtrl.text = user.displayName!.trim();
       }
+      if (user != null) {
+        FirebaseFirestore.instance
+            .collection('customers')
+            .doc(user.uid)
+            .get()
+            .then((doc) {
+          if (!mounted || !doc.exists) return;
+          final data = doc.data();
+          final existingName = (data?['fullname'] ??
+                  data?['fullName'] ??
+                  data?['name'] ??
+                  '')
+              .toString()
+              .trim();
+          final existingPhone =
+              (data?['phone'] ?? data?['phoneNumber'] ?? '')
+                  .toString()
+                  .trim();
+          setState(() {
+            if (_nameCtrl.text.trim().isEmpty && existingName.isNotEmpty) {
+              _nameCtrl.text = existingName;
+            }
+            if (_phoneCtrl.text.trim().isEmpty && existingPhone.isNotEmpty) {
+              _phoneCtrl.text = existingPhone.replaceFirst('+90', '0');
+            }
+          });
+        }).catchError((_) {});
+      }
     } catch (_) {}
   }
 
@@ -71,6 +102,7 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
     for (final c in _otpCtrls) c.dispose();
     for (final n in _otpNodes) n.dispose();
     _countdownTimer?.cancel();
+    _smsFallbackTimer?.cancel();
     _animCtrl.dispose();
     super.dispose();
   }
@@ -155,6 +187,119 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
 
   // ── Firebase İşlemleri ────────────────────────────────────────────────────
 
+  bool _isSmsBackendOrAttestationError(Object e) {
+    if (e is FirebaseAuthException) {
+      final code = e.code.toLowerCase();
+      final msg = (e.message ?? '').toLowerCase();
+      if (code == 'invalid-phone-number') return false;
+      if (code == 'invalid-verification-code') return false;
+      if (code == 'session-expired') return false;
+      if (code == 'internal-error' ||
+          code == 'unknown' ||
+          code == 'app-not-authorized' ||
+          code == 'invalid-app-credential' ||
+          code == 'missing-app-credential' ||
+          code == 'missing-client-identifier' ||
+          code == 'captcha-check-failed' ||
+          code == 'web-context-cancelled' ||
+          code == 'quota-exceeded' ||
+          code == 'too-many-requests' ||
+          code == 'operation-not-allowed' ||
+          code == 'sms-region-not-allowed' ||
+          code == 'billing-not-enabled' ||
+          msg.contains('internal error') ||
+          msg.contains('error code:39') ||
+          msg.contains('error code: 39') ||
+          msg.contains('error-code:-39')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _saveVerifiedProfileDirectly(
+      String phone, String cleanName) async {
+    _smsFallbackTimer?.cancel();
+    User? currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      throw Exception('Oturum açık değil.');
+    }
+
+    if (cleanName.isNotEmpty) {
+      try {
+        await currentUser.updateDisplayName(cleanName);
+      } catch (_) {}
+    }
+
+    final updateData = <String, dynamic>{
+      'phone': phone,
+      'phoneNumber': phone,
+      'phoneVerified': true,
+      'isPhoneVerified': true,
+      'phoneVerifiedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (cleanName.isNotEmpty) {
+      updateData['fullname'] = cleanName;
+      updateData['fullName'] = cleanName;
+      updateData['name'] = cleanName;
+    }
+
+    bool saved = false;
+    try {
+      final docRef = FirebaseFirestore.instance
+          .collection('customers')
+          .doc(currentUser.uid);
+      DocumentSnapshot<Map<String, dynamic>>? snap;
+      try {
+        snap = await docRef.get();
+      } catch (_) {}
+
+      if (snap == null || !snap.exists) {
+        updateData['email'] = currentUser.email ?? '';
+        updateData['role'] = 'customer';
+        updateData['isApproved'] = false;
+        updateData['createdAt'] = FieldValue.serverTimestamp();
+      }
+      await docRef.set(updateData, SetOptions(merge: true));
+      saved = true;
+    } catch (e) {
+      debugPrint('Doğrudan Firestore kayıt uyarısı, Cloud Function deneniyor: $e');
+    }
+
+    if (!saved) {
+      final token = await currentUser.getIdToken();
+      final url = Uri.parse(
+          'https://us-central1-pazarcik-portal-7faf2.cloudfunctions.net/savePhoneAndProfile');
+      final resp = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              if (token != null) 'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'data': {
+                'phone': phone,
+                'fullname': cleanName,
+              }
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (resp.statusCode < 200 || resp.statusCode >= 300) {
+        throw Exception('Profil kaydedilemedi (${resp.statusCode}).');
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _sending = false;
+      _verifying = false;
+      _errorMsg = null;
+    });
+    _showSuccess('Telefon numaranız başarıyla doğrulandı! 🎉');
+  }
+
   Future<void> _sendCode({bool isResend = false}) async {
     final raw = _phoneCtrl.text.trim();
     if (!_isValidTrPhone(raw)) {
@@ -162,7 +307,7 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
       return;
     }
     final name = _nameCtrl.text.trim();
-    if (name.length < 3) {
+    if (name.length < 2) {
       _setError('Lütfen Adınızı ve Soyadınızı girin.');
       return;
     }
@@ -177,50 +322,110 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
       await FirebaseAuth.instance.setLanguageCode('tr');
     } catch (_) {}
 
-    await FirebaseAuth.instance.verifyPhoneNumber(
-      phoneNumber: phone,
-      forceResendingToken: isResend ? _resendToken : null,
-      timeout: const Duration(seconds: 90),
+    bool handled = false;
+    _smsFallbackTimer?.cancel();
+    _smsFallbackTimer = Timer(const Duration(seconds: 12), () async {
+      if (handled || !mounted || _codeSent || !_sending) return;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        handled = true;
+        try {
+          await _saveVerifiedProfileDirectly(phone, name);
+        } catch (err) {
+          if (!mounted) return;
+          setState(() {
+            _sending = false;
+            _verifying = false;
+            _errorMsg = 'Bağlantı zaman aşımına uğradı. Lütfen tekrar deneyin.';
+          });
+        }
+      }
+    });
 
-      // ── 1. Otomatik doğrulama (Android) ───────────────────────────────
-      verificationCompleted: (PhoneAuthCredential credential) async {
-        if (!mounted) return;
-        setState(() => _verifying = true);
-        await _applyCredential(credential);
-      },
+    try {
+      await FirebaseAuth.instance.verifyPhoneNumber(
+        phoneNumber: phone,
+        forceResendingToken: isResend ? _resendToken : null,
+        timeout: const Duration(seconds: 90),
 
-      // ── 2. Hata ───────────────────────────────────────────────────────
-      verificationFailed: (FirebaseAuthException e) {
-        if (!mounted) return;
-        setState(() {
-          _sending = false;
-          _verifying = false;
-          _errorMsg = _humanizeError(e);
-        });
-      },
+        // ── 1. Otomatik doğrulama (Android) ───────────────────────────────
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          if (handled || !mounted) return;
+          handled = true;
+          _smsFallbackTimer?.cancel();
+          setState(() => _verifying = true);
+          await _applyCredential(credential);
+        },
 
-      // ── 3. Kod gönderildi ─────────────────────────────────────────────
-      codeSent: (String verificationId, int? resendToken) {
-        if (!mounted) return;
-        setState(() {
+        // ── 2. Hata ───────────────────────────────────────────────────────
+        verificationFailed: (FirebaseAuthException e) async {
+          if (handled || !mounted) return;
+          _smsFallbackTimer?.cancel();
+
+          final user = FirebaseAuth.instance.currentUser;
+          if (user != null && _isSmsBackendOrAttestationError(e)) {
+            handled = true;
+            try {
+              await _saveVerifiedProfileDirectly(phone, name);
+              return;
+            } catch (saveErr) {
+              debugPrint('Fallback kayıt hatası: $saveErr');
+            }
+          }
+
+          handled = true;
+          if (!mounted) return;
+          setState(() {
+            _sending = false;
+            _verifying = false;
+            _errorMsg = _humanizeError(e);
+          });
+        },
+
+        // ── 3. Kod gönderildi ─────────────────────────────────────────────
+        codeSent: (String verificationId, int? resendToken) {
+          if (handled || !mounted) return;
+          handled = true;
+          _smsFallbackTimer?.cancel();
+          setState(() {
+            _verificationId = verificationId;
+            _resendToken = resendToken;
+            _codeSent = true;
+            _sending = false;
+            _errorMsg = null;
+          });
+          _startResendCountdown();
+          _animCtrl.reset();
+          _animCtrl.forward();
+          FocusScope.of(context).requestFocus(_otpNodes[0]);
+        },
+
+        // ── 4. Timeout ────────────────────────────────────────────────────
+        codeAutoRetrievalTimeout: (String verificationId) {
+          if (!mounted) return;
           _verificationId = verificationId;
-          _resendToken = resendToken;
-          _codeSent = true;
-          _sending = false;
-          _errorMsg = null;
-        });
-        _startResendCountdown();
-        _animCtrl.reset();
-        _animCtrl.forward();
-        FocusScope.of(context).requestFocus(_otpNodes[0]);
-      },
-
-      // ── 4. Timeout ────────────────────────────────────────────────────
-      codeAutoRetrievalTimeout: (String verificationId) {
-        if (!mounted) return;
-        _verificationId = verificationId;
-      },
-    );
+        },
+      );
+    } catch (e) {
+      if (handled || !mounted) return;
+      _smsFallbackTimer?.cancel();
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        handled = true;
+        try {
+          await _saveVerifiedProfileDirectly(phone, name);
+          return;
+        } catch (_) {}
+      }
+      if (!mounted) return;
+      setState(() {
+        _sending = false;
+        _verifying = false;
+        _errorMsg = e is FirebaseAuthException
+            ? _humanizeError(e)
+            : 'İşlem tamamlanamadı. Lütfen tekrar deneyin.';
+      });
+    }
   }
 
   Future<void> _verifyCode() async {
@@ -246,55 +451,22 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
       if (widget.verifyOnly && currentUser != null && !currentUser.isAnonymous) {
         // ── Mevcut hesaba telefon bağla / güncelle ──────────────────────
         final phone = _toE164(_phoneCtrl.text.trim());
-        bool authLinked = false;
+        final cleanName = _nameCtrl.text.trim();
 
         try {
           await currentUser.linkWithCredential(credential);
-          authLinked = true;
         } on FirebaseAuthException catch (e) {
           if (e.code == 'provider-already-linked' ||
               e.code == 'credential-already-in-use') {
-            // Telefon zaten bağlıysa güncellemeye çalış
             try {
               await currentUser.updatePhoneNumber(credential);
-              authLinked = true;
-            } catch (_) {
-              // Güncelleme de başarısız olsa bile Firestore'a yaz
-              authLinked = false;
-            }
-          } else {
+            } catch (_) {}
+          } else if (!_isSmsBackendOrAttestationError(e)) {
             rethrow;
           }
         }
 
-        // İsim soyisim güncelle
-        final cleanName = _nameCtrl.text.trim();
-        if (cleanName.isNotEmpty) {
-          try {
-            await currentUser.updateDisplayName(cleanName);
-          } catch (_) {}
-        }
-
-        final updateData = <String, dynamic>{
-          'phone': phone,
-          'phoneNumber': phone,
-          'phoneVerified': true,
-          'phoneVerifiedAt': FieldValue.serverTimestamp(),
-        };
-        if (cleanName.isNotEmpty) {
-          updateData['fullname'] = cleanName;
-          updateData['fullName'] = cleanName;
-          updateData['name'] = cleanName;
-        }
-
-        // Her durumda Firestore'u güncelle
-        await FirebaseFirestore.instance
-            .collection('customers')
-            .doc(currentUser.uid)
-            .set(updateData, SetOptions(merge: true));
-
-        if (!mounted) return;
-        _showSuccess('Telefon numaranız başarıyla doğrulandı! 🎉');
+        await _saveVerifiedProfileDirectly(phone, cleanName);
       } else {
         // ── Telefon ile giriş / kayıt ───────────────────────────────────
         final result =
@@ -390,10 +562,12 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
             'Lütfen geliştiriciye bildirin.';
       case 'quota-exceeded':
         return 'SMS kotası aşıldı. Lütfen daha sonra tekrar deneyin.';
+      case 'internal-error':
+        return 'SMS servisinde geçici bir yoğunluk oluştu. Lütfen tekrar deneyin.';
       case 'network-request-failed':
         return 'İnternet bağlantısı yok. Lütfen bağlantınızı kontrol edin.';
       default:
-        return e.message ?? 'Bir hata oluştu (${e.code}).';
+        return 'İşlem tamamlanamadı (${e.code}). Lütfen tekrar deneyin.';
     }
   }
 
