@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const portalWelcomeSeenKey = 'portal_welcome_completed_v1';
@@ -16,8 +15,6 @@ class _PortalColors {
   static const accentGreen = Color(0xFF18806E);
   static const darkBackground = Color(0xFF111214);
   static const lightBackground = Color(0xFFF5F6FA);
-  static const launchBgCenter = Color(0xFF162032);
-  static const launchBgOuter = Color(0xFF080A0C);
 }
 
 /// Stores onboarding on this installation/browser, independent of sign-in.
@@ -150,7 +147,7 @@ class PortalLaunchScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(28),
                       boxShadow: [
                         BoxShadow(
-                          color: _PortalColors.primaryBlue.withOpacity(0.25),
+                          color: _PortalColors.primaryBlue.withValues(alpha: 0.25),
                           blurRadius: 40,
                           spreadRadius: 2,
                         ),
@@ -398,7 +395,7 @@ class _PortalWelcomePagesState extends State<PortalWelcomePages> {
               decoration: BoxDecoration(
                 color: _index == index
                     ? _PortalColors.primaryBlue
-                    : muted.withOpacity(0.18),
+                    : muted.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),

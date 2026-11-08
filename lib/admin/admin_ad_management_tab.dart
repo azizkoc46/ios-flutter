@@ -1,3 +1,4 @@
+import '../widgets/modern_app_splash_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -15,7 +16,23 @@ class AdminAdManagementTab extends StatefulWidget {
 }
 
 class _AdminAdManagementTabState extends State<AdminAdManagementTab> {
-  int _currentSubTab = 0; // 0: Paketler, 1: Restoran Paketi, 2: Tekil Hizmetler, 3: Ayarlar, 4: Başvurular
+  int _currentSubTab = 0; // 0: Paketler, 1: Restoran Paketi, 2: Tekil Hizmetler, 3: 4K Açılış Ekranı, 4: Ayarlar, 5: Başvurular
+
+  // Açılış / Karşılama Ekranı (4K Video & Görsel) Kontrolcüleri
+  bool _splashActive = true;
+  String _splashMediaType = 'video';
+  final _splashMediaUrlCtrl = TextEditingController(text: 'https://assets.mixkit.co/videos/preview/mixkit-serving-dinner-to-a-table-in-a-restaurant-41484-large.mp4');
+  final _splashBadgeCtrl = TextEditingController(text: 'GÜNÜN SPONSORU 💎');
+  final _splashTitleCtrl = TextEditingController(text: "Saray Sofrası'nda %20 Açılış İndirimi Başladı!");
+  final _splashBodyCtrl = TextEditingController(text: "Pazarcık'ın en sevilen lezzetleri ve fırın yemekleri portal üzerinden anında kapınızda. Hemen menüyü inceleyin!");
+  final _splashButtonTextCtrl = TextEditingController(text: 'Menüyü İncele & Sipariş Ver ➔');
+  final _splashLinkUrlCtrl = TextEditingController(text: '/reklam-paketleri');
+  int _splashAutoCloseSeconds = 6;
+  String _splashFrequency = 'always';
+  bool _splashAllowSkip = true;
+  bool _isSavingSplash = false;
+  bool _splashDataLoaded = false;
+
 
   // Genel ayar kontrolcüleri
   final _whatsappCtrl = TextEditingController();
@@ -32,6 +49,12 @@ class _AdminAdManagementTabState extends State<AdminAdManagementTab> {
 
   @override
   void dispose() {
+    _splashMediaUrlCtrl.dispose();
+    _splashBadgeCtrl.dispose();
+    _splashTitleCtrl.dispose();
+    _splashBodyCtrl.dispose();
+    _splashButtonTextCtrl.dispose();
+    _splashLinkUrlCtrl.dispose();
     _whatsappCtrl.dispose();
     _supportCtrl.dispose();
     _instagramCtrl.dispose();
@@ -40,6 +63,92 @@ class _AdminAdManagementTabState extends State<AdminAdManagementTab> {
     _discount6Ctrl.dispose();
     _discount12Ctrl.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSplashData();
+  }
+
+  Future<void> _loadSplashData() async {
+    if (_splashDataLoaded) return;
+    try {
+      final doc = await FirebaseFirestore.instance.collection('app_settings').doc('startup_announcement').get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        setState(() {
+          _splashActive = data['isActive'] == true;
+          _splashMediaType = (data['mediaType'] ?? 'video').toString();
+          _splashMediaUrlCtrl.text = (data['mediaUrl'] ?? '').toString();
+          _splashBadgeCtrl.text = (data['badgeText'] ?? 'GÜNÜN SPONSORU 💎').toString();
+          _splashTitleCtrl.text = (data['title'] ?? '').toString();
+          _splashBodyCtrl.text = (data['body'] ?? '').toString();
+          _splashButtonTextCtrl.text = (data['buttonText'] ?? 'Fırsatı İncele ➔').toString();
+          _splashLinkUrlCtrl.text = (data['linkUrl'] ?? '').toString();
+          _splashAutoCloseSeconds = (data['autoCloseSeconds'] as num?)?.toInt() ?? 6;
+          _splashFrequency = (data['showFrequency'] ?? 'always').toString();
+          _splashAllowSkip = data['allowSkip'] != false;
+          _splashDataLoaded = true;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveSplashData() async {
+    setState(() => _isSavingSplash = true);
+    try {
+      await FirebaseFirestore.instance.collection('app_settings').doc('startup_announcement').set({
+        'isActive': _splashActive,
+        'mediaType': _splashMediaType,
+        'mediaUrl': _splashMediaUrlCtrl.text.trim(),
+        'badgeText': _splashBadgeCtrl.text.trim(),
+        'title': _splashTitleCtrl.text.trim(),
+        'body': _splashBodyCtrl.text.trim(),
+        'buttonText': _splashButtonTextCtrl.text.trim(),
+        'linkUrl': _splashLinkUrlCtrl.text.trim(),
+        'autoCloseSeconds': _splashAutoCloseSeconds,
+        'showFrequency': _splashFrequency,
+        'allowSkip': _splashAllowSkip,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ 4K Açılış Ekranı & Sponsorluk ayarları canlıya alındı!'),
+            backgroundColor: Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hata: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSavingSplash = false);
+    }
+  }
+
+  void _previewSplash() {
+    final previewModel = StartupAnnouncementModel(
+      isActive: true,
+      mediaType: _splashMediaType,
+      mediaUrl: _splashMediaUrlCtrl.text.trim(),
+      badgeText: _splashBadgeCtrl.text.trim(),
+      title: _splashTitleCtrl.text.trim().isNotEmpty ? _splashTitleCtrl.text.trim() : 'Örnek Başlık',
+      body: _splashBodyCtrl.text.trim().isNotEmpty ? _splashBodyCtrl.text.trim() : 'Örnek açıklama metni...',
+      buttonText: _splashButtonTextCtrl.text.trim().isNotEmpty ? _splashButtonTextCtrl.text.trim() : 'Fırsatı İncele ➔',
+      linkUrl: _splashLinkUrlCtrl.text.trim(),
+      autoCloseSeconds: _splashAutoCloseSeconds,
+      showFrequency: _splashFrequency,
+      allowSkip: true,
+    );
+
+    ModernAppSplashScreen.show(context, previewModel);
   }
 
   void _populateSettingsFromConfig(AdConfigModel config) {
@@ -139,6 +248,7 @@ class _AdminAdManagementTabState extends State<AdminAdManagementTab> {
       {'icon': Icons.inventory_2_rounded, 'title': 'Esnaf Paketleri'},
       {'icon': Icons.restaurant_menu_rounded, 'title': 'Restoran & Kafe'},
       {'icon': Icons.widgets_rounded, 'title': 'Tekil Hizmetler'},
+      {'icon': Icons.smart_display_rounded, 'title': '🎬 4K Açılış Ekranı'},
       {'icon': Icons.settings_phone_rounded, 'title': 'İletişim & İndirim'},
       {'icon': Icons.notifications_active_rounded, 'title': 'Gelen Başvurular'},
     ];
@@ -208,8 +318,10 @@ class _AdminAdManagementTabState extends State<AdminAdManagementTab> {
       case 2:
         return _buildSingleServicesTab(config);
       case 3:
-        return _buildGeneralSettingsTab(config);
+        return _buildSplashScreenManagerTab();
       case 4:
+        return _buildGeneralSettingsTab(config);
+      case 5:
       default:
         return _buildApplicationsTab();
     }
@@ -1952,4 +2064,449 @@ class _AdminAdManagementTabState extends State<AdminAdManagementTab> {
       await FirebaseFirestore.instance.collection('ad_package_requests').doc(docId).delete();
     }
   }
+
+  Widget _buildRouteChip(String route, String label) {
+    return InkWell(
+      onTap: () => setState(() => _splashLinkUrlCtrl.text = route),
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFFCBD5E1)),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFF334155)),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // SEKME: 4K VİDEO & GÖRSEL AÇILIŞ / KARŞILAMA EKRANI YÖNETİMİ
+  // ─────────────────────────────────────────────────────────
+  Widget _buildSplashScreenManagerTab() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      padding: const EdgeInsets.all(22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6366F1), Color(0xFFEC4899)],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.smart_display_rounded, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '4K Video & Görsel Açılış Ekranı (Sponsorluk) 🎬',
+                      style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w900, color: const Color(0xFF0F172A)),
+                    ),
+                    Text(
+                      'Kullanıcılar uygulamayı veya webi açtığında çıkan 4K video / afiş, butonlar ve yönlendirme bağlantıları.',
+                      style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: _previewSplash,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.play_circle_fill_rounded, color: Color(0xFF38BDF8), size: 18),
+                label: Text('Canlı Önizle', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+          const Divider(height: 28),
+
+          // Aktif / Pasif Durum Anahtarı
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: _splashActive ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _splashActive ? const Color(0xFF86EFAC) : const Color(0xFFFECACA),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      _splashActive ? Icons.check_circle_rounded : Icons.pause_circle_filled_rounded,
+                      color: _splashActive ? const Color(0xFF16A34A) : Colors.red,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _splashActive ? 'Açılış Ekranı ŞU AN YAYINDA (Aktif)' : 'Açılış Ekranı KAPALI (Pasif)',
+                          style: GoogleFonts.inter(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: _splashActive ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+                          ),
+                        ),
+                        Text(
+                          _splashActive
+                              ? 'Kullanıcılar uygulamayı açtığında karşılama ekranını görecekler.'
+                              : 'Kullanıcılar doğrudan ana sayfaya yönlendirilir, açılış ekranı gösterilmez.',
+                          style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                CupertinoSwitch(
+                  value: _splashActive,
+                  activeTrackColor: const Color(0xFF16A34A),
+                  onChanged: (val) => setState(() => _splashActive = val),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Medya Türü Seçimi
+          Text(
+            'Medya Formatı Seçimi (4K Destekli):',
+            style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w800, color: const Color(0xFF1E293B)),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () => setState(() => _splashMediaType = 'video'),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: _splashMediaType == 'video' ? const Color(0xFFEEF2FF) : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _splashMediaType == 'video' ? const Color(0xFF6366F1) : const Color(0xFFE2E8F0),
+                        width: _splashMediaType == 'video' ? 1.8 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.videocam_rounded, color: _splashMediaType == 'video' ? const Color(0xFF6366F1) : Colors.grey, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          '📹 4K Video Oynatıcı',
+                          style: GoogleFonts.inter(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: _splashMediaType == 'video' ? const Color(0xFF4338CA) : const Color(0xFF475569),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: InkWell(
+                  onTap: () => setState(() => _splashMediaType = 'image'),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: _splashMediaType == 'image' ? const Color(0xFFEEF2FF) : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _splashMediaType == 'image' ? const Color(0xFF6366F1) : const Color(0xFFE2E8F0),
+                        width: _splashMediaType == 'image' ? 1.8 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.image_rounded, color: _splashMediaType == 'image' ? const Color(0xFF6366F1) : Colors.grey, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          '🖼️ 4K Ultra Net Görsel / Afiş',
+                          style: GoogleFonts.inter(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: _splashMediaType == 'image' ? const Color(0xFF4338CA) : const Color(0xFF475569),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Medya URL Girişi
+          _buildInput(
+            controller: _splashMediaUrlCtrl,
+            label: _splashMediaType == 'video' ? '4K Video Doğrudan Bağlantısı (URL) *' : '4K Görsel / Afiş Bağlantısı (URL) *',
+            hint: _splashMediaType == 'video' ? 'https://.../video.mp4' : 'https://.../banner.jpg',
+            icon: _splashMediaType == 'video' ? Icons.link_rounded : Icons.add_photo_alternate_rounded,
+          ),
+          const SizedBox(height: 6),
+          // Hızlı Demo Doldurma Butonları
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              Text('Hızlı Şablonlar:', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFF64748B))),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _splashMediaType = 'video';
+                    _splashMediaUrlCtrl.text = 'https://assets.mixkit.co/videos/preview/mixkit-serving-dinner-to-a-table-in-a-restaurant-41484-large.mp4';
+                    _splashTitleCtrl.text = "Saray Sofrası'nda %20 Açılış İndirimi!";
+                    _splashBodyCtrl.text = "Pazarcık'ın en sevilen lezzetleri ve fırın yemekleri portal üzerinden anında kapınızda.";
+                    _splashBadgeCtrl.text = "💎 GÜNÜN SPONSORU";
+                    _splashButtonTextCtrl.text = "Menüyü İncele & Sipariş Ver ➔";
+                    _splashLinkUrlCtrl.text = "/reklam-paketleri";
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: const Color(0xFFEEF2FF), borderRadius: BorderRadius.circular(6)),
+                  child: Text('Örnek 4K Restoran Videosu', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF4F46E5), fontWeight: FontWeight.w700)),
+                ),
+              ),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _splashMediaType = 'image';
+                    _splashMediaUrlCtrl.text = 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=1600&auto=format&fit=crop';
+                    _splashTitleCtrl.text = "Pazarcık Esnafına Özel Reklam Paketleri";
+                    _splashBodyCtrl.text = "İşletmenizi binlerce hemşehrimize tanıtın, satışlarınızı hızla katlayın.";
+                    _splashBadgeCtrl.text = "🔥 ÖZEL ESNAF FIRSATI";
+                    _splashButtonTextCtrl.text = "Paketleri İncele ➔";
+                    _splashLinkUrlCtrl.text = "/esnaf-paketleri";
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: const Color(0xFFF0FDF4), borderRadius: BorderRadius.circular(6)),
+                  child: Text('Örnek 4K Afiş', style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF16A34A), fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 28),
+
+          // Başlık, Rozet ve Açıklama
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: _buildInput(
+                  controller: _splashTitleCtrl,
+                  label: 'Ana Başlık *',
+                  hint: "Örn: Saray Sofrası'nda %20 Açılış İndirimi",
+                  icon: Icons.title_rounded,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildInput(
+                  controller: _splashBadgeCtrl,
+                  label: 'Üst Rozet Metni',
+                  hint: '💎 GÜNÜN SPONSORU',
+                  icon: Icons.verified_rounded,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildInput(
+            controller: _splashBodyCtrl,
+            label: 'Açıklama / Tanıtım Metni',
+            hint: 'İşletme veya duyuru hakkında kısa, etkileyici bir metin yazın...',
+            icon: Icons.description_rounded,
+          ),
+          const Divider(height: 28),
+
+          // Buton ve Yönlendirme Ayarları
+          Text(
+            'İnsan Eli Tasarımı Eylem Butonu (CTA) ve Yönlendirme:',
+            style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w800, color: const Color(0xFF1E293B)),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _buildInput(
+                  controller: _splashButtonTextCtrl,
+                  label: 'Buton Üzerindeki Metin *',
+                  hint: 'Fırsatı İncele ➔',
+                  icon: Icons.smart_button_rounded,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: _buildInput(
+                  controller: _splashLinkUrlCtrl,
+                  label: 'Tıklanınca Açılacak Rota veya Dış Bağlantı *',
+                  hint: 'Örn: /esnaf-paketleri veya https://instagram.com/pazarcikportal',
+                  icon: Icons.navigation_rounded,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Hızlı Rota Seçici Butonları
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              Text('Hızlı İç Rotalar:', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFF64748B))),
+              _buildRouteChip('/esnaf-paketleri', 'Esnaf Paketleri'),
+              _buildRouteChip('/reklam-paketleri', 'Reklam & Sponsorluk'),
+              _buildRouteChip('/firsatlar', 'Fırsatlar'),
+              _buildRouteChip('/nobetci-eczane', 'Nöbetçi Eczaneler'),
+              _buildRouteChip('/ilanlar', 'İlanlar'),
+            ],
+          ),
+          const Divider(height: 28),
+
+          // Geri Sayım, Sayaç ve Gösterim Sıklığı
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Otomatik Kapanma Sayacı (Saniye):', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF334155))),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<int>(
+                      initialValue: _splashAutoCloseSeconds,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: const Color(0xFFF1F5F9),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 5, child: Text('5 Saniye (Hızlı)')),
+                        DropdownMenuItem(value: 6, child: Text('6 Saniye (İdeal)')),
+                        DropdownMenuItem(value: 8, child: Text('8 Saniye (Detaylı)')),
+                        DropdownMenuItem(value: 10, child: Text('10 Saniye')),
+                        DropdownMenuItem(value: 0, child: Text('0 - Otomatik Kapanmasın (Manuel Atla)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setState(() => _splashAutoCloseSeconds = val);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Gösterim Sıklığı Politikası:', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF334155))),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      initialValue: _splashFrequency,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: const Color(0xFFF1F5F9),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'always', child: Text('Her Açılışta Göster (Sponsorluk Modu)')),
+                        DropdownMenuItem(value: 'once_daily', child: Text('Günde 1 Kez Göster (Dengeli)')),
+                        DropdownMenuItem(value: 'once_per_update', child: Text('Sadece Yeni Güncellemelerde Göster')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setState(() => _splashFrequency = val);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildSwitchItem('Kullanıcı Dilediğinde Atlayabilsin ("Atla / Kapat" Butonu Aktif)', _splashAllowSkip, (val) => setState(() => _splashAllowSkip = val)),
+          const Divider(height: 32),
+
+          // Aksiyon Butonları (Önizle & Kaydet)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _previewSplash,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF4F46E5),
+                  side: const BorderSide(color: Color(0xFF818CF8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.remove_red_eye_rounded, size: 18),
+                label: Text('Canlıda Nasıl Görünüyor? (Önizle)', style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13)),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed: _isSavingSplash ? null : _saveSplashData,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6366F1),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
+                ),
+                icon: _isSavingSplash
+                    ? const CupertinoActivityIndicator(color: Colors.white)
+                    : const Icon(CupertinoIcons.checkmark_alt, size: 18),
+                label: Text(
+                  _isSavingSplash ? 'Kaydediliyor...' : 'Açılış Ekranını Canlıya Al',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 13.5),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
 }

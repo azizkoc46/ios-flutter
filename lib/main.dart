@@ -31,6 +31,7 @@ import 'onboarding/portal_welcome.dart';
 import 'package:pazarcik_portal/services/notification_service.dart';
 import 'package:pazarcik_portal/services/prayer_time_service.dart';
 import 'package:pazarcik_portal/services/weather_service.dart';
+import 'package:pazarcik_portal/widgets/modern_app_splash_screen.dart';
 import 'package:pazarcik_portal/core/home_buttons.dart';
 import 'package:pazarcik_portal/esnaf_sistemi/lib/providers/cart.dart';
 import 'package:pazarcik_portal/esnaf_sistemi/lib/providers/order.dart';
@@ -3765,100 +3766,32 @@ class _StartupAnnouncementWrapperState
       if (prefs.getString('dismissed_startup_announcement') == marker) return;
 
       if (!mounted) return;
-      await showCupertinoDialog<void>(
-        context: context,
-        builder: (context) => _StartupAnnouncementDialog(
-          title: (data['title'] ?? 'Duyuru').toString(),
-          body: (data['body'] ?? '').toString(),
-          mediaUrl: (data['mediaUrl'] ?? '').toString(),
-          linkUrl: (data['linkUrl'] ?? '').toString(),
-        ),
-      );
+      final announcement = StartupAnnouncementModel.fromMap(data);
+      if (!announcement.isActive) return;
 
-      await prefs.setString('dismissed_startup_announcement', marker);
+      final freq = announcement.showFrequency;
+      if (freq == 'once_per_update') {
+        if (prefs.getString('dismissed_startup_announcement') == marker) return;
+      } else if (freq == 'once_daily') {
+        final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+        if (prefs.getString('last_splash_shown_date') == todayStr) return;
+      }
+
+      await ModernAppSplashScreen.show(context, announcement);
+
+      if (freq == 'once_per_update') {
+        await prefs.setString('dismissed_startup_announcement', marker);
+      } else if (freq == 'once_daily') {
+        final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+        await prefs.setString('last_splash_shown_date', todayStr);
+      }
     } catch (e) {
-      debugPrint('Acilis duyurusu hatasi: $e');
+      debugPrint('Acilis duyurusu / sponsor ekrani hatasi: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) => widget.child;
-}
-
-class _StartupAnnouncementDialog extends StatelessWidget {
-  final String title;
-  final String body;
-  final String mediaUrl;
-  final String linkUrl;
-
-  const _StartupAnnouncementDialog({
-    required this.title,
-    required this.body,
-    required this.mediaUrl,
-    required this.linkUrl,
-  });
-
-  bool get _looksLikeImage {
-    final lower = mediaUrl.toLowerCase();
-    return lower.endsWith('.jpg') ||
-        lower.endsWith('.jpeg') ||
-        lower.endsWith('.png') ||
-        lower.endsWith('.webp') ||
-        lower.contains('firebasestorage.googleapis.com');
-  }
-
-  Future<void> _openUrl(String url) async {
-    if (url.isEmpty) return;
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return CupertinoAlertDialog(
-      title: Text(title.isEmpty ? 'Duyuru' : title),
-      content: Column(
-        children: [
-          if (mediaUrl.isNotEmpty && _looksLikeImage) ...[
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                mediaUrl,
-                height: 160,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-              ),
-            ),
-          ],
-          if (body.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(body),
-          ],
-        ],
-      ),
-      actions: [
-        if (mediaUrl.isNotEmpty && !_looksLikeImage)
-          CupertinoDialogAction(
-            child: const Text('Videoyu Aç'),
-            onPressed: () => _openUrl(mediaUrl),
-          ),
-        if (linkUrl.isNotEmpty)
-          CupertinoDialogAction(
-            child: const Text('Bağlantıyı Aç'),
-            onPressed: () => _openUrl(linkUrl),
-          ),
-        CupertinoDialogAction(
-          isDefaultAction: true,
-          child: const Text('Kapat'),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ],
-    );
-  }
 }
 
 class VersionCheckWrapper extends StatefulWidget {
