@@ -71,6 +71,17 @@ class _MyBusinessesPageState extends State<MyBusinessesPage> {
           icon: Icon(CupertinoIcons.back, color: primaryColor),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            tooltip: "Yeni İşletme Ekle",
+            icon: Icon(CupertinoIcons.plus_circle_fill, color: primaryColor, size: 24),
+            onPressed: () => Navigator.push(
+              context,
+              CupertinoPageRoute(builder: (_) => const BusinessAddPage()),
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
@@ -213,15 +224,46 @@ class _MyBusinessesPageState extends State<MyBusinessesPage> {
 
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(CupertinoIcons.doc_text_search,
-              size: 60, color: primaryColor.withOpacity(0.1)),
-          const SizedBox(height: 15),
-          Text("Henüz bir işletme eklememişsiniz.",
-              style: GoogleFonts.inter(color: Colors.grey, fontSize: 14)),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(CupertinoIcons.building_2_fill,
+                size: 64, color: primaryColor.withOpacity(0.15)),
+            const SizedBox(height: 16),
+            Text("Henüz bir işletme eklememişsiniz.",
+                style: GoogleFonts.inter(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16)),
+            const SizedBox(height: 8),
+            Text(
+              "İşletmenizi Pazarcık Portal rehberine ekleyerek binlerce hemşehrimize hemen ulaşabilirsiniz.",
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(color: Colors.grey.shade600, fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
+              ),
+              icon: const Icon(CupertinoIcons.plus_circle_fill, color: Colors.white, size: 18),
+              label: Text(
+                "İşletmemi Ekle",
+                style: GoogleFonts.inter(
+                    color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              onPressed: () => Navigator.push(
+                context,
+                CupertinoPageRoute(builder: (_) => const BusinessAddPage()),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

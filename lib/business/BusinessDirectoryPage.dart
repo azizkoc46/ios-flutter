@@ -9,6 +9,7 @@ import 'package:pazarcik_portal/widgets/portal_network_image.dart';
 import 'BusinessDetailPage.dart';
 import 'business_add_page.dart';
 import 'my_businesses_page.dart';
+import 'package:pazarcik_portal/auth/auth.dart';
 
 class BusinessDirectoryPage extends StatefulWidget {
   const BusinessDirectoryPage({Key? key}) : super(key: key);
@@ -261,6 +262,57 @@ class _BusinessDirectoryPageState extends State<BusinessDirectoryPage> {
       selectedSubCat != null ||
       selectedRegion != null;
 
+  void _requireAuth(VoidCallback onAuthorized) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      onAuthorized();
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(CupertinoIcons.person_crop_circle_badge_plus,
+                color: emeraldPrimary),
+            const SizedBox(width: 10),
+            const Text("Giriş Yapmalısınız",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          "İşletmenizi Pazarcık Portal rehberine eklemek ve başvurunuzu yönetmek için lütfen hesabınıza giriş yapınız.",
+          style: TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Vazgeç", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: emeraldPrimary,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                context,
+                CupertinoPageRoute(builder: (_) => const Auth()),
+              );
+            },
+            child: const Text("Giriş Yap / Kayıt Ol",
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -284,22 +336,12 @@ class _BusinessDirectoryPageState extends State<BusinessDirectoryPage> {
           ),
         ),
         onPressed: () {
-          final user = FirebaseAuth.instance.currentUser;
-          if (user == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content:
-                    Text("İşletme ekleyebilmek için lütfen önce giriş yapın."),
-                backgroundColor: Colors.orange,
-                behavior: SnackBarBehavior.floating,
-              ),
+          _requireAuth(() {
+            Navigator.push(
+              context,
+              CupertinoPageRoute(builder: (_) => const BusinessAddPage()),
             );
-            return;
-          }
-          Navigator.push(
-            context,
-            CupertinoPageRoute(builder: (_) => const BusinessAddPage()),
-          );
+          });
         },
       ),
       body: CustomScrollView(
@@ -369,23 +411,13 @@ class _BusinessDirectoryPageState extends State<BusinessDirectoryPage> {
                 color: emeraldAccent,
                 tooltip: "İşletmelerim",
                 onPressed: () {
-                  final user = FirebaseAuth.instance.currentUser;
-                  if (user == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                            "İşletmelerinizi görmek için lütfen önce giriş yapın."),
-                        backgroundColor: Colors.orange,
-                        behavior: SnackBarBehavior.floating,
-                      ),
+                  _requireAuth(() {
+                    Navigator.push(
+                      context,
+                      CupertinoPageRoute(
+                          builder: (_) => const MyBusinessesPage()),
                     );
-                    return;
-                  }
-                  Navigator.push(
-                    context,
-                    CupertinoPageRoute(
-                        builder: (_) => const MyBusinessesPage()),
-                  );
+                  });
                 },
               ),
               const SizedBox(width: 4),
@@ -562,8 +594,36 @@ class _BusinessDirectoryPageState extends State<BusinessDirectoryPage> {
                                   : Colors.grey.shade600,
                             ),
                           ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: emeraldPrimary,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 18, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: const Icon(CupertinoIcons.plus_circle_fill,
+                                size: 18, color: Colors.white),
+                            label: const Text(
+                              "İşletmeni Rehbere Ekle",
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                            onPressed: () {
+                              _requireAuth(() {
+                                Navigator.push(
+                                  context,
+                                  CupertinoPageRoute(
+                                      builder: (_) => const BusinessAddPage()),
+                                );
+                              });
+                            },
+                          ),
                           if (_hasActiveFilters) ...[
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 14),
                             OutlinedButton.icon(
                               onPressed: _clearFilters,
                               style: OutlinedButton.styleFrom(

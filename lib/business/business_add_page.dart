@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'package:pazarcik_portal/auth/auth.dart';
 import 'package:pazarcik_portal/dernek_sistemi/services/FirebaseStorage_service.dart';
 import 'package:pazarcik_portal/admin/admin_notification_service.dart';
 import 'package:pazarcik_portal/utils/portal_file_upload.dart';
@@ -30,6 +30,8 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
   final Color primaryColor = const Color(0xFF004D40);
   final Color publicColor = const Color(0xFFD32F2F);
 
+  bool get _isEditing => widget.docId != null && widget.docId!.trim().isNotEmpty;
+
   late TextEditingController _nameController;
   late TextEditingController _descController;
   late TextEditingController _phoneController;
@@ -41,7 +43,7 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
   late TextEditingController _mapLinkController;
   late TextEditingController _addressDescController;
 
-  File? _selectedImage;
+  XFile? _selectedImage;
   String? _existingImageUrl;
   bool _isLoading = false;
 
@@ -52,8 +54,8 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
   List<Map<String, dynamic>> _existingBusinesses = [];
   Map<String, dynamic>? _matchingBusiness;
 
-  // 🔥 YENİ EKLENEN: Galeri Değişkenleri
-  List<File> _newGalleryImages = [];
+  // 🔥 Galeri Değişkenleri (Web ve Mobil Uyumlu XFile)
+  List<XFile> _newGalleryImages = [];
   List<String> _existingGalleryUrls = [];
   final int _maxGalleryImages = 5;
 
@@ -340,7 +342,7 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
       _existingGalleryUrls = List<String>.from(data!['galleryUrls']);
     }
 
-    if (widget.docId == null) {
+    if (!_isEditing) {
       _loadExistingBusinesses();
       _nameController.addListener(_onNameChanged);
     }
@@ -534,10 +536,15 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
 
   // Profil resmi seçici
   Future<void> _pickImage() async {
-    final pickedFile = await ImagePicker()
-        .pickImage(source: ImageSource.gallery, imageQuality: 60);
-    if (pickedFile != null)
-      setState(() => _selectedImage = File(pickedFile.path));
+    try {
+      final pickedFile = await ImagePicker()
+          .pickImage(source: ImageSource.gallery, imageQuality: 70);
+      if (pickedFile != null && mounted) {
+        setState(() => _selectedImage = pickedFile);
+      }
+    } catch (e) {
+      _showToast("Resim seçilemedi: $e", Colors.red);
+    }
   }
 
   // 🔥 YENİ EKLENEN: Çoklu Galeri Resmi Seçici
@@ -550,22 +557,26 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
       return;
     }
 
-    final List<XFile> pickedFiles =
-        await ImagePicker().pickMultiImage(imageQuality: 60);
+    try {
+      final List<XFile> pickedFiles =
+          await ImagePicker().pickMultiImage(imageQuality: 70);
 
-    if (pickedFiles.isNotEmpty) {
-      setState(() {
-        for (var xFile in pickedFiles) {
-          if (_existingGalleryUrls.length + _newGalleryImages.length <
-              _maxGalleryImages) {
-            _newGalleryImages.add(File(xFile.path));
-          } else {
-            _showToast(
-                "Sınır aşıldığı için bazı resimler eklenmedi.", Colors.orange);
-            break;
+      if (pickedFiles.isNotEmpty && mounted) {
+        setState(() {
+          for (var xFile in pickedFiles) {
+            if (_existingGalleryUrls.length + _newGalleryImages.length <
+                _maxGalleryImages) {
+              _newGalleryImages.add(xFile);
+            } else {
+              _showToast(
+                  "Sınır aşıldığı için bazı resimler eklenmedi.", Colors.orange);
+              break;
+            }
           }
-        }
-      });
+        });
+      }
+    } catch (e) {
+      _showToast("Galeri resimleri seçilemedi: $e", Colors.red);
     }
   }
 
@@ -578,16 +589,70 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
     }
   }
 
+  void _showLoginRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(CupertinoIcons.person_crop_circle_badge_plus,
+                color: Color(0xFF004D40)),
+            SizedBox(width: 10),
+            Text("Giriş Yapmalısınız",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          "İşletmenizi rehbere ekleyebilmeniz ve başvurunuzu takip edebilmeniz için lütfen önce hesabınıza giriş yapınız.",
+          style: TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Vazgeç", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF004D40),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                  context, CupertinoPageRoute(builder: (_) => const Auth()));
+            },
+            child: const Text("Giriş Yap / Kayıt Ol",
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _saveBusiness() async {
-    if (_nameController.text.isEmpty || _selectedSubCategory == null) {
-      _showToast("Lütfen isim ve alt kategori seçin.", Colors.orange);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showLoginRequiredDialog();
       return;
     }
 
-    // Yeni kayıt ekleniyorsa mükerrer ve spam kontrolleri yap
-    if (widget.docId == null || widget.docId!.isEmpty) {
-      // 1. Aynı İsim Kontrolü
-      final enteredName = _nameController.text.trim().toLowerCase();
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      _showToast("Lütfen işletme/kurum adını giriniz.", Colors.orange);
+      return;
+    }
+
+    if (_selectedSubCategory == null) {
+      _showToast("Lütfen alt kategori / branş seçiniz.", Colors.orange);
+      return;
+    }
+
+    // Yeni kayıt ekleniyorsa mükerrer isim kontrolü (onaylı diyalog)
+    if (!_isEditing) {
+      final enteredName = name.toLowerCase();
       final exactMatch = _existingBusinesses.any((b) =>
           (b['businessName'] ?? b['name'] ?? '')
               .toString()
@@ -596,48 +661,31 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
           enteredName);
 
       if (exactMatch) {
-        _showToast(
-          "Bu isimde bir işletme rehberde zaten kayıtlıdır. Lütfen yeni kayıt açmak yerine mevcut işletmenin sayfasından 'Sahipliğini Doğrula' başvurusu yapınız.",
-          Colors.orange,
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text("Benzer İsimde İşletme Var"),
+            content: Text(
+              "'$name' adında onaylı bir işletme rehberde zaten mevcut. Bu yeni bir şube veya farklı bir işletme ise devam edebilirsiniz.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text("İptal"),
+              ),
+              ElevatedButton(
+                style:
+                    ElevatedButton.styleFrom(backgroundColor: primaryColor),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text("Devam Et",
+                    style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
         );
-        return;
-      }
-
-      // 2. Kullanıcının Zaten Bekleyen Başvurusu veya Art Arda Spam Gönderimi
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid != null) {
-        // Zaten onay bekleyen bir işletme başvurusu var mı?
-        final pendingQuery = await FirebaseFirestore.instance
-            .collection('businesses')
-            .where('editorId', isEqualTo: uid)
-            .where('status', isEqualTo: 'pending')
-            .limit(1)
-            .get();
-
-        if (pendingQuery.docs.isNotEmpty) {
-          _showToast(
-            "Zaten inceleme aşamasında olan bir işletme başvurunuz bulunmaktadır. Yönetim inceledikten sonra yeni başvuru yapabilirsiniz.",
-            Colors.orange,
-          );
-          return;
-        }
-
-        // Son 1 saat içinde gönderilmiş başvuru var mı (cooldown)?
-        final oneHourAgo = DateTime.now().subtract(const Duration(hours: 1));
-        final recentQuery = await FirebaseFirestore.instance
-            .collection('businesses')
-            .where('editorId', isEqualTo: uid)
-            .where('createdAt', isGreaterThan: Timestamp.fromDate(oneHourAgo))
-            .limit(1)
-            .get();
-
-        if (recentQuery.docs.isNotEmpty) {
-          _showToast(
-            "Arka arkaya işletme başvurusu gönderemezsiniz. Lütfen yeni bir başvuru yapabilmek için en az 1 saat bekleyiniz.",
-            Colors.orange,
-          );
-          return;
-        }
+        if (proceed != true) return;
       }
     }
 
@@ -645,38 +693,40 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
 
     try {
       String finalImageUrl = _existingImageUrl ?? "";
-      List<String> finalGalleryUrls =
-          List.from(_existingGalleryUrls); // 🔥 GÜNCELLENDİ
+      List<String> finalGalleryUrls = List.from(_existingGalleryUrls);
 
       // Profil resmini yükle
       if (_selectedImage != null) {
-        finalImageUrl = await FirebaseStorageService.uploadFile(_selectedImage!,
-                folderName:
-                    widget.isPublic ? "public_assets" : "business_assets") ??
-            "";
+        final uploaded = await FirebaseStorageService.uploadXFile(
+          _selectedImage!,
+          folderName: widget.isPublic ? "public_assets" : "business_assets",
+        );
+        if (uploaded != null && uploaded.isNotEmpty) {
+          finalImageUrl = uploaded;
+        }
       }
 
-      // 🔥 YENİ EKLENEN: Yeni seçilen galeri resimlerini yükle
-      for (File file in _newGalleryImages) {
-        String? uploadedUrl = await FirebaseStorageService.uploadFile(file,
-            folderName:
-                widget.isPublic ? "public_gallery" : "business_gallery");
-        if (uploadedUrl != null && uploadedUrl.isNotEmpty) {
-          finalGalleryUrls.add(uploadedUrl);
+      // Galeri resimlerini yükle
+      for (final file in _newGalleryImages) {
+        final uploaded = await FirebaseStorageService.uploadXFile(
+          file,
+          folderName: widget.isPublic ? "public_gallery" : "business_gallery",
+        );
+        if (uploaded != null && uploaded.isNotEmpty) {
+          finalGalleryUrls.add(uploaded);
         }
       }
 
       Map<String, dynamic> businessData = {
-        'businessName': _nameController.text.trim(),
-        'mainCategory': _selectedMainCategory,
-        'category': _selectedSubCategory,
+        'businessName': name,
+        'mainCategory': _selectedMainCategory ?? '',
+        'category': _selectedSubCategory ?? '',
         'contact': _phoneController.text.trim(),
         'description': _descController.text.trim(),
         'mapLink': _mapLinkController.text.trim(),
         'addressDesc': _addressDescController.text.trim(),
-        'imageUrls': [finalImageUrl], // Ana profil resmi
-        'galleryUrls':
-            finalGalleryUrls, // 🔥 YENİ EKLENEN: Vitrin Resimleri (Ürün, Menü, Fiyat listesi)
+        'imageUrls': [finalImageUrl],
+        'galleryUrls': finalGalleryUrls,
         'regions': _selectedRegions,
         'tags': _tags,
         'type': widget.isPublic ? 'public' : 'private',
@@ -688,38 +738,46 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      if (widget.docId == null || widget.docId!.isEmpty) {
+      if (!_isEditing) {
         businessData['status'] = widget.isPublic ? 'approved' : 'pending';
         businessData['createdAt'] = FieldValue.serverTimestamp();
-        businessData['editorId'] = FirebaseAuth.instance.currentUser?.uid;
+        businessData['editorId'] = user.uid;
+        businessData['ownerId'] = user.uid;
+        businessData['rating'] = 5.0;
+        businessData['reviewCount'] = 0;
+        businessData['views'] = 0;
 
-        // 🔥 DEĞİŞİKLİK 1: add işlemini docRef değişkenine atıyoruz ki id'sini alabilelim
         DocumentReference docRef = await FirebaseFirestore.instance
             .collection('businesses')
             .add(businessData);
 
-        // 🔥 DEĞİŞİKLİK 2: Senin eklemek istediğin bildirim kodu buraya geliyor
         await AdminNotificationService.instance.notifyAdmin(
-          title: '🏢 Yeni İşletme Başvurusu',
-          body: _nameController.text
-              .trim(), // İşletme adını direkt controller'dan alıyoruz
+          title: widget.isPublic
+              ? '🏛️ Yeni Kamu Kurumu Kaydı'
+              : '🏢 Yeni İşletme Başvurusu',
+          body: name,
           type: AdminNotifType.businessApply,
-          docId: docRef.id, // Firestore'un oluşturduğu id'yi verdik
+          docId: docRef.id,
         );
 
-        _showToast("Kayıt Başarıyla Eklendi! ✅", Colors.green);
+        _showToast(
+          widget.isPublic
+              ? "Kurum kaydı başarıyla eklendi! ✅"
+              : "İşletme başvurunuz alındı, yönetim onayından sonra yayına girecektir. ✅",
+          Colors.green,
+        );
       } else {
         businessData['lastUpdateNote'] = _updateNoteController.text.trim();
         await FirebaseFirestore.instance
             .collection('businesses')
-            .doc(widget.docId)
+            .doc(widget.docId!.trim())
             .update(businessData);
-        _showToast("Kayıt Güncellendi! ✅", Colors.blue);
+        _showToast("İşletme Bilgileri Güncellendi! ✅", Colors.blue);
       }
 
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      _showToast("Hata oluştu: $e", Colors.red);
+      _showToast("Kayıt sırasında hata oluştu: $e", Colors.red);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -732,7 +790,10 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(widget.isPublic ? "Kamu Kurumu Kaydı" : "İşletme Kaydı",
+        title: Text(
+            _isEditing
+                ? (widget.isPublic ? "Kurum Güncelle" : "İşletme Güncelle")
+                : (widget.isPublic ? "Kamu Kurumu Kaydı" : "İşletme Kaydı"),
             style: GoogleFonts.inter(
                 color: Colors.black,
                 fontWeight: FontWeight.bold,
@@ -867,9 +928,9 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
                 // Yeni Seçilen Resimler (Henüz yüklenmemiş)
                 ..._newGalleryImages.asMap().entries.map((entry) {
                   int idx = entry.key;
-                  File file = entry.value;
+                  XFile file = entry.value;
                   return _buildGalleryThumbnail(
-                      imageWidget: portalPickedImage(file, fit: BoxFit.cover),
+                      imageWidget: portalPickedXImage(file, fit: BoxFit.cover),
                       onDelete: () =>
                           setState(() => _newGalleryImages.removeAt(idx)));
                 }).toList(),
@@ -937,7 +998,7 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(35),
               child: _selectedImage != null
-                  ? portalPickedImage(_selectedImage!, fit: BoxFit.cover)
+                  ? portalPickedXImage(_selectedImage!, fit: BoxFit.cover)
                   : (_existingImageUrl != null && _existingImageUrl!.isNotEmpty
                       ? PortalNetworkImage(
                           url: _existingImageUrl!,
@@ -1013,8 +1074,13 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
   }
 
   Widget _buildSubCategoryPicker(Color color) {
-    List<String> subCats =
-        categories.firstWhere((c) => c['name'] == _selectedMainCategory)['sub'];
+    final found = categories.firstWhere(
+      (c) => c['name'] == _selectedMainCategory,
+      orElse: () => {'name': '', 'sub': <String>[]},
+    );
+    List<String> subCats = List<String>.from(found['sub'] ?? []);
+    if (subCats.isEmpty) return const SizedBox.shrink();
+
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -1024,7 +1090,9 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
           borderRadius: BorderRadius.circular(15)),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: _selectedSubCategory,
+          value: subCats.contains(_selectedSubCategory)
+              ? _selectedSubCategory
+              : null,
           isExpanded: true,
           hint: Text("Alt Branş Seçiniz",
               style: GoogleFonts.inter(fontSize: 14, color: Colors.black45)),
@@ -1144,7 +1212,7 @@ class _BusinessAddPageState extends State<BusinessAddPage> {
                     borderRadius: BorderRadius.circular(18))),
             onPressed: _isLoading ? null : _saveBusiness,
             child: Text(
-                widget.docId != null ? "BİLGİLERİ GÜNCELLE" : "KAYDI TAMAMLA",
+                _isEditing ? "BİLGİLERİ GÜNCELLE" : "KAYDI TAMAMLA",
                 style: GoogleFonts.inter(
                     fontWeight: FontWeight.w800,
                     fontSize: 15,

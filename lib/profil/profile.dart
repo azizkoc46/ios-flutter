@@ -514,7 +514,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 16),
               _buildAdPackagesBanner(context, isDark),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
+              Container(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF131B2E) : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDark ? Colors.white.withOpacity(0.08) : Colors.transparent,
+                  ),
+                ),
+                child: ListTile(
+                  leading: const Icon(Icons.add_business_outlined, color: Color(0xFF004D40)),
+                  title: Text(
+                    "İşletmemi Rehbere Ekle",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  subtitle: Text(
+                    "Esnafsanız işletmenizi Pazarcık Portal'a kaydedin",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.white60 : Colors.black54,
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                  onTap: () => Navigator.of(context).push(
+                    CupertinoPageRoute(builder: (_) => const Auth()),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
               Container(
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF131B2E) : Colors.white,
@@ -830,11 +861,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _menuItem(Icons.add_business_outlined, "İşletmemi Ekle",
                       isDark: isDark,
                       color: const Color(0xFF004D40),
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const BusinessAddPage(
-                                  existingBusiness: {}, docId: '')))),
+                      onTap: () {
+                        final user = FirebaseAuth.instance.currentUser;
+                        if (user == null) {
+                          Navigator.push(
+                            context,
+                            CupertinoPageRoute(builder: (_) => const Auth()),
+                          );
+                        } else {
+                          Navigator.push(
+                            context,
+                            CupertinoPageRoute(
+                                builder: (_) => const BusinessAddPage()),
+                          );
+                        }
+                      }),
                   _menuItem(Icons.list_alt_outlined, "İşletmelerimi Yönet",
                       isDark: isDark,
                       color: Colors.blueGrey,

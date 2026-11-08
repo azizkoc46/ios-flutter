@@ -21,6 +21,18 @@ Future<TaskSnapshot> uploadPortalFile(
   );
 }
 
+Future<TaskSnapshot> uploadPortalXFile(
+  Reference reference,
+  XFile file, {
+  SettableMetadata? metadata,
+}) async {
+  final Uint8List bytes = await file.readAsBytes();
+  return reference.putData(
+    bytes,
+    metadata ?? SettableMetadata(contentType: _contentType(file.name)),
+  );
+}
+
 Widget portalPickedImage(
   File file, {
   BoxFit fit = BoxFit.cover,
@@ -31,6 +43,18 @@ Widget portalPickedImage(
     return Image.network(file.path, fit: fit, width: width, height: height);
   }
   return Image.file(file, fit: fit, width: width, height: height);
+}
+
+Widget portalPickedXImage(
+  XFile file, {
+  BoxFit fit = BoxFit.cover,
+  double? width,
+  double? height,
+}) {
+  if (kIsWeb) {
+    return Image.network(file.path, fit: fit, width: width, height: height);
+  }
+  return Image.file(File(file.path), fit: fit, width: width, height: height);
 }
 
 ImageProvider portalPickedImageProvider(File file) {
