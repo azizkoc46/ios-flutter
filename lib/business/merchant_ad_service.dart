@@ -197,6 +197,60 @@ class SingleServiceModel {
   }
 }
 
+/// Restoran & Kafe Sipariş & Yönetim Paketi Modeli (Yıllık Çözüm)
+class RestaurantPackageModel {
+  final String id;
+  final String name;
+  final String subtitle;
+  final String badge;
+  final double yearlyPrice;
+  final List<String> perks;
+
+  const RestaurantPackageModel({
+    required this.id,
+    required this.name,
+    required this.subtitle,
+    required this.badge,
+    required this.yearlyPrice,
+    required this.perks,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'name': name,
+    'subtitle': subtitle,
+    'badge': badge,
+    'yearlyPrice': yearlyPrice,
+    'perks': perks,
+  };
+
+  factory RestaurantPackageModel.fromMap(Map<String, dynamic> map) {
+    return RestaurantPackageModel(
+      id: map['id'] ?? 'restaurant_cafe_yearly',
+      name: map['name'] ?? 'Restoran & Kafe Sipariş & Yönetim Paketi',
+      subtitle: map['subtitle'] ??
+          'Yemek siparişi, karekod menü, masa adisyon ve kurye yönetiminin tamamını tek bir yıllık pakette birleştiren komisyonsuz dijitalleşme çözümü.',
+      badge: map['badge'] ?? 'YILLIK TEK PAKET ⭐ %0 KOMİSYON',
+      yearlyPrice: (map['yearlyPrice'] as num?)?.toDouble() ?? 5950.0,
+      perks: List<String>.from(map['perks'] ?? defaultPerks),
+    );
+  }
+
+  static const List<String> defaultPerks = [
+    '%0 Komisyonsuz Yemek Siparişi Sistemine Kayıt (Cironuzdan pay kesilmez)',
+    'Müşteri Yorumları & Puanlama Alma Sistemi (İşletme itibarınızı artırın)',
+    'Canlı Kurye & Sipariş Takip Paneli (Harita üzerinden anlık teslimat takibi)',
+    'Tarım ve Orman Bakanlığı Yeni Yasasına Tam Uyumlu Karekod (QR) Menü',
+    'Yapay Zeka Destekli Otomatik Kalori & Alerjen İçerikleri Tanımlama (Menünüzdeki yemeklerin kalori ve alerjenleri AI ile otomatik listelenir)',
+    'Masa Adisyon & Sipariş Yönetim Sistemi (Masa bazlı hesap ve sipariş takibi)',
+    'Gelir & Gider / Kasa & Ciro Detaylı Raporlama ve Takipleri',
+    'Sınırsız Kurye Hesabı Açma & Kurye Paneli Entegrasyonu',
+    'Restoran Vitrini & Öne Çıkan Lezzetler Bölümünde 1 Yıl Sabit Yer Alma',
+    'Matbaa ve reklam işlerinde anlaşmalı kurumlarda %20 indirim',
+    'Adınıza / Firmanıza Resmi Faturalı Hizmet (+%18 KDV)',
+  ];
+}
+
 /// Genel Reklam ve Paket Yapılandırma Modeli
 class AdConfigModel {
   final String whatsappPhone;
@@ -205,6 +259,7 @@ class AdConfigModel {
   final int vatRate; // %18 KDV
   final Map<int, int> periodDiscounts;
   final List<AdPackageModel> packages;
+  final RestaurantPackageModel? restaurantPackage;
   final List<SingleServiceModel> singleServices;
   final String policyTitle;
   final String policyText;
@@ -216,6 +271,7 @@ class AdConfigModel {
     this.vatRate = 18,
     required this.periodDiscounts,
     required this.packages,
+    this.restaurantPackage,
     required this.singleServices,
     required this.policyTitle,
     required this.policyText,
@@ -233,6 +289,16 @@ class MerchantAdService {
 
   static const String _collectionName = 'app_settings';
   static const String _docName = 'advertising_packages';
+
+  // ── Restoran & Kafe Yıllık Sipariş Paketi Varsayılanı ──
+  static const RestaurantPackageModel defaultRestaurantPackage = RestaurantPackageModel(
+    id: 'restaurant_cafe_yearly',
+    name: 'Restoran & Kafe Sipariş & Yönetim Paketi',
+    subtitle: 'Yemek siparişi, karekod menü, masa adisyon ve kurye yönetiminin tamamını tek bir yıllık pakette birleştiren komisyonsuz dijitalleşme çözümü.',
+    badge: 'YILLIK TEK PAKET ⭐ %0 KOMİSYON',
+    yearlyPrice: 5950.0,
+    perks: RestaurantPackageModel.defaultPerks,
+  );
 
   // ── Standart Optimize Edilmiş Varsayılan Paketler ──
   static const List<AdPackageModel> defaultPackages = [
@@ -255,7 +321,7 @@ class MerchantAdService {
         'Mobil Uygulama & Web "Hikayeler Vitrini"nde 1 Ay Sabit Görünüm',
         '1 Adet Toplu Kampanya / Fırsat Bildirimi (Tüm kullanıcılara duyuru)',
         'İşletme Rehberinde "Öne Çıkan Esnaf" Etiketi',
-        'Broşür, Kartvizit, Reklam Brandası ve Açılış Çekimlerinde %20 İndirim',
+        'Matbaa ve reklam işlerinde anlaşmalı kurumlarda %20 indirim',
         'Adınıza / Firmanıza Resmi Faturalı Hizmet (+%18 KDV)',
       ],
       recommendedFor: 'Butikler, kafeler, kuaförler ve yeni açılan yerel işletmeler',
@@ -279,8 +345,8 @@ class MerchantAdService {
         'Mobil Uygulama & Web Hikaye Vitrininde Üst Sırada 1 Ay Kesintisiz Yayın',
         '2 Adet Toplu Özel Fırsat & Kampanya Bildirimi (Doğrudan cebe duyuru)',
         'Instagram "Öne Çıkanlar" Sabitleme ve Etiketleme Avantajı',
-        'İşletme Rehberinde Doğrulanmış Rozet (Yeşil Onay Rozeti)',
-        'Broşür, Kartvizit, Reklam Brandası ve Açılış Çekimlerinde %20 İndirim',
+        'İşletme Rehberinde Doğrulanmış Rozet (Sarı Onay Rozeti)',
+        'Matbaa ve reklam işlerinde anlaşmalı kurumlarda %20 indirim',
         'Adınıza / Firmanıza Resmi Faturalı Hizmet (+%18 KDV)',
       ],
       recommendedFor: 'Restoranlar, mobilyacılar, marketler, oto servisleri ve aktif satış yapan esnaflar',
@@ -305,7 +371,8 @@ class MerchantAdService {
         '3 Adet Toplu Özel Fırsat / İndirim Bildirimi (Duyuru formatında)',
         'Mobil Uygulama Açılış / Karşılama Ekranında %50 İndirim Fırsatı',
         'Instagram Profilinde Başa Tutturma (Sabit Gönderi) %50 İndirimli',
-        'Broşür, Kartvizit, Reklam Brandası ve Açılış Çekimlerinde %20 İndirim',
+        'İşletme Rehberinde Doğrulanmış Rozet (Sarı Onay Rozeti)',
+        'Matbaa ve reklam işlerinde anlaşmalı kurumlarda %20 indirim',
         'VIP Destek Hattı ve Anlık Kampanya Güncelleme Önceliği',
         'Adınıza / Firmanıza Resmi Faturalı Hizmet (+%18 KDV)',
       ],
@@ -438,6 +505,14 @@ class MerchantAdService {
       final policyText = (data['policyText'] ?? _defaultPolicyText).toString();
       final vatRate = (data['vatRate'] as num?)?.toInt() ?? 18;
 
+      RestaurantPackageModel? restaurantPackage;
+      final rawRest = data['restaurantPackage'] as Map<String, dynamic>?;
+      if (rawRest != null) {
+        restaurantPackage = RestaurantPackageModel.fromMap(rawRest);
+      } else {
+        restaurantPackage = defaultRestaurantPackage;
+      }
+
       return AdConfigModel(
         whatsappPhone: whatsapp,
         supportPhone: support,
@@ -445,6 +520,7 @@ class MerchantAdService {
         vatRate: vatRate,
         periodDiscounts: discountsMap,
         packages: packages,
+        restaurantPackage: restaurantPackage,
         singleServices: singleServices,
         policyTitle: policyTitle,
         policyText: policyText,
@@ -460,6 +536,7 @@ class MerchantAdService {
       vatRate: 18,
       periodDiscounts: {1: 0, 3: 15, 6: 25, 12: 35},
       packages: defaultPackages,
+      restaurantPackage: defaultRestaurantPackage,
       singleServices: defaultSingleServices,
       policyTitle: 'Adil, Şeffaf ve İnsanları Sıkmayan Reklam Politikamız',
       policyText: _defaultPolicyText,
@@ -472,12 +549,12 @@ class MerchantAdService {
       '• Günlük hikaye ve gönderi kotaları dengeli tutularak takipçilerin ilgisinin diri kalması sağlanır.\n'
       '• Tüm tanıtımlar şeffaf, ölçülebilir ve yerel ekonomiyi canlandırma odaklıdır.';
 
-  /// Firestore'daki reklam paketleri şablonunu ilk defa doldurur (veya admin için günceller)
-  Future<void> initializeDefaultConfigInFirestore() async {
+  /// Firestore'daki reklam paketleri şablonunu ilk defa doldurur veya günceller
+  Future<void> initializeDefaultConfigInFirestore({bool forceSync = true}) async {
     try {
       final docRef = FirebaseFirestore.instance.collection(_collectionName).doc(_docName);
       final snap = await docRef.get();
-      if (!snap.exists) {
+      if (!snap.exists || forceSync) {
         final Map<String, dynamic> packagesMap = {};
         for (var p in defaultPackages) {
           packagesMap[p.id] = p.toMap();
@@ -495,11 +572,12 @@ class MerchantAdService {
           'vatRate': 18,
           'periodDiscounts': {'1': 0, '3': 15, '6': 25, '12': 35},
           'packages': packagesMap,
+          'restaurantPackage': defaultRestaurantPackage.toMap(),
           'singleServices': singleMap,
           'policyTitle': 'Adil, Şeffaf ve İnsanları Sıkmayan Reklam Politikamız',
           'policyText': _defaultPolicyText,
           'updatedAt': FieldValue.serverTimestamp(),
-        });
+        }, SetOptions(merge: true));
       }
     } catch (e) {
       debugPrint('[MerchantAdService] Firestore init uyarısı: $e');

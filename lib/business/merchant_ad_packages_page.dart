@@ -113,6 +113,17 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
                     _buildPackagesSection(safeConfig, isWide, isDark),
                     const SizedBox(height: 36),
 
+                    // 4.5. RESTORAN & KAFE SİPARİŞ & YÖNETİM PAKETİ (YILLIK)
+                    _buildSectionHeader(
+                      title: 'Restoran & Kafe Sipariş Paketi',
+                      subtitle: 'Yemek siparişi, tarım bakanlığı uyumlu QR menü, yapay zeka içerik ve masa adisyonu tek yıllık pakette.',
+                      icon: CupertinoIcons.flame_fill,
+                      isDark: isDark,
+                    ),
+                    const SizedBox(height: 14),
+                    _buildRestaurantPackageCard(safeConfig, isDark),
+                    const SizedBox(height: 36),
+
                     // 5. TEKİL / MODÜLER REKLAM HİZMETLERİ
                     _buildSectionHeader(
                       title: 'Tekil & Modüler Reklam Hizmetleri',
@@ -641,7 +652,7 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
     );
   }
 
-  Widget _buildPerkItem(String text, bool isDark) {
+  Widget _buildPerkItem(String text, bool isDark, {Color? highlightColor}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 9),
       child: Row(
@@ -650,8 +661,8 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
           Container(
             margin: const EdgeInsets.only(top: 2),
             padding: const EdgeInsets.all(3),
-            decoration: const BoxDecoration(
-              color: Color(0xFF10B981),
+            decoration: BoxDecoration(
+              color: highlightColor ?? const Color(0xFF10B981),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.check, size: 10, color: Colors.white),
@@ -669,6 +680,297 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── 4.5. Restoran & Kafe Yıllık Sipariş & Adisyon Paketi Kartı ──
+  Widget _buildRestaurantPackageCard(AdConfigModel config, bool isDark) {
+    final restPkg = config.restaurantPackage ?? MerchantAdService.defaultRestaurantPackage;
+    final vatRate = config.vatRate;
+    final netPrice = restPkg.yearlyPrice;
+    final totalWithVat = netPrice + (netPrice * vatRate / 100);
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF1F1A24), const Color(0xFF2E1C14)]
+              : [const Color(0xFFFFF7ED), const Color(0xFFFEF3C7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(
+          color: const Color(0xFFF59E0B),
+          width: 2.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.25 : 0.2),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 1. ÜST ROZETLER
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFF59E0B), Color(0xFFEA580C)],
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    restPkg.badge,
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF16A34A).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF16A34A), width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(CupertinoIcons.checkmark_seal_fill, color: Color(0xFF16A34A), size: 12),
+                      const SizedBox(width: 4),
+                      Text(
+                        '%0 KOMİSYON',
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFF16A34A),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // 2. BAŞLIK VE AÇIKLAMA
+            Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    CupertinoIcons.flame_fill,
+                    color: Color(0xFFEA580C),
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        restPkg.name,
+                        style: GoogleFonts.inter(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Restoranlar, Kafeler, Fırınlar & Paket Servis Yapan Tüm İşletmeler',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              restPkg.subtitle,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                height: 1.4,
+                color: isDark ? Colors.white70 : const Color(0xFF475569),
+              ),
+            ),
+            const SizedBox(height: 18),
+
+            // 3. FİYAT ALANI (Yıllık Net ve KDV Dahil)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${netPrice.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')} ₺',
+                            style: GoogleFonts.inter(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                              color: const Color(0xFFEA580C),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              '/ Yıllık Tek Bedel',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '+%$vatRate KDV Dahil: ${totalWithVat.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')} ₺ (Aylık sadece ~${(netPrice / 12).toInt()} ₺)',
+                        style: GoogleFonts.inter(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF16A34A).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'SINIRSIZ CİRO\n%0 KESİNTİ',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF16A34A),
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // 4. MADDELER VE AYRICALIKLAR
+            Text(
+              'Bu Pakete Dahil Olan Tüm Özellikler:',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 10),
+            ...restPkg.perks.map((perk) => _buildPerkItem(perk, isDark, highlightColor: const Color(0xFFEA580C))),
+            const SizedBox(height: 22),
+
+            // 5. AKSİYON BUTONLARI (BAŞVUR & WHATSAPP)
+            Row(
+              children: [
+                Expanded(
+                  flex: 6,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(CupertinoIcons.paperplane_fill, size: 16),
+                    label: Text(
+                      'Sipariş Paketine Başvur',
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEA580C),
+                      foregroundColor: Colors.white,
+                      elevation: 2,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () {
+                      _openRequestModal(
+                        requestType: 'restaurant_package',
+                        itemName: restPkg.name,
+                        periodLabel: '1 Yıllık Tek Fiyat',
+                        totalPrice: netPrice,
+                        config: config,
+                        perks: restPkg.perks,
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 4,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(CupertinoIcons.chat_bubble_2_fill, size: 16),
+                    label: Text(
+                      'WhatsApp',
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF16A34A),
+                      side: const BorderSide(color: Color(0xFF16A34A), width: 1.5),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () => _openRestaurantWhatsApp(restPkg, config),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1638,6 +1940,19 @@ Reklam Veren; platform üzerindeki başvuru formunu onayladığında, işbu söz
       context: context,
       whatsappNumber: phone,
       message: 'Merhaba Pazarcık Portal, "${svc.title}" (${svc.unit} - Net: ${svc.price.toInt()} ₺ | +%${vatRate} KDV Dahil: ${totalWithVat.toInt()} ₺) tekil reklam hizmeti almak istiyorum. Detayları görüşebilir miyiz?',
+    );
+  }
+
+  void _openRestaurantWhatsApp(RestaurantPackageModel pkg, [AdConfigModel? config]) {
+    final cfg = config ?? _currentConfig;
+    final phone = cfg?.whatsappPhone.isNotEmpty == true ? cfg!.whatsappPhone : '0546 466 4646';
+    final vatRate = cfg?.vatRate ?? 18;
+    final totalWithVat = pkg.yearlyPrice * (1 + vatRate / 100);
+
+    _service.openWhatsApp(
+      context: context,
+      whatsappNumber: phone,
+      message: 'Merhaba Pazarcık Portal, "${pkg.name}" (Yıllık: ${pkg.yearlyPrice.toInt()} ₺ | +%${vatRate} KDV Dahil: ${totalWithVat.toInt()} ₺) hakkında bilgi almak ve işletmemize entegrasyon talep etmek istiyorum.',
     );
   }
 }
