@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 // SAYFA İMPORTLARI
 import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/customer/customer_bottomNav.dart'; // Yemek sipariş sistemi
 import 'package:pazarcik_portal/business/BusinessDirectoryPage.dart'; // İşletmeler rehberi
+import 'package:pazarcik_portal/business/merchant_ad_packages_page.dart'; // Reklam ve fırsat paketleri
 import 'package:pazarcik_portal/kamu/public_directory_page.dart';
 import 'package:pazarcik_portal/profil/profile.dart'; // Kullanıcı profil sayfası
 import 'package:pazarcik_portal/views/pharmacy_screen.dart';
@@ -63,10 +64,10 @@ final List<HomeButtonModel> mainActionButtons = [
     destination: const AdsMainPage(),
   ),
   HomeButtonModel(
-    title: "İndirimler",
+    title: "Fırsatlar",
     icon: CupertinoIcons.percent,
     color: const Color(0xFFFF9500),
-    destination: const BusinessDirectoryPage(),
+    destination: const MerchantAdPackagesPage(),
   ),
   HomeButtonModel(
     title: "Gezilecek Yerler",

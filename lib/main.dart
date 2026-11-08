@@ -59,6 +59,7 @@ import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/customer/customer_b
 import 'package:pazarcik_portal/sahibinden/ads_main_page.dart';
 import 'package:pazarcik_portal/isilani/job_listing_page.dart';
 import 'package:pazarcik_portal/news_page.dart';
+import 'package:pazarcik_portal/business/merchant_ad_packages_page.dart';
 
 // Global Kontrolcüler
 final ValueNotifier<bool> isDarkModeNotifier = ValueNotifier(false);
@@ -445,6 +446,18 @@ class MyApp extends StatelessWidget {
                 );
               }
 
+              // 📢 Esnaf Reklam & Tanıtım Paketleri Doğrudan Linkleri
+              if (path == '/reklam' ||
+                  path == '/reklam-paketleri' ||
+                  path == '/esnaf-paketleri' ||
+                  path == '/firsatlar' ||
+                  path == '/reklam-firsatlari') {
+                return MaterialPageRoute(
+                  builder: (_) => const MerchantAdPackagesPage(),
+                  settings: settings,
+                );
+              }
+
               return null;
             },
             routes: {
@@ -452,6 +465,10 @@ class MyApp extends StatelessWidget {
               '/profile': (context) => const ProfileScreen(),
               '/forgot-password': (context) => const ForgotPassword(),
               '/auth-screen': (context) => const Auth(),
+              '/reklam-paketleri': (context) => const MerchantAdPackagesPage(),
+              '/esnaf-paketleri': (context) => const MerchantAdPackagesPage(),
+              '/firsatlar': (context) => const MerchantAdPackagesPage(),
+              '/reklam': (context) => const MerchantAdPackagesPage(),
               '/kamu': (context) => const PublicDirectoryPage(),
               '/resmi-kurumlar': (context) => const PublicDirectoryPage(),
               '/muhtarliklar': (context) => const MuhtarliklarPage(),

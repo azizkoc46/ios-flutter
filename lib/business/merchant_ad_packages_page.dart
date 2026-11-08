@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'merchant_ad_service.dart';
 
@@ -51,6 +52,21 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Sayfa Linkini Paylaş',
+            icon: const Icon(CupertinoIcons.share, color: Color(0xFF6366F1)),
+            onPressed: () {
+              const url = 'https://pazarcik-portal-7faf2.web.app/reklam-paketleri';
+              Clipboard.setData(const ClipboardData(text: url));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('🔗 Paketler sayfası bağlantısı kopyalandı:\nhttps://pazarcik-portal-7faf2.web.app/reklam-paketleri'),
+                  backgroundColor: Color(0xFF6366F1),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+          ),
+          IconButton(
             tooltip: 'Hızlı WhatsApp Destek',
             icon: const Icon(CupertinoIcons.chat_bubble_2_fill, color: Color(0xFF25D366)),
             onPressed: () => _openGeneralWhatsApp(),
@@ -74,6 +90,7 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
                 vatRate: 18,
                 periodDiscounts: {1: 0, 3: 15, 6: 25, 12: 35},
                 packages: MerchantAdService.defaultPackages,
+                restaurantPackage: MerchantAdService.defaultRestaurantPackage,
                 singleServices: MerchantAdService.defaultSingleServices,
                 policyTitle: 'Adil, Şeffaf ve İnsanları Sıkmayan Reklam Politikamız',
                 policyText: 'Pazarcık Portal olarak esnafımızın büyümesini desteklerken, hemşehrilerimizin kullanıcı deneyimini en üst seviyede tutuyoruz.',
@@ -229,7 +246,51 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
               _buildHeroStatChip(CupertinoIcons.device_phone_portrait, '15.000+ Aktif İndirme'),
               _buildHeroStatChip(CupertinoIcons.bell_fill, 'Anında Cebine Bildirim'),
               _buildHeroStatChip(CupertinoIcons.camera_fill, 'Instagram & Web Vitrini'),
+              _buildHeroStatChip(CupertinoIcons.calendar_badge_plus, '💥 Esnek Kota (Günleri Birleştirme)'),
             ],
+          ),
+          const SizedBox(height: 14),
+          InkWell(
+            onTap: () {
+              const url = 'https://pazarcik-portal-7faf2.web.app/reklam-paketleri';
+              Clipboard.setData(const ClipboardData(text: url));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('🔗 Doğrudan link kopyalandı:\nhttps://pazarcik-portal-7faf2.web.app/reklam-paketleri'),
+                  backgroundColor: Color(0xFF6366F1),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(CupertinoIcons.link, color: Colors.white, size: 14),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'Doğrudan Web Linki: pazarcik-portal-7faf2.web.app/reklam-paketleri',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(CupertinoIcons.doc_on_doc, color: Colors.white70, size: 13),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -1185,6 +1246,10 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
   // ── 6. SSS Bölümü ──
   Widget _buildFaqSection(bool isDark) {
     final faqs = [
+      {
+        'q': 'Günlük hikaye ve paylaşım haklarımı birleştirip toplu yayınlatabilir miyim?',
+        'a': 'Evet! Esnek kota sistemimiz sayesinde örneğin günlük 1 hikaye hakkınız varsa, bunu dilediğiniz gibi biriktirip hafta sonunda veya indirim/kampanya günlerinizde aynı gün içerisinde 3-5 hikaye şeklinde topluca yayınlatabilirsiniz. Haklarınız asla yanmaz, ticari takviminize göre esnek planlanır.'
+      },
       {
         'q': 'Fatura kesiliyor mu ve KDV oranı nedir?',
         'a': 'Evet! Tüm reklam, vitrin ve bildirim hizmetlerimiz şirketimiz tarafından adınıza veya firmanıza resmi e-Fatura / e-Arşiv faturalıdır. Fiyatlarımıza yasal oranda +%18 KDV eklenmektedir.'
