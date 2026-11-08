@@ -1,3 +1,5 @@
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../widgets/modern_app_splash_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
@@ -32,6 +34,9 @@ class _AdminAdManagementTabState extends State<AdminAdManagementTab> {
   bool _splashAllowSkip = true;
   bool _isSavingSplash = false;
   bool _splashDataLoaded = false;
+  bool _isUploadingMedia = false;
+  double _uploadProgress = 0.0;
+  String? _uploadStatusText;
 
 
   // Genel ayar kontrolcüleri
@@ -93,6 +98,82 @@ class _AdminAdManagementTabState extends State<AdminAdManagementTab> {
         });
       }
     } catch (_) {}
+  }
+
+  Future<void> _pickAndUploadMedia() async {
+    final isVideo = _splashMediaType == 'video';
+    final picker = ImagePicker();
+
+    try {
+      final XFile? file = isVideo
+          ? await picker.pickVideo(source: ImageSource.gallery)
+          : await picker.pickImage(source: ImageSource.gallery, imageQuality: 92);
+
+      if (file == null) return;
+
+      setState(() {
+        _isUploadingMedia = true;
+        _uploadProgress = 0.0;
+        _uploadStatusText = 'Dosya hazırlanıyor: ${file.name}...';
+      });
+
+      final bytes = await file.readAsBytes();
+      final ext = file.name.contains('.') ? file.name.split('.').last.toLowerCase() : (isVideo ? 'mp4' : 'jpg');
+      final contentType = isVideo
+          ? (ext == 'mov' ? 'video/quicktime' : 'video/mp4')
+          : (ext == 'png' ? 'image/png' : ext == 'webp' ? 'image/webp' : 'image/jpeg');
+
+      final storagePath = 'startup_announcements/${DateTime.now().millisecondsSinceEpoch}_${file.name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_')}';
+      final ref = FirebaseStorage.instance.ref().child(storagePath);
+
+      final uploadTask = ref.putData(
+        bytes,
+        SettableMetadata(contentType: contentType),
+      );
+
+      uploadTask.snapshotEvents.listen((event) {
+        if (event.totalBytes > 0) {
+          final progress = event.bytesTransferred / event.totalBytes;
+          if (mounted) {
+            setState(() {
+              _uploadProgress = progress;
+              _uploadStatusText = 'Yükleniyor: %${(progress * 100).toInt()}';
+            });
+          }
+        }
+      });
+
+      final snap = await uploadTask;
+      final downloadUrl = await snap.ref.getDownloadURL();
+
+      if (mounted) {
+        setState(() {
+          _splashMediaUrlCtrl.text = downloadUrl;
+          _isUploadingMedia = false;
+          _uploadProgress = 1.0;
+          _uploadStatusText = '✅ Yükleme tamamlandı!';
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ ${file.name} başarıyla yüklendi!'),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[AdminAdManagementTab] Medya yükleme hatası: $e');
+      if (mounted) {
+        setState(() {
+          _isUploadingMedia = false;
+          _uploadStatusText = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Medya yüklenirken hata oluştu: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Future<void> _saveSplashData() async {
@@ -2274,12 +2355,124 @@ class _AdminAdManagementTabState extends State<AdminAdManagementTab> {
           ),
           const SizedBox(height: 14),
 
-          // Medya URL Girişi
-          _buildInput(
-            controller: _splashMediaUrlCtrl,
-            label: _splashMediaType == 'video' ? '4K Video Doğrudan Bağlantısı (URL) *' : '4K Görsel / Afiş Bağlantısı (URL) *',
-            hint: _splashMediaType == 'video' ? 'https://.../video.mp4' : 'https://.../banner.jpg',
-            icon: _splashMediaType == 'video' ? Icons.link_rounded : Icons.add_photo_alternate_rounded,
+          // ── CİHAZDAN DOĞRUDAN YÜKLEME KUTUSU & URL ALANI ──
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _splashMediaType == 'video'
+                          ? '4K Video Yükleme (Galeriden / Bilgisayardan):'
+                          : '4K Görsel Yükleme (Galeriden / Bilgisayardan):',
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, color: const Color(0xFF1E293B)),
+                    ),
+                    if (_splashMediaUrlCtrl.text.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDCFCE7),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '✓ Medya Hazır',
+                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF15803D)),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // Büyük ve Kullanışlı Yükleme Butonu
+                InkWell(
+                  onTap: _isUploadingMedia ? null : _pickAndUploadMedia,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _isUploadingMedia ? const Color(0xFF6366F1) : const Color(0xFFCBD5E1),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        if (_isUploadingMedia) ...[
+                          const CupertinoActivityIndicator(radius: 14),
+                          const SizedBox(height: 10),
+                          Text(
+                            _uploadStatusText ?? 'Yükleniyor...',
+                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF4F46E5)),
+                          ),
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: _uploadProgress,
+                              minHeight: 6,
+                              backgroundColor: const Color(0xFFE2E8F0),
+                              valueColor: const AlwaysStoppedAnimation(Color(0xFF6366F1)),
+                            ),
+                          ),
+                        ] else ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEEF2FF),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              _splashMediaType == 'video' ? Icons.video_file_rounded : Icons.add_photo_alternate_rounded,
+                              size: 28,
+                              color: const Color(0xFF6366F1),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            _splashMediaType == 'video'
+                                ? '📁 Cihazdan / Galeriden Video Seç & Yükle'
+                                : '🖼️ Cihazdan / Galeriden Görsel Seç & Yükle',
+                            style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: const Color(0xFF1E293B)),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Fotoğraf veya videolarınızdan seçin; Firebase sunucusuna doğrudan yüklenip otomatik ayarlanır.',
+                            style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF64748B)),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Alternatif URL Alanı (Link Yapıştırmak İsteyenler İçin)
+                Row(
+                  children: [
+                    Text('Veya Doğrudan Bağlantı (URL) Yapıştırın:', style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: const Color(0xFF64748B))),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                _buildInput(
+                  controller: _splashMediaUrlCtrl,
+                  label: '',
+                  hint: _splashMediaType == 'video' ? 'https://.../video.mp4' : 'https://.../banner.jpg',
+                  icon: _splashMediaType == 'video' ? Icons.link_rounded : Icons.image_rounded,
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 6),
           // Hızlı Demo Doldurma Butonları
