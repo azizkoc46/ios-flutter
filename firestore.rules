@@ -189,10 +189,14 @@ service cloud.firestore {
     match /admin_activity_log/{document=**} { allow read, write: if isAdmin(); }
     match /admin_notification_requests/{document=**} {
       allow read: if isAdmin();
-      allow create: if signedIn();
+      allow create: if true;
       allow update, delete: if isAdmin();
     }
-    match /admin_notifications_log/{document=**} { allow read, write: if isAdmin(); }
+    match /admin_notifications_log/{document=**} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
     match /admin_tokens/{document=**} { allow read, write: if isAdmin(); }
     match /announcements/{document=**} {
       allow read: if true;

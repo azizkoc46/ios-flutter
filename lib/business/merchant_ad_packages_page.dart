@@ -15,6 +15,7 @@ class MerchantAdPackagesPage extends StatefulWidget {
 class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
   AdPeriod _selectedPeriod = AdPeriod.oneMonth;
   final MerchantAdService _service = MerchantAdService.instance;
+  AdConfigModel? _currentConfig;
 
   @override
   void initState() {
@@ -59,20 +60,24 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
       body: StreamBuilder<AdConfigModel>(
         stream: _service.streamConfig(),
         builder: (context, snapshot) {
-          final config = snapshot.data ?? _service.streamConfig().first as dynamic;
-          // Eğer akış henüz ilk veriyi üretmediyse güvenle varsayılanı kullan
-          final safeConfig = config is AdConfigModel
-              ? config
-              : const AdConfigModel(
-                  whatsappPhone: '0546 466 4646',
-                  supportPhone: '0546 466 4646',
-                  instagramUsername: 'pazarcikportal',
-                  periodDiscounts: {1: 0, 3: 15, 6: 25, 12: 35},
-                  packages: MerchantAdService.defaultPackages,
-                  singleServices: MerchantAdService.defaultSingleServices,
-                  policyTitle: 'Adil, Şeffaf ve İnsanları Sıkmayan Reklam Politikamız',
-                  policyText: 'Pazarcık Portal olarak esnafımızın büyümesini desteklerken, hemşehrilerimizin kullanıcı deneyimini en üst seviyede tutuyoruz.',
-                );
+          final config = snapshot.data;
+          if (config != null) {
+            _currentConfig = config;
+          }
+
+          final safeConfig = config ??
+              _currentConfig ??
+              const AdConfigModel(
+                whatsappPhone: '0546 466 4646',
+                supportPhone: '0546 466 4646',
+                instagramUsername: 'pazarcikportal',
+                vatRate: 18,
+                periodDiscounts: {1: 0, 3: 15, 6: 25, 12: 35},
+                packages: MerchantAdService.defaultPackages,
+                singleServices: MerchantAdService.defaultSingleServices,
+                policyTitle: 'Adil, Şeffaf ve İnsanları Sıkmayan Reklam Politikamız',
+                policyText: 'Pazarcık Portal olarak esnafımızın büyümesini desteklerken, hemşehrilerimizin kullanıcı deneyimini en üst seviyede tutuyoruz.',
+              );
 
           return LayoutBuilder(
             builder: (context, constraints) {
@@ -394,7 +399,7 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
           return Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: _buildPackageCard(pkg, discount, isDark),
+              child: _buildPackageCard(pkg, discount, config, isDark),
             ),
           );
         }).toList(),
@@ -405,13 +410,13 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
       children: config.packages.map((pkg) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 20),
-          child: _buildPackageCard(pkg, discount, isDark),
+          child: _buildPackageCard(pkg, discount, config, isDark),
         );
       }).toList(),
     );
   }
 
-  Widget _buildPackageCard(AdPackageModel pkg, int discount, bool isDark) {
+  Widget _buildPackageCard(AdPackageModel pkg, int discount, AdConfigModel config, bool isDark) {
     final monthlyPrice = pkg.getMonthlyPrice(discount);
     final totalPrice = pkg.getTotalPrice(_selectedPeriod, discount);
     final isPopular = pkg.isPopular;
@@ -538,6 +543,15 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 4),
+                Text(
+                  '+ %${config.vatRate} KDV • Adınıza Resmi Faturalıdır',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0369A1),
+                  ),
+                ),
                 const SizedBox(height: 18),
                 const Divider(height: 1, thickness: 0.8),
                 const SizedBox(height: 16),
@@ -588,6 +602,8 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
                     itemName: pkg.name,
                     periodLabel: _selectedPeriod.label,
                     totalPrice: totalPrice,
+                    config: config,
+                    perks: pkg.perks,
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isPopular ? const Color(0xFF0284C7) : const Color(0xFF0F172A),
@@ -604,7 +620,7 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  onPressed: () => _openPackageWhatsApp(pkg, totalPrice),
+                  onPressed: () => _openPackageWhatsApp(pkg, totalPrice, config),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF25D366),
                     side: const BorderSide(color: Color(0xFF25D366), width: 1.2),
@@ -666,7 +682,7 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
         children: config.singleServices.map((svc) {
           return SizedBox(
             width: 420,
-            child: _buildSingleServiceCard(svc, isDark),
+            child: _buildSingleServiceCard(svc, config, isDark),
           );
         }).toList(),
       );
@@ -676,13 +692,13 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
       children: config.singleServices.map((svc) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 14),
-          child: _buildSingleServiceCard(svc, isDark),
+          child: _buildSingleServiceCard(svc, config, isDark),
         );
       }).toList(),
     );
   }
 
-  Widget _buildSingleServiceCard(SingleServiceModel svc, bool isDark) {
+  Widget _buildSingleServiceCard(SingleServiceModel svc, AdConfigModel config, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -767,6 +783,14 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
                       color: isDark ? Colors.white54 : Colors.grey.shade600,
                     ),
                   ),
+                  Text(
+                    '+%${config.vatRate} KDV',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0369A1),
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -799,6 +823,8 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
                     itemName: svc.title,
                     periodLabel: svc.unit,
                     totalPrice: svc.price,
+                    config: config,
+                    perks: [svc.description, svc.highlight],
                   ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
@@ -814,7 +840,7 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
               ),
               const SizedBox(width: 8),
               ElevatedButton.icon(
-                onPressed: () => _openSingleServiceWhatsApp(svc),
+                onPressed: () => _openSingleServiceWhatsApp(svc, config),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF25D366),
                   foregroundColor: Colors.white,
@@ -858,20 +884,28 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
   Widget _buildFaqSection(bool isDark) {
     final faqs = [
       {
+        'q': 'Fatura kesiliyor mu ve KDV oranı nedir?',
+        'a': 'Evet! Tüm reklam, vitrin ve bildirim hizmetlerimiz şirketimiz tarafından adınıza veya firmanıza resmi e-Fatura / e-Arşiv faturalıdır. Fiyatlarımıza yasal oranda +%18 KDV eklenmektedir.'
+      },
+      {
+        'q': 'Reklam paylaşıldıktan sonra cayma hakkı veya ücret iadesi var mı?',
+        'a': '6502 sayılı Tüketicinin Korunması Hakkında Kanun ve Mesafeli Sözleşmeler Yönetmeliği m.15/1-(h) gereğince; elektronik ortamda anında ifa edilen hizmetler kapsamında reklam çalışması ilk kez paylaşıldığı veya yayına alındığı andan itibaren cayma hakkı ve ücret iadesi KESİNLİKLE BULUNMAMAKTADIR. Hizmetiniz sözleşme süresi bitene kadar kesintisiz devam ettirilir.'
+      },
+      {
+        'q': 'Broşür, kartvizit, reklam brandası ve açılış çekimi indirimi nedir?',
+        'a': 'Paket alan tüm esnaflarımız, sözleşme süresi boyunca anlaşmalı matbaa, reklam/tabela ve görsel çekim birimlerimizden broşür, kartvizit, açılış brandası ve özel çekimlerde %20 net indirimden faydalanır.'
+      },
+      {
         'q': 'Reklamım veya hikayem ne zaman yayına girer?',
         'a': 'Başvurunuz ve içerikleriniz onaylandıktan sonra dilediğiniz gün ve saat planlaması yapılarak 24 saat içerisinde yayına alınır.'
       },
       {
-        'q': 'Görselleri ve videoları ben mi hazırlayacağım?',
-        'a': 'Elinizdeki mevcut fotoğraf, video veya afişleri kullanabiliriz. Ayrıca ekibimiz profesyonel metin ve görsel boyutlandırma desteği sağlamaktadır.'
+        'q': 'Görselleri ve metinleri ben mi hazırlayacağım?',
+        'a': 'Elinizdeki mevcut fotoğraf ve afişleri kullanabiliriz. Ayrıca ekibimiz profesyonel metin ve görsel boyutlandırma desteği sağlamaktadır.'
       },
       {
         'q': 'Toplu bildirimler ne zaman ve nasıl gönderilir?',
-        'a': 'Bildirimler kullanıcıları sıkmayacak şekilde, ilçede en yüksek aktiflik saatlerinde (genellikle 12:00-14:00 veya 18:00-20:30) indirim ve fırsat bülteni formatında gönderilir.'
-      },
-      {
-        'q': 'Fatura ve ödeme nasıl gerçekleşiyor?',
-        'a': 'Havale/EFT ve resmi faturalandırma ile çalışmaktayız. Dilerseniz Pazarcık merkez ofisimizde yüz yüze görüşme de sağlayabiliriz.'
+        'a': 'Bildirimler kullanıcıları sıkmayacak şekilde, ilçede en yüksek aktiflik saatlerinde (genellikle 12:00-14:00 veya 18:00-20:30) somut indirim ve fırsat bülteni formatında doğrudan kullanıcıların cebine iletilir.'
       },
     ];
 
@@ -890,7 +924,7 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
               const Icon(CupertinoIcons.question_circle_fill, color: Color(0xFF0284C7), size: 20),
               const SizedBox(width: 8),
               Text(
-                'Sıkça Sorulan Sorular',
+                'Sıkça Sorulan Sorular & Yasal Güvence',
                 style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -968,7 +1002,7 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
           ),
           const SizedBox(height: 18),
           ElevatedButton.icon(
-            onPressed: () => _openGeneralWhatsApp(),
+            onPressed: () => _openGeneralWhatsApp(config),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: const Color(0xFF065F46),
@@ -1032,20 +1066,22 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
     );
   }
 
-  // ── Başvuru Modalı ──
+  // ── Başvuru Modalı & Zengin Paket Özeti & Sözleşme ──
   void _openRequestModal({
     required String requestType,
     required String itemName,
     required String periodLabel,
     required double totalPrice,
+    required AdConfigModel config,
+    List<String>? perks,
   }) {
     final businessCtrl = TextEditingController();
     final contactCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
+    final taxNoCtrl = TextEditingController();
     final noteCtrl = TextEditingController();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Oturum açıksa kullanıcı bilgilerini doldur
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser?.displayName != null && currentUser!.displayName!.isNotEmpty) {
       contactCtrl.text = currentUser.displayName!;
@@ -1054,12 +1090,18 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
       phoneCtrl.text = currentUser.phoneNumber!;
     }
 
+    final vatRate = config.vatRate;
+    final netPrice = totalPrice;
+    final vatAmount = (netPrice * vatRate / 100);
+    final totalWithVat = netPrice + vatAmount;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         bool isSubmitting = false;
+        bool contractAccepted = false;
 
         return StatefulBuilder(
           builder: (context, setModalState) {
@@ -1068,12 +1110,16 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
                 bottom: MediaQuery.of(context).viewInsets.bottom,
               ),
               child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.90,
+                ),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF131B2E) : Colors.white,
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                 ),
-                padding: const EdgeInsets.fromLTRB(22, 20, 22, 28),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                 child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1088,33 +1134,204 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
                       Text(
-                        'Reklam Talebi Oluştur 📝',
+                        'Reklam Başvurusu & Sipariş Özeti 📝',
                         style: GoogleFonts.inter(
-                          fontSize: 19,
+                          fontSize: 18,
                           fontWeight: FontWeight.w900,
                           color: isDark ? Colors.white : const Color(0xFF0F172A),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Seçilen: $itemName ($periodLabel) • ${totalPrice.toInt()} ₺',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF0284C7),
+                      const SizedBox(height: 12),
+
+                      // ── 1. SEÇİLEN PAKET ZENGİN ÖZET KARTI ──
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF38BDF8).withOpacity(0.3) : const Color(0xFF86EFAC),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '$itemName ($periodLabel)',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w900,
+                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0284C7).withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    'RESMİ FATURALI',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF0284C7),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 16),
+                            if (perks != null && perks.isNotEmpty) ...[
+                              Text(
+                                'Dahil Olan Ayrıcalıklar:',
+                                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey.shade600),
+                              ),
+                              const SizedBox(height: 4),
+                              ...perks.take(3).map(
+                                (p) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 3),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Icon(CupertinoIcons.checkmark_alt_circle_fill, size: 14, color: Color(0xFF10B981)),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          p,
+                                          style: GoogleFonts.inter(fontSize: 11, color: isDark ? Colors.white70 : Colors.black87),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Net Hizmet Bedeli:', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade600)),
+                                Text('${netPrice.toInt()} ₺', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700)),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('+%${vatRate} KDV Tutarı:', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade600)),
+                                Text('${vatAmount.toInt()} ₺', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700)),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Genel Toplam (KDV Dahil):', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w900)),
+                                Text(
+                                  '${totalWithVat.toInt()} ₺',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w900,
+                                    color: const Color(0xFF0284C7),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 16),
+
+                      // ── 2. FORM ALANLARI ──
                       _buildTextField(businessCtrl, 'İşletme Adınız *', 'Örn: Şahinler Butik', isDark),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       _buildTextField(contactCtrl, 'Yetkili Adı Soyadı *', 'Örn: Ahmet Yılmaz', isDark),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       _buildTextField(phoneCtrl, 'İletişim Telefonu *', 'Örn: 05xx xxx xx xx', isDark, keyboard: TextInputType.phone),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
+                      _buildTextField(taxNoCtrl, 'Fatura İçin Vergi No / T.C. Kimlik No (Tavsiye Edilir)', 'Resmi fatura adınıza düzenlenir', isDark),
+                      const SizedBox(height: 10),
                       _buildTextField(noteCtrl, 'Ek Not veya İstekleriniz', 'Kampanya detayı, indirim oranı vb.', isDark, maxLines: 2),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
+
+                      // ── 3. SÖZLEŞME ONAY KUTUSU (HUKUKİ KORUMA) ──
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: contractAccepted
+                                ? const Color(0xFF10B981)
+                                : (isDark ? Colors.white12 : Colors.grey.shade300),
+                            width: contractAccepted ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Checkbox(
+                              value: contractAccepted,
+                              activeColor: const Color(0xFF0284C7),
+                              onChanged: (v) => setModalState(() => contractAccepted = v ?? false),
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text.rich(
+                                    TextSpan(
+                                      children: [
+                                        TextSpan(
+                                          text: 'Mesafeli Reklam Sözleşmesi\'ni okudum. ',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w800,
+                                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                          ),
+                                        ),
+                                        TextSpan(
+                                          text: 'Reklam yayına alındığı andan itibaren cayma hakkı ve ücret iadesi bulunmadığını, fiyatlara +%18 KDV ekleneceğini ve adıma resmi fatura kesileceğini kabul ediyorum.',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11.5,
+                                            color: isDark ? Colors.white70 : const Color(0xFF475569),
+                                            height: 1.35,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  GestureDetector(
+                                    onTap: () => _showContractBottomSheet(context, isDark),
+                                    child: Text(
+                                      '📄 Sözleşme Metnini İncele (Geniş Kapsamlı)',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF0284C7),
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // ── 4. BAŞVURU BUTONU ──
                       ElevatedButton(
                         onPressed: isSubmitting
                             ? null
@@ -1134,6 +1351,17 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
                                   return;
                                 }
 
+                                if (!contractAccepted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('⚠️ Lütfen devam etmek için Mesafeli Reklam Sözleşmesi şartlarını onaylayınız.'),
+                                      behavior: SnackBarBehavior.floating,
+                                      backgroundColor: Colors.redAccent,
+                                    ),
+                                  );
+                                  return;
+                                }
+
                                 setModalState(() => isSubmitting = true);
 
                                 try {
@@ -1141,6 +1369,7 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
                                     businessName: bName,
                                     contactName: cName,
                                     phone: pNumber,
+                                    taxNo: taxNoCtrl.text.trim(),
                                     requestType: requestType,
                                     itemName: itemName,
                                     periodLabel: periodLabel,
@@ -1150,7 +1379,7 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
 
                                   if (mounted) {
                                     Navigator.pop(ctx);
-                                    _showSuccessDialog(bName, itemName, periodLabel, totalPrice);
+                                    _showSuccessDialog(bName, itemName, periodLabel, totalPrice, config);
                                   }
                                 } catch (e) {
                                   setModalState(() => isSubmitting = false);
@@ -1223,14 +1452,20 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
     );
   }
 
-  void _showSuccessDialog(String bName, String itemName, String periodLabel, double totalPrice) {
+  void _showSuccessDialog(String bName, String itemName, String periodLabel, double totalPrice, AdConfigModel config) {
+    final vatAmount = totalPrice * config.vatRate / 100;
+    final totalWithVat = totalPrice + vatAmount;
+
     showCupertinoDialog(
       context: context,
       builder: (ctx) {
         return CupertinoAlertDialog(
           title: const Text('Talebiniz Alındı! 🎉'),
           content: Text(
-            '$bName işletmeniz için "$itemName ($periodLabel)" başvurusu başarıyla iletildi.\n\nEkibimiz en kısa sürede sizinle iletişime geçecektir. Dilerseniz hemen WhatsApp üzerinden detayları görüşebilirsiniz.',
+            '$bName işletmeniz için "$itemName ($periodLabel)" başvurusu başarıyla iletildi.\n\n'
+            'Net Bedel: ${totalPrice.toInt()} ₺\n'
+            '+%${config.vatRate} KDV Dahil Toplam: ${totalWithVat.toInt()} ₺ (Resmi Faturalı)\n\n'
+            'Ekibimiz en kısa sürede sizinle iletişime geçecektir. Dilerseniz hemen WhatsApp üzerinden detayları görüşebilirsiniz.',
           ),
           actions: [
             CupertinoDialogAction(
@@ -1244,8 +1479,8 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
                 Navigator.pop(ctx);
                 _service.openWhatsApp(
                   context: context,
-                  whatsappNumber: '0546 466 4646',
-                  message: 'Merhaba Pazarcık Portal, $bName işletmem için $itemName ($periodLabel - ${totalPrice.toInt()} ₺) reklam başvurusu yaptım. Detayları görüşmek istiyorum.',
+                  whatsappNumber: config.whatsappPhone,
+                  message: 'Merhaba Pazarcık Portal, $bName işletmem için $itemName ($periodLabel) reklam başvurusu yaptım (Toplam: ${totalWithVat.toInt()} ₺ KDV Dahil). Detayları görüşmek istiyorum.',
                 );
               },
             ),
@@ -1255,28 +1490,154 @@ class _MerchantAdPackagesPageState extends State<MerchantAdPackagesPage> {
     );
   }
 
-  // ── WhatsApp Yönlendirmeleri ──
-  void _openGeneralWhatsApp() {
+  // ── Geniş Kapsamlı Mesafeli Reklam Sözleşmesi Modalı ──
+  void _showContractBottomSheet(BuildContext context, bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF131B2E) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(22, 16, 22, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade400,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Icon(CupertinoIcons.doc_text_fill, color: Color(0xFF0284C7), size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Mesafeli Reklam & Tanıtım Sözleşmesi',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(CupertinoIcons.xmark_circle_fill, color: Colors.grey),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const Divider(height: 20),
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Text(
+                    _contractFullText,
+                    style: GoogleFonts.inter(
+                      fontSize: 12.5,
+                      height: 1.55,
+                      color: isDark ? Colors.white70 : const Color(0xFF334155),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0284C7),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: Text('Okudum, Anladım', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static const String _contractFullText = '''
+PAZARCIK PORTAL MESAFELİ REKLAM VE TANITIM HİZMET SÖZLEŞMESİ
+
+MADDE 1 - TARAFLAR VE SÖZLEŞMENİN AMACI
+İşbu Mesafeli Reklam ve Tanıtım Hizmet Sözleşmesi ("Sözleşme"); Pazarcık Portal Yönetimi ("Hizmet Sağlayıcı") ile mobil uygulama veya web platformu üzerinden reklam/tanıtım hizmeti talebinde bulunan gerçek ya da tüzel kişi işletme yetkilisi ("Reklam Veren") arasında elektronik ortamda akdedilmiştir. Sözleşme, seçilen tanıtım paketinin ifa koşullarını, faturalandırma şartlarını ve tarafların yasal hak ve yükümlülüklerini düzenler.
+
+MADDE 2 - HİZMET KAPSAMI VE YAYIN KANALLARI
+Hizmet Sağlayıcı; Reklam Veren'in seçmiş olduğu paket kapsamında Pazarcık Portal resmi Instagram hesabı, mobil uygulama hikayeleri, web vitrini, anlık indirim ve kampanya bildirimleri gibi yerel mecralarda tanıtım çalışmalarını yürütür.
+
+MADDE 3 - FATURALANDIRMA VE VERGİLENDİRME (+%18 KDV)
+• Sunulan tüm tanıtım, reklam, vitrin ve bildirim hizmetleri RESMİ FATURALIDIR.
+• Portal üzerinde belirtilen baz fiyatlara yürürlükteki mevzuat uyarınca yasal oranda +%18 KDV ilave edilir.
+• Reklam Veren; faturanın tanzim edilebilmesi amacıyla yasal ticari unvanını, vergi dairesi ve vergi kimlik numarasını (şahıs işletmeleri için T.C. Kimlik Numarasını) ve tebligat adresini doğru ve eksiksiz bildirmekle mükelleftir.
+
+MADDE 4 - CAYMA HAKKI VE İADE BULUNMAMASI (HUKUKİ GÜVENCE ŞARTI)
+6502 sayılı Tüketicinin Korunması Hakkında Kanun ve 29188 sayılı Resmi Gazete'de yayımlanan Mesafeli Sözleşmeler Yönetmeliği'nin 15. maddesinin 1. fıkrasının (ğ) ve (h) bentleri gereğince;
+a) "Elektronik ortamda anında ifa edilen hizmetler veya tüketiciye anında teslim edilen gayrimaddi mallara ilişkin sözleşmeler" yasal olarak cayma hakkının istisnaları arasında yer almaktadır.
+b) Reklam Veren'e ait tanıtım içeriği (Instagram hikayesi, sabit akış gönderisi, mobil vitrin kaydı veya anlık duyuru bildirimi) sistemde onaylanıp İLK KEZ PAYLAŞILDIĞI VEYA YAYINA ALINDIĞI ANDAN İTİBAREN HİZMET İFA EDİLMİŞ SAYILIR.
+c) Tanıtım yayına girdikten veya sosyal mecralarda paylaşıldıktan sonra CAYMA HAKKI, SÖZLEŞMEDEN DÖNME VEYA ÜCRET İADESİ HAKKI KESİNLİKLE BULUNMAMAKTADIR.
+d) Seçilen döneme ilişkin (1 Ay, 3 Ay, 6 Ay veya 1 Yıl) hizmet, sözleşmede kararlaştırılan süre tamamlanana kadar belirlenen yayın sıklığıyla kesintisiz yürütülür. Reklam Veren'in kendi inisiyatifiyle yayınları durdurmak veya içerik göndermemek istemesi halinde kalan gün veya haftalar için herhangi bir ücret iadesi, mahsup veya tazminat talep edilemez.
+
+MADDE 5 - İÇERİK SORUMLULUĞU VE MEVZUATA UYGUNLUK
+• Reklam Veren tarafından iletilen tüm görsel, video, metin, slogan, indirim oranı, fiyat ve tüketici taahhütlerinin doğruluğundan ve 5846 sayılı Fikir ve Sanat Eserleri Kanunu ile Tüketici Hakları mevzuatına uygunluğundan münhasıran Reklam Veren sorumludur.
+• Hizmet Sağlayıcı; kamu düzenine, genel ahlaka, haksız rekabet kurallarına veya üçüncü kişilerin fikri mülkiyet haklarına aykırı içerikleri yayınlamama, düzeltilmesini talep etme veya yayından kaldırma hakkına sahiptir. Bu durum Reklam Veren'e ücret iadesi hakkı vermez.
+
+MADDE 6 - ÇÖZÜM ORTAKLIĞI VE EK İNDİRİM AVANTAJLARI
+Paket kapsamında taahhüt edilen "Broşür, Kartvizit, Reklam Brandası ve Açılış Çekimlerinde %20 İndirim" hakkı; sözleşme süresi boyunca Hizmet Sağlayıcı'nın anlaşmalı olduğu matbaa, ajans ve görsel prodüksiyon birimlerinde geçerlidir.
+
+MADDE 7 - YÜRÜRLÜK VE KABUL
+Reklam Veren; platform üzerindeki başvuru formunu onayladığında, işbu sözleşmenin tüm hükümlerini, cayma hakkı bulunmadığını ve faturaya yansıtılacak +%18 KDV koşullarını gayrikabili rücu kabul, beyan ve taahhüt etmiş sayılır.
+''';
+
+  // ── WhatsApp Yönlendirmeleri (Dinamik Admin Numarası ile) ──
+  void _openGeneralWhatsApp([AdConfigModel? config]) {
+    final cfg = config ?? _currentConfig;
+    final phone = cfg?.whatsappPhone.isNotEmpty == true ? cfg!.whatsappPhone : '0546 466 4646';
     _service.openWhatsApp(
       context: context,
-      whatsappNumber: '0546 466 4646',
+      whatsappNumber: phone,
       message: 'Merhaba Pazarcık Portal, işletmem için esnaf reklam ve tanıtım paketleri hakkında bilgi almak istiyorum.',
     );
   }
 
-  void _openPackageWhatsApp(AdPackageModel pkg, double totalPrice) {
+  void _openPackageWhatsApp(AdPackageModel pkg, double totalPrice, [AdConfigModel? config]) {
+    final cfg = config ?? _currentConfig;
+    final phone = cfg?.whatsappPhone.isNotEmpty == true ? cfg!.whatsappPhone : '0546 466 4646';
+    final vatRate = cfg?.vatRate ?? 18;
+    final totalWithVat = totalPrice * (1 + vatRate / 100);
+
     _service.openWhatsApp(
       context: context,
-      whatsappNumber: '0546 466 4646',
-      message: 'Merhaba Pazarcık Portal, "${pkg.name}" (${_selectedPeriod.label} - ${totalPrice.toInt()} ₺) reklam paketiyle ilgileniyorum. İşletmemi tanıtmak istiyorum, bilgi alabilir miyim?',
+      whatsappNumber: phone,
+      message: 'Merhaba Pazarcık Portal, "${pkg.name}" (${_selectedPeriod.label} - Net: ${totalPrice.toInt()} ₺ | +%${vatRate} KDV Dahil: ${totalWithVat.toInt()} ₺) reklam paketiyle ilgileniyorum. İşletmemi tanıtmak istiyorum, bilgi alabilir miyim?',
     );
   }
 
-  void _openSingleServiceWhatsApp(SingleServiceModel svc) {
+  void _openSingleServiceWhatsApp(SingleServiceModel svc, [AdConfigModel? config]) {
+    final cfg = config ?? _currentConfig;
+    final phone = cfg?.whatsappPhone.isNotEmpty == true ? cfg!.whatsappPhone : '0546 466 4646';
+    final vatRate = cfg?.vatRate ?? 18;
+    final totalWithVat = svc.price * (1 + vatRate / 100);
+
     _service.openWhatsApp(
       context: context,
-      whatsappNumber: '0546 466 4646',
-      message: 'Merhaba Pazarcık Portal, "${svc.title}" (${svc.unit} - ${svc.price.toInt()} ₺) tekil reklam hizmeti almak istiyorum. Detayları görüşebilir miyiz?',
+      whatsappNumber: phone,
+      message: 'Merhaba Pazarcık Portal, "${svc.title}" (${svc.unit} - Net: ${svc.price.toInt()} ₺ | +%${vatRate} KDV Dahil: ${totalWithVat.toInt()} ₺) tekil reklam hizmeti almak istiyorum. Detayları görüşebilir miyiz?',
     );
   }
 }

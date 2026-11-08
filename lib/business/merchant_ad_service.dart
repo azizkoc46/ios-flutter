@@ -202,6 +202,7 @@ class AdConfigModel {
   final String whatsappPhone;
   final String supportPhone;
   final String instagramUsername;
+  final int vatRate; // %18 KDV
   final Map<int, int> periodDiscounts;
   final List<AdPackageModel> packages;
   final List<SingleServiceModel> singleServices;
@@ -212,6 +213,7 @@ class AdConfigModel {
     required this.whatsappPhone,
     required this.supportPhone,
     required this.instagramUsername,
+    this.vatRate = 18,
     required this.periodDiscounts,
     required this.packages,
     required this.singleServices,
@@ -253,7 +255,8 @@ class MerchantAdService {
         'Mobil Uygulama & Web "Hikayeler Vitrini"nde 1 Ay Sabit Görünüm',
         '1 Adet Toplu Kampanya / Fırsat Bildirimi (Tüm kullanıcılara duyuru)',
         'İşletme Rehberinde "Öne Çıkan Esnaf" Etiketi',
-        'Google & Portal Arama Sonuçlarında Öncelikli İndeks',
+        'Broşür, Kartvizit, Reklam Brandası ve Açılış Çekimlerinde %20 İndirim',
+        'Adınıza / Firmanıza Resmi Faturalı Hizmet (+%18 KDV)',
       ],
       recommendedFor: 'Butikler, kafeler, kuaförler ve yeni açılan yerel işletmeler',
     ),
@@ -272,12 +275,13 @@ class MerchantAdService {
       instagramPinDiscount: true,
       perks: [
         'Pazarcık Portal Instagram’da Günde 2 Hikaye (Ayda 60 Hikaye)',
-        'Haftalık 3 Adet Akış Gönderisi / Reels (Ayda 12 Gönderi)',
+        'Haftalık 3 Adet Akış Gönderisi (Ayda 12 Gönderi)',
         'Mobil Uygulama & Web Hikaye Vitrininde Üst Sırada 1 Ay Kesintisiz Yayın',
         '2 Adet Toplu Özel Fırsat & Kampanya Bildirimi (Doğrudan cebe duyuru)',
         'Instagram "Öne Çıkanlar" Sabitleme ve Etiketleme Avantajı',
         'İşletme Rehberinde Doğrulanmış Rozet (Yeşil Onay Rozeti)',
-        'Sosyal Medya Görsel & Metin Düzenleme Desteği',
+        'Broşür, Kartvizit, Reklam Brandası ve Açılış Çekimlerinde %20 İndirim',
+        'Adınıza / Firmanıza Resmi Faturalı Hizmet (+%18 KDV)',
       ],
       recommendedFor: 'Restoranlar, mobilyacılar, marketler, oto servisleri ve aktif satış yapan esnaflar',
     ),
@@ -296,13 +300,14 @@ class MerchantAdService {
       instagramPinDiscount: true,
       perks: [
         'Pazarcık Portal Instagram’da Günde 3 Hikaye (Ayda 90 Hikaye)',
-        'Haftalık 5 Adet Gönderi & Profesyonel Reels Video Paylaşımı',
-        'Mobil & Web Hikaye Vitrininde En Başta Sabit Konumlandırma',
+        'Haftalık 5 Adet Akış Gönderisi Paylaşımı (Ayda 20 Gönderi)',
+        'Mobil & Web Hikaye Vitrininde EN BAŞTA SABİT Konumlandırma',
         '3 Adet Toplu Özel Fırsat / İndirim Bildirimi (Duyuru formatında)',
         'Mobil Uygulama Açılış / Karşılama Ekranında %50 İndirim Fırsatı',
         'Instagram Profilinde Başa Tutturma (Sabit Gönderi) %50 İndirimli',
-        'Özel Esnaf Tanıtım Röportajı & Reels Video Çekim Desteği',
+        'Broşür, Kartvizit, Reklam Brandası ve Açılış Çekimlerinde %20 İndirim',
         'VIP Destek Hattı ve Anlık Kampanya Güncelleme Önceliği',
+        'Adınıza / Firmanıza Resmi Faturalı Hizmet (+%18 KDV)',
       ],
       recommendedFor: 'Büyük mağazalar, inşaat/emlak firmaları, düğün salonları ve kurumsal işletmeler',
     ),
@@ -431,11 +436,13 @@ class MerchantAdService {
 
       final policyTitle = (data['policyTitle'] ?? 'Adil, Şeffaf ve İnsanları Sıkmayan Reklam Politikamız').toString();
       final policyText = (data['policyText'] ?? _defaultPolicyText).toString();
+      final vatRate = (data['vatRate'] as num?)?.toInt() ?? 18;
 
       return AdConfigModel(
         whatsappPhone: whatsapp,
         supportPhone: support,
         instagramUsername: igUser,
+        vatRate: vatRate,
         periodDiscounts: discountsMap,
         packages: packages,
         singleServices: singleServices,
@@ -450,6 +457,7 @@ class MerchantAdService {
       whatsappPhone: '0546 466 4646',
       supportPhone: '0546 466 4646',
       instagramUsername: 'pazarcikportal',
+      vatRate: 18,
       periodDiscounts: {1: 0, 3: 15, 6: 25, 12: 35},
       packages: defaultPackages,
       singleServices: defaultSingleServices,
@@ -484,6 +492,7 @@ class MerchantAdService {
           'whatsappPhone': '0546 466 4646',
           'supportPhone': '0546 466 4646',
           'instagramUsername': 'pazarcikportal',
+          'vatRate': 18,
           'periodDiscounts': {'1': 0, '3': 15, '6': 25, '12': 35},
           'packages': packagesMap,
           'singleServices': singleMap,
@@ -497,6 +506,41 @@ class MerchantAdService {
     }
   }
 
+  /// Yönetici panelinden reklam ayarlarını güncelleme
+  Future<void> updateAdSettings({
+    required String whatsappPhone,
+    required String supportPhone,
+    required String instagramUsername,
+    int? vatRate,
+    Map<String, double>? packagePrices,
+  }) async {
+    final docRef = FirebaseFirestore.instance.collection(_collectionName).doc(_docName);
+    final updateData = <String, dynamic>{
+      'whatsappPhone': whatsappPhone.trim(),
+      'supportPhone': supportPhone.trim(),
+      'instagramUsername': instagramUsername.trim(),
+      'vatRate': vatRate ?? 18,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (packagePrices != null && packagePrices.isNotEmpty) {
+      for (final entry in packagePrices.entries) {
+        updateData['packages.${entry.key}.baseMonthlyPrice'] = entry.value;
+      }
+    }
+
+    await docRef.set(updateData, SetOptions(merge: true));
+
+    // Genel ayarlar dokümanındaki whatsapp alanını da senkronize et
+    try {
+      await FirebaseFirestore.instance.collection('app_settings').doc('general').set({
+        'whatsapp': whatsappPhone.trim(),
+        'supportPhone': supportPhone.trim(),
+        'instagram': instagramUsername.trim(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
+  }
+
   /// Reklam paketi veya tekil hizmet başvurusunu Firestore'a kaydeder ve admin'e bildirim iletir
   Future<void> submitAdRequest({
     required String businessName,
@@ -506,39 +550,64 @@ class MerchantAdService {
     required String itemName,
     required String periodLabel,
     required double totalPrice,
+    String? taxNo,
     String? note,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
+    const vatRate = 18;
+    final netPrice = totalPrice;
+    final vatAmount = (netPrice * vatRate / 100);
+    final totalWithVat = netPrice + vatAmount;
+
     final docData = {
       'userId': user?.uid ?? '',
       'userEmail': user?.email ?? '',
       'businessName': businessName.trim(),
       'contactName': contactName.trim(),
       'phone': phone.trim(),
+      'taxNo': taxNo?.trim() ?? '',
       'requestType': requestType,
       'itemName': itemName,
       'periodLabel': periodLabel,
+      'netPrice': netPrice,
+      'vatRate': vatRate,
+      'vatAmount': vatAmount,
       'totalPrice': totalPrice,
+      'totalWithVat': totalWithVat,
       'note': note?.trim() ?? '',
+      'contractApproved': true,
+      'contractVersion': 'v1_no_withdrawal_refund',
       'status': 'pending', // pending, contacted, approved, rejected
       'createdAt': FieldValue.serverTimestamp(),
     };
 
     final docRef = await FirebaseFirestore.instance.collection('ad_package_requests').add(docData);
 
-    // Yöneticiye anında bildirim kuyruğu
+    // 1. Yönetici anlık bildirim kuyruğuna yaz
     try {
       await AdminNotificationService.instance.notifyAdmin(
-        title: '🚀 Yeni Reklam Paketi Başvurusu',
+        title: '🚀 Yeni Esnaf Reklam Başvurusu',
         body: '$businessName ($contactName), $itemName ($periodLabel) için başvurdu.',
         type: 'ad_package_request',
         docId: docRef.id,
         extra: {
           'phone': phone.trim(),
           'business': businessName.trim(),
-          'price': '${totalPrice.toInt()} ₺',
+          'price': '${totalPrice.toInt()} ₺ (+%18 KDV)',
         },
       );
+    } catch (_) {}
+
+    // 2. Admin panelindeki bildirim ziline (admin_notifications_log) yaz
+    try {
+      await FirebaseFirestore.instance.collection('admin_notifications_log').add({
+        'title': '🚀 Yeni Reklam Başvurusu: $businessName',
+        'body': '$contactName - $itemName ($periodLabel) • Toplam: ${totalWithVat.toStringAsFixed(0)} ₺ (KDV Dahil)',
+        'type': 'ad_package_request',
+        'docId': docRef.id,
+        'seen': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
     } catch (_) {}
   }
 

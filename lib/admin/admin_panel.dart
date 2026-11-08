@@ -23,6 +23,7 @@ import 'admin_pending_center_tab.dart';
 import 'admin_taxi_tab.dart';
 import 'admin_roadside_tab.dart';
 import 'admin_muhtarlik_tab.dart';
+import 'admin_ad_management_tab.dart';
 import 'package:pazarcik_portal/business/business_add_page.dart';
 import 'admin_notification_service.dart';
 
@@ -262,6 +263,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   Tab(text: "7/24 Yol Yardım"),
                   Tab(text: "Muhtarlıklar"),
                   Tab(text: "Bülten & Etkinlik"),
+                  Tab(text: "Reklam Yönetimi"),
                   Tab(text: "Ayarlar"),
                 ],
               ),
@@ -288,6 +290,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             AdminRoadsideTab(),
             AdminMuhtarlikTab(),
             AdminAnnouncementsTab(),
+            AdminAdManagementTab(),
             AdminSettingsTab(),
           ],
         ),
