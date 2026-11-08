@@ -20,6 +20,7 @@ import 'admin_manual_classified_ad_tab.dart';
 import 'admin_manual_job_tab.dart';
 import 'admin_activity_feed_tab.dart';
 import 'admin_pending_center_tab.dart';
+import 'admin_phone_verification_tab.dart';
 import 'admin_taxi_tab.dart';
 import 'admin_roadside_tab.dart';
 import 'admin_muhtarlik_tab.dart';
@@ -247,6 +248,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 tabs: const [
                   Tab(text: "Özet"),
                   Tab(text: "Bekleyenler"),
+                  Tab(text: "Tel. Doğrulama"),
                   Tab(text: "Aktivite"),
                   Tab(text: "Kullanıcılar"),
                   Tab(text: "Restoranlar"),
@@ -274,6 +276,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           children: [
             AdminStatsTab(),
             AdminPendingCenterTab(),
+            AdminPhoneVerificationTab(),
             AdminActivityFeedTab(),
             AdminUsersTab(),
             AdminRestaurantsTab(),

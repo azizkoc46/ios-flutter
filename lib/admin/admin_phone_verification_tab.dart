@@ -1,9 +1,9 @@
+import 'package:url_launcher/url_launcher.dart';
 // ignore_for_file: deprecated_member_use
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'admin_notification_service.dart';
 
 /// Telefon Numarası Doğrulama Yönetim Sekmesi
@@ -477,6 +477,9 @@ class _RequestCard extends StatelessWidget {
     final phone = (data['phoneNumber'] ?? '-').toString();
     final fullName = (data['fullName'] ?? 'Bilinmiyor').toString();
     final uid = (data['uid'] ?? '').toString();
+    final email = (data['email'] ?? '').toString();
+    final issueReason = (data['issueReason'] ?? '').toString();
+    final errorDetails = (data['errorDetails'] ?? '').toString();
     final idImageUrl = (data['idImageUrl'] ?? '').toString();
     final selfieUrl = (data['selfieUrl'] ?? '').toString();
     final adminNote = (data['adminNote'] ?? '').toString();
@@ -555,7 +558,10 @@ class _RequestCard extends StatelessWidget {
                   child: Column(children: [
                     _row('Kullanıcı ID',
                         uid.length > 12 ? '${uid.substring(0, 12)}...' : uid),
+                    if (email.isNotEmpty) _row('E-posta', email),
                     if (dateStr.isNotEmpty) _row('Talep Tarihi', dateStr),
+                    if (issueReason.isNotEmpty) _row('Kullanıcı Bildirimi', issueReason, valueColor: Colors.deepOrange.shade800),
+                    if (errorDetails.isNotEmpty) _row('Hata Detayı', errorDetails, valueColor: Colors.red.shade700),
                     if (adminNote.isNotEmpty)
                       _row('Admin Notu', adminNote,
                           valueColor: Colors.red.shade700),
@@ -632,6 +638,17 @@ class _RequestCard extends StatelessWidget {
                 if (isPending) ...[
                   const SizedBox(height: 14),
                   Row(children: [
+                    IconButton(
+                      icon: const Icon(CupertinoIcons.chat_bubble_fill, color: Color(0xFF25D366)),
+                      tooltip: "WhatsApp'tan Ulaş",
+                      onPressed: () async {
+                        final clean = phone.replaceAll(RegExp(r'\D'), '');
+                        final fullPhone = clean.startsWith('90') ? clean : (clean.startsWith('0') ? '9$clean' : '90$clean');
+                        final url = Uri.parse('https://wa.me/$fullPhone?text=${Uri.encodeComponent('Merhaba $fullName, Pazarcık Portal telefon doğrulama talebiniz için yazıyoruz.')}');
+                        if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
+                      },
+                    ),
+                    const SizedBox(width: 4),
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: onReject,
@@ -641,7 +658,7 @@ class _RequestCard extends StatelessWidget {
                         label: const Text('Reddet'),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: onApprove,

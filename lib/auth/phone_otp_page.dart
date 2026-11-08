@@ -1,3 +1,6 @@
+import 'package:flutter/foundation.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../admin/admin_notification_service.dart';
 // ignore_for_file: deprecated_member_use
 
 import 'dart:async';
@@ -591,6 +594,134 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
     );
   }
 
+
+  Future<void> _reportVerificationIssue() async {
+    final phone = _phoneCtrl.text.trim();
+    final cleanName = _nameCtrl.text.trim();
+    final user = FirebaseAuth.instance.currentUser;
+    final email = user?.email ?? '';
+    final uid = user?.uid ?? '';
+
+    final noteCtrl = TextEditingController(
+      text: _errorMsg != null && _errorMsg!.isNotEmpty
+          ? 'Hata mesajı: $_errorMsg'
+          : 'SMS doğrulama kodu telefonuma ulaşmadı.',
+    );
+
+    final confirm = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Doğrulama Sorunu Bildir 🚨'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${cleanName.isNotEmpty ? cleanName + "\n" : ""}${phone.isNotEmpty ? phone : "Numaranız"}${email.isNotEmpty ? "\n" + email : ""}\n\n'
+                'SMS kodu alamıyorsanız veya hata oluştuysa durumunuz yöneticiye doğrudan iletilir. Yöneticimiz numaranızı inceleyip hesabınızı manuel olarak onaylayabilir.',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              CupertinoTextField(
+                controller: noteCtrl,
+                maxLines: 2,
+                placeholder: 'Sorun açıklaması (opsiyonel)...',
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Vazgeç'),
+            onPressed: () => Navigator.pop(ctx, false),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: const Text('Yöneticiye Gönder'),
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final docRef = await FirebaseFirestore.instance.collection('phone_verification_requests').add({
+        'uid': uid,
+        'email': email,
+        'fullName': cleanName.isNotEmpty ? cleanName : (user?.displayName ?? 'İsimsiz Kullanıcı'),
+        'phoneNumber': phone.isNotEmpty ? _toE164(phone) : (user?.phoneNumber ?? ''),
+        'status': 'pending',
+        'issueReason': noteCtrl.text.trim(),
+        'errorDetails': _errorMsg ?? '',
+        'device': kIsWeb ? 'Web' : defaultTargetPlatform.toString(),
+        'submittedAt': FieldValue.serverTimestamp(),
+      });
+
+      await FirebaseFirestore.instance.collection('admin_notifications_log').add({
+        'title': '🚨 Tel Doğrulama Sorunu: ${cleanName.isNotEmpty ? cleanName : phone}',
+        'body': '${email.isNotEmpty ? email + " • " : ""}$phone numaralı kullanıcı SMS kodu alamadığını bildirdi. Yönetimden manuel onaylayabilirsiniz.',
+        'type': 'phone_verification_request',
+        'docId': docRef.id,
+        'seen': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      try {
+        await AdminNotificationService.instance.notifyAdmin(
+          title: '🚨 SMS Doğrulama Sorunu Bildirildi',
+          body: '$cleanName ($phone) kod alamıyor. E-posta: $email',
+          type: AdminNotifType.general,
+          docId: docRef.id,
+        );
+      } catch (_) {}
+
+      if (!mounted) return;
+      await showCupertinoDialog(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('Sorun Yöneticiye Bildirildi 📨'),
+          content: Text(
+            'Sayın ${cleanName.isNotEmpty ? cleanName : "Kullanıcımız"},\n\n'
+            'Talebiniz sistem yöneticisine iletildi. Yöneticimiz en kısa sürede telefon numaranızı kontrol edip hesabınızı manuel olarak onaylayabilir.\n\n'
+            'Dilerseniz WhatsApp destek hattımızdan da hemen mesaj atabilirsiniz.',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('WhatsApp ile Yaz'),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final text = 'Merhaba, Pazarcık Portal uygulamasında telefon doğrulama kodu alamıyorum.\n'
+                    'İsmim: $cleanName\n'
+                    'E-posta: $email\n'
+                    'Telefon: $phone\n'
+                    'Hesabımı manuel olarak doğrulayabilir misiniz?';
+                final url = Uri.parse('https://wa.me/905464664646?text=${Uri.encodeComponent(text)}');
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
+              },
+            ),
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              child: const Text('Tamam'),
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Bildirim gönderilemedi: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   // ── UI ────────────────────────────────────────────────────────────────────
 
   @override
@@ -783,6 +914,23 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
                 GoogleFonts.inter(fontSize: 11, color: Colors.black38),
           ),
         ),
+        const SizedBox(height: 14),
+        Center(
+          child: OutlinedButton.icon(
+            onPressed: _reportVerificationIssue,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFFDC2626),
+              side: const BorderSide(color: Color(0xFFFCA5A5)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(CupertinoIcons.exclamationmark_triangle_fill, size: 16),
+            label: Text(
+              'SMS Gelmiyor mu? / Yöneticiye Bildir',
+              style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -954,6 +1102,55 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
               style: GoogleFonts.inter(
                   color: Colors.black45, fontSize: 13),
             ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFEF2F2),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFFECACA)),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  const Icon(CupertinoIcons.question_circle_fill, color: Color(0xFFDC2626), size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'SMS kodu telefonunuza ulaşmadı mı?',
+                      style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w800, color: const Color(0xFF991B1B)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Operatör veya hat yoğunluğu nedeniyle SMS alamıyorsanız yöneticiye bildirin; hesabınız manuel olarak hemen onaylansın.',
+                style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF7F1D1D)),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _reportVerificationIssue,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFDC2626),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(CupertinoIcons.paperplane_fill, size: 15),
+                  label: Text(
+                    'Yöneticiye Bildir (Manuel Onay İste)',
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
