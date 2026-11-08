@@ -577,5 +577,12 @@ service cloud.firestore {
         );
       }
     }
+
+    // ── Esnaf Reklam & Tanıtım Paket Talepleri ───────────────────────────────
+    match /ad_package_requests/{requestId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.get('userId', '') == request.auth.uid);
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
   }
 }

@@ -30,6 +30,7 @@ import 'package:pazarcik_portal/services/cek_gonder_institution_service.dart';
 import 'package:pazarcik_portal/views/institution_cek_gonder_desk_page.dart';
 import 'package:pazarcik_portal/esnaf_sistemi/lib/views/main/courier/courier_orders_screen.dart';
 import 'package:pazarcik_portal/esnaf_sistemi/lib/services/courier_service.dart';
+import 'package:pazarcik_portal/business/merchant_ad_packages_page.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -511,6 +512,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 child: const Text("Giriş Yap / Kayıt Ol"),
               ),
+              const SizedBox(height: 16),
+              _buildAdPackagesBanner(context, isDark),
               const SizedBox(height: 12),
               Container(
                 decoration: BoxDecoration(
@@ -674,6 +677,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         color: isDark ? Colors.white : Colors.black)),
                 Text(phone,
                     style: const TextStyle(color: Colors.grey, fontSize: 14)),
+                const SizedBox(height: 20),
+
+                // --- ESNAF REKLAM & TANITIM BANNERI ---
+                _buildAdPackagesBanner(context, isDark),
                 const SizedBox(height: 24),
 
                 // --- KURUM YÖNETİM MASASI KARTI ---
@@ -807,6 +814,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 // --- 2. GRUP: İŞLETME REHBERİ ---
                 _buildSectionTitle("İşletme Rehberi"),
                 _buildMenuCard(isDark, [
+                  _menuItem(
+                    Icons.campaign_rounded,
+                    "Esnaf Reklam Paketleri",
+                    isDark: isDark,
+                    color: const Color(0xFF6366F1),
+                    trailingText: "Fırsat",
+                    onTap: () => Navigator.push(
+                      context,
+                      CupertinoPageRoute(
+                        builder: (_) => const MerchantAdPackagesPage(),
+                      ),
+                    ),
+                  ),
                   _menuItem(Icons.add_business_outlined, "İşletmemi Ekle",
                       isDark: isDark,
                       color: const Color(0xFF004D40),
@@ -999,6 +1019,103 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Text(title,
             style: const TextStyle(
                 color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 13)),
+      ),
+    );
+  }
+
+  Widget _buildAdPackagesBanner(BuildContext context, bool isDark) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF4F46E5), Color(0xFF7C3AED), Color(0xFFEC4899)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF6366F1).withOpacity(0.35),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => Navigator.push(
+            context,
+            CupertinoPageRoute(
+              builder: (_) => const MerchantAdPackagesPage(),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.rocket_launch_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              "Esnaf Reklam Paketleri",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          SizedBox(width: 6),
+                          Icon(
+                            Icons.auto_awesome,
+                            color: Colors.amberAccent,
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        "Instagram & Portal'da işletmenizi binlerce kişiye tanıtın",
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
