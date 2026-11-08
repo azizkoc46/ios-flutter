@@ -480,28 +480,78 @@ class MerchantAdService {
         discountsMap[12] = 35;
       }
 
-      // Paketler
+      // Paketler (Dinamik liste: varsayılanlar + yöneticinin eklediği özel paketler)
       final packages = <AdPackageModel>[];
       final rawPackages = data['packages'] as Map<String, dynamic>?;
-      for (final defPkg in defaultPackages) {
-        if (rawPackages != null && rawPackages.containsKey(defPkg.id)) {
-          final map = Map<String, dynamic>.from(rawPackages[defPkg.id] as Map);
-          packages.add(AdPackageModel.fromMap(defPkg.id, map, defPkg));
-        } else {
-          packages.add(defPkg);
+      if (rawPackages != null && rawPackages.isNotEmpty) {
+        final processedIds = <String>{};
+        for (final defPkg in defaultPackages) {
+          if (rawPackages.containsKey(defPkg.id)) {
+            final map = Map<String, dynamic>.from(rawPackages[defPkg.id] as Map);
+            packages.add(AdPackageModel.fromMap(defPkg.id, map, defPkg));
+            processedIds.add(defPkg.id);
+          } else {
+            packages.add(defPkg);
+            processedIds.add(defPkg.id);
+          }
         }
+        rawPackages.forEach((key, val) {
+          if (!processedIds.contains(key) && val is Map) {
+            final map = Map<String, dynamic>.from(val);
+            packages.add(AdPackageModel(
+              id: key,
+              name: map['name'] ?? 'Özel Paket',
+              subtitle: map['subtitle'] ?? '',
+              badge: map['badge'] ?? 'ÖZEL PAKET',
+              isPopular: map['isPopular'] ?? false,
+              baseMonthlyPrice: (map['baseMonthlyPrice'] as num?)?.toDouble() ?? 1000.0,
+              dailyStories: (map['dailyStories'] as num?)?.toInt() ?? 1,
+              weeklyPosts: (map['weeklyPosts'] as num?)?.toInt() ?? 1,
+              pushNotifications: (map['pushNotifications'] as num?)?.toInt() ?? 1,
+              appStoriesVisible: map['appStoriesVisible'] ?? true,
+              splashBannerDiscount: map['splashBannerDiscount'] ?? false,
+              instagramPinDiscount: map['instagramPinDiscount'] ?? false,
+              perks: List<String>.from(map['perks'] ?? []),
+              recommendedFor: map['recommendedFor'] ?? '',
+            ));
+          }
+        });
+      } else {
+        packages.addAll(defaultPackages);
       }
 
-      // Tekil Hizmetler
+      // Tekil Hizmetler (Dinamik liste)
       final singleServices = <SingleServiceModel>[];
       final rawSingles = data['singleServices'] as Map<String, dynamic>?;
-      for (final defSvc in defaultSingleServices) {
-        if (rawSingles != null && rawSingles.containsKey(defSvc.id)) {
-          final map = Map<String, dynamic>.from(rawSingles[defSvc.id] as Map);
-          singleServices.add(SingleServiceModel.fromMap(defSvc.id, map, defSvc));
-        } else {
-          singleServices.add(defSvc);
+      if (rawSingles != null && rawSingles.isNotEmpty) {
+        final processedIds = <String>{};
+        for (final defSvc in defaultSingleServices) {
+          if (rawSingles.containsKey(defSvc.id)) {
+            final map = Map<String, dynamic>.from(rawSingles[defSvc.id] as Map);
+            singleServices.add(SingleServiceModel.fromMap(defSvc.id, map, defSvc));
+            processedIds.add(defSvc.id);
+          } else {
+            singleServices.add(defSvc);
+            processedIds.add(defSvc.id);
+          }
         }
+        rawSingles.forEach((key, val) {
+          if (!processedIds.contains(key) && val is Map) {
+            final map = Map<String, dynamic>.from(val);
+            singleServices.add(SingleServiceModel(
+              id: key,
+              title: map['title'] ?? 'Özel Hizmet',
+              unit: map['unit'] ?? 'Adet',
+              price: (map['price'] as num?)?.toDouble() ?? 100.0,
+              iconName: map['iconName'] ?? 'star',
+              badge: map['badge'] ?? '',
+              description: map['description'] ?? '',
+              highlight: map['highlight'] ?? '',
+            ));
+          }
+        });
+      } else {
+        singleServices.addAll(defaultSingleServices);
       }
 
       final policyTitle = (data['policyTitle'] ?? 'Adil, Şeffaf ve İnsanları Sıkmayan Reklam Politikamız').toString();
@@ -613,6 +663,90 @@ class MerchantAdService {
     await docRef.set(updateData, SetOptions(merge: true));
 
     // Genel ayarlar dokümanındaki whatsapp alanını da senkronize et
+    try {
+      await FirebaseFirestore.instance.collection('app_settings').doc('general').set({
+        'whatsapp': whatsappPhone.trim(),
+        'supportPhone': supportPhone.trim(),
+        'instagram': instagramUsername.trim(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
+  }
+
+  /// Yönetici panelinden tek bir paketi kaydeder veya günceller
+  Future<void> savePackage(AdPackageModel package) async {
+    final docRef = FirebaseFirestore.instance.collection(_collectionName).doc(_docName);
+    await docRef.set({
+      'packages': {
+        package.id: package.toMap(),
+      },
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Yönetici panelinden bir paketi tamamen siler
+  Future<void> deletePackage(String packageId) async {
+    final docRef = FirebaseFirestore.instance.collection(_collectionName).doc(_docName);
+    await docRef.update({
+      'packages.$packageId': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Yönetici panelinden Restoran & Kafe yıllık paketini günceller
+  Future<void> saveRestaurantPackage(RestaurantPackageModel package) async {
+    final docRef = FirebaseFirestore.instance.collection(_collectionName).doc(_docName);
+    await docRef.set({
+      'restaurantPackage': package.toMap(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Yönetici panelinden tekil bir reklam hizmetini kaydeder veya günceller
+  Future<void> saveSingleService(SingleServiceModel service) async {
+    final docRef = FirebaseFirestore.instance.collection(_collectionName).doc(_docName);
+    await docRef.set({
+      'singleServices': {
+        service.id: service.toMap(),
+      },
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Yönetici panelinden tekil bir reklam hizmetini siler
+  Future<void> deleteSingleService(String serviceId) async {
+    final docRef = FirebaseFirestore.instance.collection(_collectionName).doc(_docName);
+    await docRef.update({
+      'singleServices.$serviceId': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Genel iletişim ve indirim oranlarını günceller
+  Future<void> updateGeneralAndDiscountSettings({
+    required String whatsappPhone,
+    required String supportPhone,
+    required String instagramUsername,
+    required int vatRate,
+    required Map<String, int> periodDiscounts,
+    String? policyTitle,
+    String? policyText,
+  }) async {
+    final docRef = FirebaseFirestore.instance.collection(_collectionName).doc(_docName);
+    final data = <String, dynamic>{
+      'whatsappPhone': whatsappPhone.trim(),
+      'supportPhone': supportPhone.trim(),
+      'instagramUsername': instagramUsername.trim(),
+      'vatRate': vatRate,
+      'periodDiscounts': periodDiscounts,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (policyTitle != null) data['policyTitle'] = policyTitle.trim();
+    if (policyText != null) data['policyText'] = policyText.trim();
+
+    await docRef.set(data, SetOptions(merge: true));
+
+    // Senkronizasyon
     try {
       await FirebaseFirestore.instance.collection('app_settings').doc('general').set({
         'whatsapp': whatsappPhone.trim(),
