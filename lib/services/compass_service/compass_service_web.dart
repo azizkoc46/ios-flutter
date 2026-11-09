@@ -6,16 +6,24 @@ import 'dart:js' as js;
 import 'compass_service_base.dart';
 
 class CompassServiceWeb implements CompassServiceBase {
-  final StreamController<double?> _controller = StreamController<double?>.broadcast();
+  StreamController<double?> _controller = StreamController<double?>.broadcast();
   StreamSubscription<html.DeviceOrientationEvent>? _orientationSub;
   html.EventListener? _absListener;
   html.EventListener? _stdListener;
 
   @override
-  Stream<double?> get headingStream => _controller.stream;
+  Stream<double?> get headingStream {
+    if (_controller.isClosed) {
+      _controller = StreamController<double?>.broadcast();
+    }
+    return _controller.stream;
+  }
 
   @override
   Future<void> init() async {
+    if (_controller.isClosed) {
+      _controller = StreamController<double?>.broadcast();
+    }
     _startListening();
   }
 
@@ -115,7 +123,6 @@ class CompassServiceWeb implements CompassServiceBase {
         html.window.removeEventListener('deviceorientation', _stdListener!);
       } catch (_) {}
     }
-    _controller.close();
   }
 }
 

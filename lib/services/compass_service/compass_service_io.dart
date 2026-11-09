@@ -5,7 +5,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'compass_service_base.dart';
 
 class CompassServiceIo implements CompassServiceBase {
-  final StreamController<double?> _controller = StreamController<double?>.broadcast();
+  StreamController<double?> _controller = StreamController<double?>.broadcast();
   StreamSubscription<CompassEvent>? _compassSub;
   StreamSubscription<AccelerometerEvent>? _accelSub;
   StreamSubscription<MagnetometerEvent>? _magSub;
@@ -16,12 +16,23 @@ class CompassServiceIo implements CompassServiceBase {
   bool _hasMag = false;
 
   @override
-  Stream<double?> get headingStream => _controller.stream;
+  Stream<double?> get headingStream {
+    if (_controller.isClosed) {
+      _controller = StreamController<double?>.broadcast();
+    }
+    return _controller.stream;
+  }
 
   @override
   Future<void> init() async {
+    if (_controller.isClosed) {
+      _controller = StreamController<double?>.broadcast();
+    }
+    _receivedFlutterCompass = false;
+
     // 1. Önce FlutterCompass (Cihazın yerel rotasyon vektör sensörü)
     try {
+      _compassSub?.cancel();
       final events = FlutterCompass.events;
       if (events != null) {
         _compassSub = events.listen((event) {
@@ -29,15 +40,17 @@ class CompassServiceIo implements CompassServiceBase {
           if (h != null && !h.isNaN) {
             _receivedFlutterCompass = true;
             double validHeading = (h + 360.0) % 360.0;
-            _controller.add(validHeading);
+            if (!_controller.isClosed) {
+              _controller.add(validHeading);
+            }
           }
         }, onError: (_) {});
       }
     } catch (_) {}
 
-    // 2. Yedek Motor: Eğer 1.5 saniye içinde FlutterCompass veri vermezse
+    // 2. Yedek Motor: Eğer 1.2 saniye içinde FlutterCompass veri vermezse
     // sensors_plus (Manyetometre + İvmeölçer) doğrudan devreye girer
-    Future.delayed(const Duration(milliseconds: 1500), () {
+    Future.delayed(const Duration(milliseconds: 1200), () {
       if (!_receivedFlutterCompass) {
         _startSensorsPlusFallback();
       }
@@ -46,6 +59,7 @@ class CompassServiceIo implements CompassServiceBase {
 
   void _startSensorsPlusFallback() {
     try {
+      _accelSub?.cancel();
       _accelSub = accelerometerEventStream().listen((accel) {
         _lastAx = accel.x;
         _lastAy = accel.y;
@@ -53,6 +67,7 @@ class CompassServiceIo implements CompassServiceBase {
         if (_hasMag) _computeHeadingFromVectors();
       }, onError: (_) {});
 
+      _magSub?.cancel();
       _magSub = magnetometerEventStream().listen((mag) {
         _lastMx = mag.x;
         _lastMy = mag.y;
@@ -99,12 +114,14 @@ class CompassServiceIo implements CompassServiceBase {
       // Kuzey Vektörü (North) = Doğu (E) x İvme (A)
       double nx = ey * az - ez * ay;
       double ny = ez * ax - ex * az;
+      double normN = math.sqrt(nx * nx + ny * ny);
+      if (normN < 0.001) return;
 
-      // Yatay Düzlemdeki Azimut Açısı
-      double azimuthRad = math.atan2(ex, nx);
+      // Yatay Düzlemdeki Azimut Açısı: Doğu ve Kuzey eksenlerinin açısı
+      double azimuthRad = math.atan2(ex, ny);
       double headingDeg = (azimuthRad * (180.0 / math.pi) + 360.0) % 360.0;
 
-      if (!headingDeg.isNaN) {
+      if (!headingDeg.isNaN && !_controller.isClosed) {
         _controller.add(headingDeg);
       }
     } catch (_) {}
@@ -120,7 +137,8 @@ class CompassServiceIo implements CompassServiceBase {
     _compassSub?.cancel();
     _accelSub?.cancel();
     _magSub?.cancel();
-    _controller.close();
+    // Singleton controller olduğu için _controller.close() yapmıyoruz,
+    // böylece kullanıcı sayfadan çıkıp tekrar girdiğinde stream kopmaz.
   }
 }
 

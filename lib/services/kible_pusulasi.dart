@@ -11,6 +11,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:sensors_plus/sensors_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'compass_service/compass_service.dart';
 
@@ -44,12 +45,17 @@ class KiblePusulasiEkrani extends StatefulWidget {
 class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
     with TickerProviderStateMixin {
   StreamSubscription<double?>? _compassSubscription;
+  StreamSubscription<AccelerometerEvent>? _accelSubscription;
 
   // Cihazın pusula açısı (Kuzey = 0°, Doğu = 90°, Güney = 180°, Batı = 270°)
   double _heading = 0.0;
   bool _isSensorReceiving = false;
 
-  // Kâbe Koordinatları (Mekke)
+  // Telefonun düzlük (tilt) durumu (Su Terazisi)
+  double _tiltAngle = 0.0;
+  bool _isFlat = true;
+
+  // Kâbe Koordinatları (Mekke-i Mükerreme)
   static const double _kabeLat = 21.422487;
   static const double _kabeLng = 39.826206;
 
@@ -70,8 +76,9 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
 
   bool _hasVibrated = false;
 
-  // Türkiye'nin 81 İli ve Pazarcık Yöresi
+  // Türkiye, Pazarcık Yöresi ve Gurbetçi Şehirleri
   static const List<QiblaCity> _popularCities = [
+    // Pazarcık ve Kahramanmaraş Yöresi
     QiblaCity(name: "Pazarcık (Merkez)", province: "Kahramanmaraş", lat: 37.4872, lng: 37.2964, isDefault: true),
     QiblaCity(name: "Narlı", province: "Kahramanmaraş", lat: 37.3828, lng: 37.1456),
     QiblaCity(name: "Kahramanmaraş (Merkez)", province: "Kahramanmaraş", lat: 37.5858, lng: 36.9371),
@@ -79,8 +86,12 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
     QiblaCity(name: "Elbistan", province: "Kahramanmaraş", lat: 38.2047, lng: 37.1983),
     QiblaCity(name: "Afşin", province: "Kahramanmaraş", lat: 38.2478, lng: 36.9142),
     QiblaCity(name: "Göksun", province: "Kahramanmaraş", lat: 38.0211, lng: 36.4972),
-    QiblaCity(name: "Andırın", province: "Kahramanmaraş", lat: 37.5786, lng: 36.3533),
     QiblaCity(name: "Çağlayancerit", province: "Kahramanmaraş", lat: 37.7478, lng: 37.2917),
+    QiblaCity(name: "Andırın", province: "Kahramanmaraş", lat: 37.5786, lng: 36.3533),
+    QiblaCity(name: "Nurhak", province: "Kahramanmaraş", lat: 37.9697, lng: 37.4422),
+    QiblaCity(name: "Ekinözü", province: "Kahramanmaraş", lat: 38.0708, lng: 37.1944),
+
+    // Çevre İller & Metropoller
     QiblaCity(name: "Gaziantep", province: "Gaziantep", lat: 37.0662, lng: 37.3833),
     QiblaCity(name: "Adıyaman", province: "Adıyaman", lat: 37.7648, lng: 38.2786),
     QiblaCity(name: "Malatya", province: "Malatya", lat: 38.3552, lng: 38.3095),
@@ -99,30 +110,38 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
     QiblaCity(name: "Bursa", province: "Bursa", lat: 40.1885, lng: 29.0610),
     QiblaCity(name: "Antalya", province: "Antalya", lat: 36.8969, lng: 30.7133),
     QiblaCity(name: "Eskişehir", province: "Eskişehir", lat: 39.7767, lng: 30.5206),
-    QiblaCity(name: "Samsun", province: "Samsun", lat: 41.2867, lng: 36.33),
+    QiblaCity(name: "Samsun", province: "Samsun", lat: 41.2867, lng: 36.3300),
     QiblaCity(name: "Trabzon", province: "Trabzon", lat: 41.0027, lng: 39.7168),
     QiblaCity(name: "Erzurum", province: "Erzurum", lat: 39.9055, lng: 41.2658),
     QiblaCity(name: "Van", province: "Van", lat: 38.4891, lng: 43.4089),
-    QiblaCity(name: "Denizli", province: "Denizli", lat: 37.7765, lng: 29.0864),
-    QiblaCity(name: "Sakarya", province: "Sakarya", lat: 40.7569, lng: 30.3783),
-    QiblaCity(name: "Kocaeli (İzmit)", province: "Kocaeli", lat: 40.7654, lng: 29.9408),
     QiblaCity(name: "Mardin", province: "Mardin", lat: 37.3129, lng: 40.7350),
-    QiblaCity(name: "Batman", province: "Batman", lat: 37.8812, lng: 41.1293),
-    QiblaCity(name: "Elazığ", province: "Elazığ", lat: 38.6810, lng: 39.2264),
-    QiblaCity(name: "Muğla", province: "Muğla", lat: 37.2153, lng: 28.3636),
-    QiblaCity(name: "Aydın", province: "Aydın", lat: 37.8444, lng: 27.8458),
-    QiblaCity(name: "Manisa", province: "Manisa", lat: 38.6191, lng: 27.4289),
-    QiblaCity(name: "Balıkesir", province: "Balıkesir", lat: 39.6484, lng: 27.8826),
-    QiblaCity(name: "Çanakkale", province: "Çanakkale", lat: 40.1553, lng: 26.4142),
-    QiblaCity(name: "Tekirdağ", province: "Tekirdağ", lat: 40.9833, lng: 27.5167),
-    QiblaCity(name: "Edirne", province: "Edirne", lat: 41.6771, lng: 26.5557),
-    QiblaCity(name: "Zonguldak", province: "Zonguldak", lat: 41.4564, lng: 31.7987),
-    QiblaCity(name: "Rize", province: "Rize", lat: 41.0201, lng: 40.5234),
-    QiblaCity(name: "Kars", province: "Kars", lat: 40.6013, lng: 43.0975),
-    QiblaCity(name: "Ağrı", province: "Ağrı", lat: 39.7191, lng: 43.0503),
+
+    // Kutsal Mekanlar
     QiblaCity(name: "Mekke (Kâbe-i Muazzama)", province: "Suudi Arabistan", lat: 21.4225, lng: 39.8262),
     QiblaCity(name: "Medine-i Münevvere", province: "Suudi Arabistan", lat: 24.4672, lng: 39.6111),
     QiblaCity(name: "Kudüs (Mescid-i Aksa)", province: "Filistin", lat: 31.7761, lng: 35.2358),
+
+    // Gurbetçi Şehirleri (Avrupa & Dünya)
+    QiblaCity(name: "Berlin", province: "Almanya", lat: 52.5200, lng: 13.4050),
+    QiblaCity(name: "Köln", province: "Almanya", lat: 50.9375, lng: 6.9603),
+    QiblaCity(name: "Frankfurt", province: "Almanya", lat: 50.1109, lng: 8.6821),
+    QiblaCity(name: "Stuttgart", province: "Almanya", lat: 48.7758, lng: 9.1829),
+    QiblaCity(name: "Münih", province: "Almanya", lat: 48.1351, lng: 11.5820),
+    QiblaCity(name: "Paris", province: "Fransa", lat: 48.8566, lng: 2.3522),
+    QiblaCity(name: "Lyon", province: "Fransa", lat: 45.7640, lng: 4.8357),
+    QiblaCity(name: "Strazburg", province: "Fransa", lat: 48.5734, lng: 7.7521),
+    QiblaCity(name: "Amsterdam", province: "Hollanda", lat: 52.3676, lng: 4.9041),
+    QiblaCity(name: "Rotterdam", province: "Hollanda", lat: 51.9244, lng: 4.4777),
+    QiblaCity(name: "Viyana", province: "Avusturya", lat: 48.2082, lng: 16.3738),
+    QiblaCity(name: "Zürih", province: "İsviçre", lat: 47.3769, lng: 8.5417),
+    QiblaCity(name: "Basel", province: "İsviçre", lat: 47.5596, lng: 7.5886),
+    QiblaCity(name: "Brüksel", province: "Belçika", lat: 50.8503, lng: 4.3517),
+    QiblaCity(name: "Londra", province: "Birleşik Krallık", lat: 51.5074, lng: -0.1278),
+    QiblaCity(name: "Stockholm", province: "İsveç", lat: 59.3293, lng: 18.0686),
+    QiblaCity(name: "Kopenhag", province: "Danimarka", lat: 55.6761, lng: 12.5683),
+    QiblaCity(name: "Oslo", province: "Norveç", lat: 59.9139, lng: 10.7522),
+    QiblaCity(name: "Lefkoşa", province: "KKTC", lat: 35.1856, lng: 33.3823),
+    QiblaCity(name: "Bakü", province: "Azerbaycan", lat: 40.4093, lng: 49.8671),
   ];
 
   @override
@@ -140,17 +159,45 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
 
     _alignGlowController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 750),
+      duration: const Duration(milliseconds: 700),
     )..repeat(reverse: true);
 
-    // 1. Önce kayıtlı son konumu yükle (Anında 0 ms yanıt)
+    // 1. Önce kayıtlı son konumu 0 ms gecikmeyle yükle
     _loadCachedLocation();
 
     // 2. Canlı GPS konumunu otomatik al
     _getUserLocation();
 
-    // 3. Pusula sensörünü başlat (Web + Mobil tam destek)
+    // 3. Pusula sensörünü başlat
     _initCompass();
+
+    // 4. Su terazisi / Tilt sensörü (Telefon düz mü tutuluyor?)
+    _initAccelerometer();
+  }
+
+  void _initAccelerometer() {
+    try {
+      _accelSubscription?.cancel();
+      _accelSubscription = accelerometerEventStream().listen((event) {
+        if (!mounted) return;
+        final ax = event.x;
+        final ay = event.y;
+        final az = event.z;
+        final norm = math.sqrt(ax * ax + ay * ay + az * az);
+        if (norm > 0.1) {
+          // Z ekseni yerçekimine ne kadar yakın? (Düz iken az ~ 9.8)
+          final cosZ = (az / norm).clamp(-1.0, 1.0);
+          final tiltDeg = math.acos(cosZ) * (180.0 / math.pi);
+          final flat = tiltDeg <= 25.0;
+          if (flat != _isFlat || (tiltDeg - _tiltAngle).abs() > 2.0) {
+            setState(() {
+              _tiltAngle = tiltDeg;
+              _isFlat = flat;
+            });
+          }
+        }
+      }, onError: (_) {});
+    } catch (_) {}
   }
 
   /// Yerel önbellekten son kaydedilen konumu yükler
@@ -169,10 +216,8 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
             _locationName = savedName;
           }
         });
-        _calculateQiblaAngle(_userLat, _userLng);
-      } else {
-        _calculateQiblaAngle(_userLat, _userLng);
       }
+      _calculateQiblaAngle(_userLat, _userLng);
     } catch (_) {
       _calculateQiblaAngle(_userLat, _userLng);
     }
@@ -262,7 +307,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
     return "${lat.toStringAsFixed(2)}° N, ${lng.toStringAsFixed(2)}° E";
   }
 
-  /// IP tabanlı otomatik konum alma (GPS kapalı veya Web'de donanım yoksa %100 çalışan yedek)
+  /// IP tabanlı otomatik konum alma (Yedek)
   Future<bool> _fetchIpLocation() async {
     try {
       final res = await http.get(Uri.parse('https://ipapi.co/json/')).timeout(const Duration(seconds: 4));
@@ -313,101 +358,94 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
     return false;
   }
 
+  Future<void> _applyPosition(Position pos, {required bool isInstant}) async {
+    if (!mounted) return;
+    setState(() {
+      _userLat = pos.latitude;
+      _userLng = pos.longitude;
+      _locationSource = LocationSourceType.gps;
+    });
+    _calculateQiblaAngle(_userLat, _userLng);
+
+    if (!isInstant) {
+      final name = await _resolveCityName(_userLat, _userLng);
+      if (mounted) {
+        setState(() {
+          _locationName = name;
+        });
+        _saveCachedLocation(_userLat, _userLng, _locationName);
+      }
+    }
+  }
+
   /// Çok platformlu, tam otomatik GPS Konum Alımı (Web + Android + iOS)
   Future<void> _getUserLocation({bool userInitiated = false}) async {
     if (_isLocating) return;
-
     if (mounted) setState(() => _isLocating = true);
 
     try {
-      // 1. Mobil ortamda Konum Servisi kontrolü
       if (!kIsWeb) {
         bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
         if (!serviceEnabled) {
-          final ipSuccess = await _fetchIpLocation();
+          await _fetchIpLocation();
           if (mounted) {
             setState(() => _isLocating = false);
             if (userInitiated) {
-              if (ipSuccess) {
-                _showSnackBar("GPS kapalı; otomatik konum ($_locationName) baz alındı.");
-              } else {
-                _showLocationServiceDialog();
-              }
+              _showLocationServiceDialog();
             }
           }
           return;
         }
       }
 
-      // 2. İzin Kontrolü
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          await _fetchIpLocation();
-          if (mounted) setState(() => _isLocating = false);
-          return;
-        }
       }
 
-      if (permission == LocationPermission.deniedForever) {
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
         await _fetchIpLocation();
         if (mounted) setState(() => _isLocating = false);
         return;
       }
 
-      // 3. Son bilinen konumu hemen al
+      // 1. Çok hızlı son bilinen konum (< 50ms)
       try {
-        final Position? lastKnown = await Geolocator.getLastKnownPosition();
-        if (lastKnown != null && mounted) {
-          _userLat = lastKnown.latitude;
-          _userLng = lastKnown.longitude;
-          _locationSource = LocationSourceType.gps;
-          _calculateQiblaAngle(_userLat, _userLng);
+        final pos = await Geolocator.getLastKnownPosition();
+        if (pos != null && mounted) {
+          await _applyPosition(pos, isInstant: true);
         }
       } catch (_) {}
 
-      // 4. Kesin Canlı GPS Konumunu Al
+      // 2. Canlı ve hassas GPS konumu
       Position? position;
       try {
         position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-          timeLimit: const Duration(seconds: 6),
+          desiredAccuracy: LocationAccuracy.medium,
+          timeLimit: const Duration(seconds: 4),
         );
       } catch (_) {
         try {
           position = await Geolocator.getCurrentPosition(
             desiredAccuracy: LocationAccuracy.low,
-            timeLimit: const Duration(seconds: 5),
+            timeLimit: const Duration(seconds: 3),
           );
         } catch (_) {}
       }
 
       if (position != null && mounted) {
-        _userLat = position.latitude;
-        _userLng = position.longitude;
-        _locationSource = LocationSourceType.gps;
-        _calculateQiblaAngle(_userLat, _userLng);
-
-        final resolvedName = await _resolveCityName(_userLat, _userLng);
-        if (mounted) {
-          setState(() {
-            _locationName = resolvedName;
-            _isLocating = false;
-          });
-          _saveCachedLocation(_userLat, _userLng, _locationName);
-          if (userInitiated) {
-            _showSnackBar("Konum Güncellendi: $_locationName");
-          }
+        await _applyPosition(position, isInstant: false);
+        if (userInitiated && mounted) {
+          _showSnackBar("📍 GPS Konumu Alındı: $_locationName");
         }
         return;
       }
 
-      // GPS doğrudan gelmezse IP konumunu devreye sok
       await _fetchIpLocation();
-      if (mounted) setState(() => _isLocating = false);
     } catch (_) {
       await _fetchIpLocation();
+    } finally {
       if (mounted) setState(() => _isLocating = false);
     }
   }
@@ -420,24 +458,26 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
       _compassSubscription = service.headingStream.listen((double? newHeading) {
         if (!mounted || newHeading == null || newHeading.isNaN) return;
 
-        // Dairesel en kısa yol yumuşatması (Jitter önleme ve pürüzsüz dönüş)
         final double raw = (newHeading + 360.0) % 360.0;
-        final double diff = (raw - _heading + 540.0) % 360.0 - 180.0;
-        final double smoothed = (_heading + diff * 0.35 + 360.0) % 360.0;
 
-        _checkAlignmentHaptic(smoothed);
-
-        setState(() {
-          _heading = smoothed;
+        if (!_isSensorReceiving) {
+          _heading = raw;
           _isSensorReceiving = true;
-        });
+        } else {
+          // Pürüzsüz ve anlık geçiş yumuşatması
+          final double diff = (raw - _heading + 540.0) % 360.0 - 180.0;
+          _heading = (_heading + diff * 0.55 + 360.0) % 360.0;
+        }
+
+        _checkAlignmentHaptic(_heading);
+
+        setState(() {});
       });
 
       await service.init();
     } catch (_) {}
   }
 
-  /// Kullanıcı dokunarak Web'de sensör iznini tetikleyebilsin (Safari iOS 13+ zorunluluğu)
   Future<void> _requestWebSensorPermission() async {
     final granted = await CompassService().requestPermission();
     if (granted) {
@@ -454,7 +494,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
 
     if (minDiff <= 4.0) {
       if (!_hasVibrated) {
-        HapticFeedback.heavyImpact();
+        HapticFeedback.mediumImpact();
         _hasVibrated = true;
       }
     } else if (minDiff > 8.0) {
@@ -467,7 +507,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg, style: const TextStyle(fontSize: 13, color: Colors.white)),
+        content: Text(msg, style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600)),
         behavior: SnackBarBehavior.floating,
         backgroundColor: const Color(0xFF1E293B),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -486,12 +526,12 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
           children: [
             Icon(CupertinoIcons.location_slash_fill, color: Color(0xFFF59E0B), size: 24),
             SizedBox(width: 8),
-            Text("Konum Kapalı", style: TextStyle(color: Colors.white, fontSize: 18)),
+            Text("Konum Servisi Kapalı", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
           ],
         ),
         content: const Text(
-          "Cihazınızın konum servisi kapalı. Kesin GPS konumu almak için açabilir veya listeden şehrinizi seçebilirsiniz.",
-          style: TextStyle(color: Colors.white70, fontSize: 13),
+          "Cihazınızın GPS konumu kapalı. Kesin kıble yönü için GPS açabilir veya dilediğiniz şehri listeden seçebilirsiniz.",
+          style: TextStyle(color: Colors.white70, fontSize: 13.5, height: 1.4),
         ),
         actions: [
           TextButton(
@@ -499,7 +539,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
               Navigator.pop(ctx);
               _openCityPicker();
             },
-            child: const Text("Şehir Seç", style: TextStyle(color: Color(0xFF38BDF8))),
+            child: const Text("Şehir Seç", style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -510,7 +550,86 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
               Navigator.pop(ctx);
               Geolocator.openLocationSettings();
             },
-            child: const Text("Ayarları Aç", style: TextStyle(color: Colors.white)),
+            child: const Text("Ayarları Aç", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Kalibrasyon ve Yardım Diyaloğu
+  void _showCalibrationHelp() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0F172A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                const Icon(CupertinoIcons.compass, color: Color(0xFF10B981), size: 26),
+                const SizedBox(width: 10),
+                Text(
+                  "Pusula ve Kalibrasyon Rehberi",
+                  style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _helpRow("1", "Telefonu yere paralel, avucunuzun içinde düz tutun.", CupertinoIcons.device_phone_portrait),
+            _helpRow("2", "Kılıfınızda mıknatıs veya metal varsa pusulayı yanıltabilir.", CupertinoIcons.shield),
+            _helpRow("3", "İbre takılırsa telefonu havada yatay sekiz (8) çizecek şekilde çevirin.", CupertinoIcons.arrow_2_circlepath),
+            _helpRow("4", "Kâbe ibresi tepedeki çizgiye geldiğinde yeşil yanar ve titreşim verir.", CupertinoIcons.check_mark_circled),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Anladım, Tamam", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _helpRow(String number, String text, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.2), shape: BoxShape.circle),
+            child: Text(number, style: const TextStyle(color: Color(0xFF34D399), fontWeight: FontWeight.bold, fontSize: 13)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.35)),
           ),
         ],
       ),
@@ -541,7 +660,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
             });
             _calculateQiblaAngle(_userLat, _userLng);
             _saveCachedLocation(_userLat, _userLng, _locationName);
-            _showSnackBar("Konum seçildi: $_locationName (Kıble: ${_kibleAcisi.toStringAsFixed(1)}°)");
+            _showSnackBar("📍 Konum: $_locationName (Kıble: ${_kibleAcisi.toStringAsFixed(1)}°)");
           },
         );
       },
@@ -559,6 +678,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
       ]);
     }
     _compassSubscription?.cancel();
+    _accelSubscription?.cancel();
     CompassService().dispose();
     _pulseController.dispose();
     _alignGlowController.dispose();
@@ -569,15 +689,15 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final isTablet = size.width > 700;
-    final double compassSize = isTablet ? 380 : math.min(size.width * 0.86, 340);
+    final double compassSize = isTablet ? 380 : math.min(size.width * 0.85, 330);
 
     // Kıble ile açı farkı (En kısa dairesel açı)
     final double rawRelativeDiff = (_kibleAcisi - _heading + 360.0) % 360.0;
     final bool turnRight = rawRelativeDiff <= 180.0;
     final double diffAngle = turnRight ? rawRelativeDiff : (360.0 - rawRelativeDiff);
 
-    final bool isAligned = diffAngle <= 5.0;
-    final bool isNear = diffAngle <= 20.0;
+    final bool isAligned = diffAngle <= 4.5;
+    final bool isNear = diffAngle <= 18.0;
 
     // Kadran Dönüş Açısı (Kuzey daima gerçek Kuzeyi göstersin)
     final double dialRotation = -_heading * (math.pi / 180.0);
@@ -590,17 +710,17 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
       backgroundColor: const Color(0xFF070B14),
       body: Stack(
         children: [
-          // 1. Zengin Arka Plan Radyal Gradyanı
+          // 1. Zengin İslami Gece Radyal Gradyanı
           Positioned.fill(
             child: Container(
               decoration: const BoxDecoration(
                 gradient: RadialGradient(
-                  center: Alignment(0.0, -0.2),
-                  radius: 1.25,
+                  center: Alignment(0.0, -0.15),
+                  radius: 1.3,
                   colors: [
-                    Color(0xFF132238),
-                    Color(0xFF09121F),
-                    Color(0xFF050811),
+                    Color(0xFF0F2338),
+                    Color(0xFF07121E),
+                    Color(0xFF040810),
                   ],
                 ),
               ),
@@ -609,15 +729,15 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
 
           // 2. Ambiyans Işığı (Hizalanınca Parlayan Zümrüt Işık)
           AnimatedPositioned(
-            duration: const Duration(milliseconds: 350),
-            top: size.height * 0.26,
+            duration: const Duration(milliseconds: 300),
+            top: size.height * 0.23,
             left: (size.width - compassSize) / 2,
             child: AnimatedBuilder(
               animation: isAligned ? _alignGlowController : _pulseController,
               builder: (context, _) {
                 final glowOpacity = isAligned
-                    ? 0.45 + (_alignGlowController.value * 0.30)
-                    : (isNear ? 0.25 + (_pulseController.value * 0.15) : 0.10);
+                    ? 0.50 + (_alignGlowController.value * 0.35)
+                    : (isNear ? 0.25 + (_pulseController.value * 0.15) : 0.08);
                 return Container(
                   width: compassSize,
                   height: compassSize,
@@ -629,9 +749,9 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                             ? const Color(0xFF10B981).withOpacity(glowOpacity)
                             : (isNear
                                 ? const Color(0xFFF59E0B).withOpacity(glowOpacity)
-                                : const Color(0xFF38BDF8).withOpacity(glowOpacity * 0.5)),
-                        blurRadius: isAligned ? 85 : 45,
-                        spreadRadius: isAligned ? 22 : 4,
+                                : const Color(0xFF38BDF8).withOpacity(glowOpacity * 0.4)),
+                        blurRadius: isAligned ? 90 : 45,
+                        spreadRadius: isAligned ? 24 : 4,
                       ),
                     ],
                   ),
@@ -644,7 +764,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
           SafeArea(
             child: Column(
               children: [
-                // --- ÜST BAR (Geri, Başlık, Şehir Seçici, GPS Yenile) ---
+                // --- ÜST BAR (Geri, Konum Seçici, GPS Butonu) ---
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                   child: Row(
@@ -656,99 +776,80 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                       const SizedBox(width: 4),
                       Expanded(
                         child: InkWell(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(16),
                           onTap: _openCityPicker,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.white12),
+                            ),
+                            child: Row(
                               children: [
-                                Row(
-                                  children: [
-                                    Text(
-                                      "Kıble Pusulası",
-                                      style: GoogleFonts.outfit(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF10B981).withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4)),
-                                      ),
-                                      child: Text(
-                                        "${_kibleAcisi.toStringAsFixed(0)}° ${_getDirectionNameShort(_kibleAcisi)}",
-                                        style: const TextStyle(
-                                          color: Color(0xFF34D399),
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                Icon(
+                                  _locationSource == LocationSourceType.gps
+                                      ? CupertinoIcons.location_fill
+                                      : CupertinoIcons.placemark_fill,
+                                  size: 15,
+                                  color: _locationSource == LocationSourceType.gps
+                                      ? const Color(0xFF34D399)
+                                      : const Color(0xFF38BDF8),
                                 ),
-                                const SizedBox(height: 3),
-                                Row(
-                                  children: [
-                                    Icon(
-                                      _locationSource == LocationSourceType.gps
-                                          ? CupertinoIcons.location_fill
-                                          : (_locationSource == LocationSourceType.networkIp
-                                              ? CupertinoIcons.wifi
-                                              : CupertinoIcons.placemark_fill),
-                                      size: 13,
-                                      color: _locationSource == LocationSourceType.gps
-                                          ? const Color(0xFF10B981)
-                                          : const Color(0xFF38BDF8),
-                                    ),
-                                    const SizedBox(width: 5),
-                                    Flexible(
-                                      child: Text(
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
                                         _locationName,
                                         overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: _locationSource == LocationSourceType.gps
-                                              ? const Color(0xFF34D399)
-                                              : Colors.white70,
+                                        style: const TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    const Icon(CupertinoIcons.chevron_down, size: 11, color: Colors.white54),
-                                  ],
+                                      Text(
+                                        _locationSource == LocationSourceType.gps
+                                            ? "GPS Otomatik • Kıble: ${_kibleAcisi.toStringAsFixed(0)}° ${_getDirectionNameShort(_kibleAcisi)}"
+                                            : "Seçili Şehir • Kıble: ${_kibleAcisi.toStringAsFixed(0)}° ${_getDirectionNameShort(_kibleAcisi)}",
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                          color: _locationSource == LocationSourceType.gps
+                                              ? const Color(0xFF34D399)
+                                              : Colors.white60,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
+                                const Icon(CupertinoIcons.chevron_down, size: 12, color: Colors.white54),
                               ],
                             ),
                           ),
                         ),
                       ),
-                      // Konum Yenile Butonu
+                      const SizedBox(width: 6),
+                      // GPS Yenile Butonu
                       IconButton(
                         tooltip: "GPS Konumunu Güncelle",
                         icon: Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(9),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.08),
+                            color: const Color(0xFF10B981).withOpacity(0.18),
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white12),
+                            border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4)),
                           ),
                           child: _isLocating
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Color(0xFF10B981),
-                                  ),
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF34D399)),
                                 )
-                              : const Icon(CupertinoIcons.location, color: Colors.white, size: 18),
+                              : const Icon(CupertinoIcons.location, color: Color(0xFF34D399), size: 18),
                         ),
                         onPressed: () => _getUserLocation(userInitiated: true),
                       ),
@@ -756,9 +857,9 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                   ),
                 ),
 
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
 
-                // --- YAŞLI DOSTU BÜYÜK YÖN REHBER KARTI ---
+                // --- BÜYÜK YÖN KILAVUZ KARTI (Basit & Çok Net) ---
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: AnimatedContainer(
@@ -766,22 +867,22 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                     decoration: BoxDecoration(
                       color: isAligned
-                          ? const Color(0xFF064E3B).withOpacity(0.9)
+                          ? const Color(0xFF064E3B).withOpacity(0.95)
                           : (isNear
-                              ? const Color(0xFF78350F).withOpacity(0.75)
+                              ? const Color(0xFF78350F).withOpacity(0.85)
                               : Colors.white.withOpacity(0.08)),
                       borderRadius: BorderRadius.circular(22),
                       border: Border.all(
                         color: isAligned
-                            ? const Color(0xFF10B981)
+                            ? const Color(0xFF34D399)
                             : (isNear ? const Color(0xFFF59E0B) : Colors.white12),
                         width: isAligned ? 2.4 : 1.2,
                       ),
                       boxShadow: [
                         if (isAligned)
                           BoxShadow(
-                            color: const Color(0xFF10B981).withOpacity(0.35),
-                            blurRadius: 20,
+                            color: const Color(0xFF10B981).withOpacity(0.4),
+                            blurRadius: 22,
                             spreadRadius: 2,
                           ),
                       ],
@@ -789,26 +890,26 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                     child: Row(
                       children: [
                         Container(
-                          width: 54,
-                          height: 54,
+                          width: 52,
+                          height: 52,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: isAligned
-                                ? const Color(0xFF10B981).withOpacity(0.3)
+                                ? const Color(0xFF10B981).withOpacity(0.35)
                                 : (isNear
                                     ? const Color(0xFFF59E0B).withOpacity(0.25)
                                     : Colors.white.withOpacity(0.1)),
                           ),
-                          child: Icon(
-                            isAligned
-                                ? CupertinoIcons.check_mark_circled_solid
-                                : (turnRight
-                                    ? CupertinoIcons.arrow_right_circle_fill
-                                    : CupertinoIcons.arrow_left_circle_fill),
-                            color: isAligned
-                                ? const Color(0xFF34D399)
-                                : (isNear ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8)),
-                            size: 34,
+                          child: Center(
+                            child: isAligned
+                                ? const Text("🕋", style: TextStyle(fontSize: 26))
+                                : Icon(
+                                    turnRight
+                                        ? CupertinoIcons.arrow_right_circle_fill
+                                        : CupertinoIcons.arrow_left_circle_fill,
+                                    color: isNear ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8),
+                                    size: 34,
+                                  ),
                           ),
                         ),
                         const SizedBox(width: 14),
@@ -832,10 +933,10 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                               const SizedBox(height: 3),
                               Text(
                                 isAligned
-                                    ? "Mükemmel hizalandınız! Namaza durabilirsiniz."
-                                    : "Yeşil Kâbe ibresini telefonun tepesindeki kırmızı çizgiye hizalayın.",
+                                    ? "Mükemmel hizalandınız. Namaza durabilirsiniz."
+                                    : "Yeşil Kâbe ibresini telefonun tepesindeki çizgiye getirin.",
                                 style: TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 12.5,
                                   fontWeight: FontWeight.w500,
                                   color: isAligned ? const Color(0xFFD1FAE5) : Colors.white70,
                                   height: 1.3,
@@ -848,6 +949,33 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                     ),
                   ),
                 ),
+
+                // Tilt / Düz Tut Uyarısı
+                if (!_isFlat) ...[
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF59E0B).withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.4)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(CupertinoIcons.exclamationmark_triangle_fill, color: Color(0xFFFBBF24), size: 14),
+                          SizedBox(width: 6),
+                          Text(
+                            "Telefonunuzu yere paralel (düz) tutunuz",
+                            style: TextStyle(color: Color(0xFFFBBF24), fontSize: 11.5, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
 
                 const Spacer(),
 
@@ -871,11 +999,10 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                           ),
                         ),
 
-                        // 2. KIBLEYE KİLİTLİ DÖNEN CANLI İBRE (Mecca / Kaaba Needle)
-                        // Telefon döndükçe bu ibre daima odadaki gerçek Kâbe yönüne bakar!
+                        // 2. KIBLEYE KİLİTLİ DÖNEN CANLI İBRE (Mecca Needle)
                         Transform.rotate(
                           angle: qiblaNeedleRotation,
-                          child: _buildQiblaLiveNeedle(compassSize, isAligned),
+                          child: _buildQiblaLiveNeedle(compassSize, isAligned, qiblaNeedleRotation),
                         ),
 
                         // 3. Sabit Tepe Yön Göstergesi (Telefonun Baktığı Yön - 12 Hizalama Çizgisi)
@@ -910,8 +1037,8 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                                 ),
                               ),
                               Container(
-                                width: 3,
-                                height: 14,
+                                width: 3.5,
+                                height: 16,
                                 decoration: BoxDecoration(
                                   color: isAligned ? const Color(0xFF10B981) : const Color(0xFFEF4444),
                                   borderRadius: BorderRadius.circular(2),
@@ -921,7 +1048,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                           ),
                         ),
 
-                        // 4. Merkez Göbek ve Açı Göstergesi
+                        // 4. Merkez Göbek ve Su Terazisi
                         Container(
                           width: 82,
                           height: 82,
@@ -953,18 +1080,33 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                                 Text(
                                   "${_heading.toStringAsFixed(0)}°",
                                   style: GoogleFonts.outfit(
-                                    fontSize: 20,
+                                    fontSize: 18,
                                     fontWeight: FontWeight.w900,
                                     color: Colors.white,
                                   ),
                                 ),
-                                Text(
-                                  _getDirectionNameShort(_heading),
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    color: isAligned ? const Color(0xFF34D399) : Colors.white60,
-                                  ),
+                                const SizedBox(height: 2),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: _isFlat ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _getDirectionNameShort(_heading),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: isAligned ? const Color(0xFF34D399) : Colors.white60,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -977,15 +1119,15 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
 
                 const Spacer(),
 
-                // --- YAŞLI DOSTU BÜYÜK YÖN VE MESAFE KARTLARI ---
+                // --- BİLGİ KARTLARI (Kıble Açısı, Mesafe, Sensör) ---
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.06),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withOpacity(0.09)),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -997,7 +1139,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                           icon: CupertinoIcons.compass,
                           color: const Color(0xFF34D399),
                         ),
-                        Container(width: 1, height: 42, color: Colors.white12),
+                        Container(width: 1, height: 38, color: Colors.white12),
                         _metricItem(
                           title: "Kâbe Mesafesi",
                           value: "${_meccaDistanceKm.toStringAsFixed(0)} km",
@@ -1005,7 +1147,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                           icon: CupertinoIcons.location_solid,
                           color: const Color(0xFFF59E0B),
                         ),
-                        Container(width: 1, height: 42, color: Colors.white12),
+                        Container(width: 1, height: 38, color: Colors.white12),
                         _metricItem(
                           title: "Hedefe Kalan",
                           value: isAligned ? "Hizalandı" : "${diffAngle.toStringAsFixed(0)}°",
@@ -1020,35 +1162,40 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                   ),
                 ),
 
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
 
-                // --- SENSÖR BİLGİLENDİRME VE İZİN BARI ---
+                // --- SENSÖR BİLGİLENDİRME & KALİBRASYON YARDIMI ---
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        _isSensorReceiving
-                            ? CupertinoIcons.checkmark_shield_fill
-                            : CupertinoIcons.compass,
+                        _isSensorReceiving ? CupertinoIcons.checkmark_shield_fill : CupertinoIcons.compass,
                         size: 14,
                         color: _isSensorReceiving ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
                       ),
                       const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          _isSensorReceiving
-                            ? "Canlı Manyetik Sensör Aktif (Telefonu çevirin)"
-                            : (kIsWeb
-                                ? "Web Sensörü Bekleniyor (iPhone Safari ise izne dokunun)"
-                                : "Pusula sensörü kalibre ediliyor..."),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _isSensorReceiving ? const Color(0xFF34D399) : Colors.white70,
-                          ),
+                      Text(
+                        _isSensorReceiving ? "Manyetik Pusula Aktif" : "Sensör Kalibre Ediliyor...",
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: _isSensorReceiving ? const Color(0xFF34D399) : Colors.white70,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        onPressed: _showCalibrationHelp,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        icon: const Icon(CupertinoIcons.question_circle, size: 13, color: Color(0xFF38BDF8)),
+                        label: const Text(
+                          "Nasıl Kullanılır?",
+                          style: TextStyle(fontSize: 11.5, color: Color(0xFF38BDF8), fontWeight: FontWeight.bold),
                         ),
                       ),
                       if (kIsWeb && !_isSensorReceiving) ...[
@@ -1064,7 +1211,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                               border: Border.all(color: const Color(0xFF10B981)),
                             ),
                             child: const Text(
-                              "İzin Ver",
+                              "Sensör İzni",
                               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF34D399)),
                             ),
                           ),
@@ -1074,7 +1221,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                   ),
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
               ],
             ),
           ),
@@ -1083,8 +1230,8 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
     );
   }
 
-  /// KIBLEYE KİLİTLİ CANLI İBRE WIDGET'I
-  Widget _buildQiblaLiveNeedle(double compassSize, bool isAligned) {
+  /// KIBLEYE KİLİTLİ CANLI İBRE WIDGET'I (Ters Dönmeyen Kâbe Rozeti ile)
+  Widget _buildQiblaLiveNeedle(double compassSize, bool isAligned, double currentNeedleRotation) {
     final needleLength = compassSize * 0.38;
     return SizedBox(
       width: compassSize,
@@ -1092,14 +1239,14 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Kuzeye bakan ince kuyruk (Zıt yön)
+          // Kuzeye bakan ince kuyruk
           Positioned(
-            bottom: (compassSize / 2) - (needleLength * 0.5),
+            bottom: (compassSize / 2) - (needleLength * 0.45),
             child: Container(
               width: 3,
-              height: needleLength * 0.45,
+              height: needleLength * 0.40,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
+                gradient: const LinearGradient(
                   colors: [Colors.white24, Colors.transparent],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
@@ -1115,7 +1262,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Kâbe İkonlu Tepe Rozeti
+                // Kâbe İkonlu Tepe Rozeti (Her zaman düz dursun diye karşı rotasyon uygulanır)
                 AnimatedBuilder(
                   animation: _pulseController,
                   builder: (context, _) {
@@ -1127,21 +1274,25 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                         height: 44,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: isAligned ? const Color(0xFF064E3B) : const Color(0xFF047857),
+                          color: isAligned ? const Color(0xFF064E3B) : const Color(0xFF065F46),
                           border: Border.all(
-                            color: isAligned ? const Color(0xFF34D399) : const Color(0xFF10B981),
+                            color: isAligned ? const Color(0xFF34D399) : const Color(0xFFF59E0B),
                             width: 2.5,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF10B981).withOpacity(isAligned ? 0.8 : 0.4),
+                              color: (isAligned ? const Color(0xFF10B981) : const Color(0xFFF59E0B))
+                                  .withOpacity(isAligned ? 0.85 : 0.4),
                               blurRadius: 16,
                               spreadRadius: 2,
                             ),
                           ],
                         ),
-                        child: const Center(
-                          child: Text("🕋", style: TextStyle(fontSize: 20)),
+                        child: Center(
+                          child: Transform.rotate(
+                            angle: -currentNeedleRotation,
+                            child: const Text("🕋", style: TextStyle(fontSize: 20)),
+                          ),
                         ),
                       ),
                     );
@@ -1154,7 +1305,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                 Icon(
                   CupertinoIcons.triangle_fill,
                   size: 20,
-                  color: isAligned ? const Color(0xFF34D399) : const Color(0xFF10B981),
+                  color: isAligned ? const Color(0xFF34D399) : const Color(0xFFF59E0B),
                 ),
 
                 // Parlak Işık Gövdesi
@@ -1165,7 +1316,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
                     gradient: LinearGradient(
                       colors: isAligned
                           ? [const Color(0xFF34D399), const Color(0xFF10B981).withOpacity(0.2)]
-                          : [const Color(0xFF10B981), const Color(0xFF10B981).withOpacity(0.1)],
+                          : [const Color(0xFFF59E0B), const Color(0xFFF59E0B).withOpacity(0.1)],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                     ),
@@ -1193,19 +1344,19 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 5),
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 4),
             Text(
               title,
-              style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+              style: const TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.w600),
             ),
           ],
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Text(
           value,
           style: GoogleFonts.outfit(
-            fontSize: 19,
+            fontSize: 18,
             fontWeight: FontWeight.w900,
             color: Colors.white,
           ),
@@ -1213,7 +1364,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
         Text(
           subtext,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 10.5,
             fontWeight: FontWeight.w700,
             color: color,
           ),
@@ -1247,7 +1398,7 @@ class _KiblePusulasiEkraniState extends State<KiblePusulasiEkrani>
   }
 }
 
-/// Lüks Pusula Kadranı Çizimi (Kuzey, Doğu, Güney, Batı ve Dereceler)
+/// Lüks Pusula Kadranı Çizimi (Kuzey, Doğu, Güney, Batı, Dereceler ve Kâbe İşareti)
 class _CompassDialPainter extends CustomPainter {
   final double qiblaAngle;
   final bool isAligned;
@@ -1264,7 +1415,7 @@ class _CompassDialPainter extends CustomPainter {
 
     // 1. Dış Daire Arka Planı
     final bgPaint = Paint()
-      ..color = const Color(0xFF0C1626).withOpacity(0.80)
+      ..color = const Color(0xFF0C1626).withOpacity(0.85)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, radius - 4, bgPaint);
 
@@ -1338,6 +1489,19 @@ class _CompassDialPainter extends CustomPainter {
         textPainter.paint(canvas, textOffset);
       }
     }
+
+    // 4. Kadran Üzerindeki Sabit Altın Kâbe Noktası (Kıble Açısı Konumu)
+    final double qiblaRad = qiblaAngle * (math.pi / 180.0) - (math.pi / 2.0);
+    final double markerRadius = radius - 16;
+    final markerCenter = Offset(
+      center.dx + markerRadius * math.cos(qiblaRad),
+      center.dy + markerRadius * math.sin(qiblaRad),
+    );
+
+    final qiblaDotPaint = Paint()
+      ..color = const Color(0xFFF59E0B)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(markerCenter, 5, qiblaDotPaint);
   }
 
   @override
@@ -1376,7 +1540,7 @@ class _CityPickerBottomSheetState extends State<_CityPickerBottomSheet> {
     }).toList();
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
+      height: MediaQuery.of(context).size.height * 0.78,
       decoration: const BoxDecoration(
         color: Color(0xFF0F172A),
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
