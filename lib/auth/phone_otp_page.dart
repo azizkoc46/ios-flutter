@@ -13,6 +13,82 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 
+class CountryItem {
+  final String name;
+  final String dialCode;
+  final String flag;
+  final String code;
+  final String example;
+
+  const CountryItem({
+    required this.name,
+    required this.dialCode,
+    required this.flag,
+    required this.code,
+    required this.example,
+  });
+}
+
+const List<CountryItem> kSupportedCountries = [
+  CountryItem(name: 'Türkiye', dialCode: '+90', flag: '🇹🇷', code: 'TR', example: '5xx xxx xx xx'),
+  CountryItem(name: 'Almanya', dialCode: '+49', flag: '🇩🇪', code: 'DE', example: '151 23456789'),
+  CountryItem(name: 'Fransa', dialCode: '+33', flag: '🇫🇷', code: 'FR', example: '6 12 34 56 78'),
+  CountryItem(name: 'Hollanda', dialCode: '+31', flag: '🇳🇱', code: 'NL', example: '6 12345678'),
+  CountryItem(name: 'Avusturya', dialCode: '+43', flag: '🇦🇹', code: 'AT', example: '664 1234567'),
+  CountryItem(name: 'İsviçre', dialCode: '+41', flag: '🇨🇭', code: 'CH', example: '79 123 45 67'),
+  CountryItem(name: 'Belçika', dialCode: '+32', flag: '🇧🇪', code: 'BE', example: '470 12 34 56'),
+  CountryItem(name: 'Birleşik Krallık', dialCode: '+44', flag: '🇬🇧', code: 'GB', example: '7911 123456'),
+  CountryItem(name: 'İsveç', dialCode: '+46', flag: '🇸🇪', code: 'SE', example: '70 123 45 67'),
+  CountryItem(name: 'Danimarka', dialCode: '+45', flag: '🇩🇰', code: 'DK', example: '20 12 34 56'),
+  CountryItem(name: 'Norveç', dialCode: '+47', flag: '🇳🇴', code: 'NO', example: '412 34 567'),
+  CountryItem(name: 'Finlandiya', dialCode: '+358', flag: '🇫🇮', code: 'FI', example: '40 1234567'),
+  CountryItem(name: 'İtalya', dialCode: '+39', flag: '🇮🇹', code: 'IT', example: '320 123 4567'),
+  CountryItem(name: 'İspanya', dialCode: '+34', flag: '🇪🇸', code: 'ES', example: '612 34 56 78'),
+  CountryItem(name: 'Portekiz', dialCode: '+351', flag: '🇵🇹', code: 'PT', example: '912 345 678'),
+  CountryItem(name: 'Yunanistan', dialCode: '+30', flag: '🇬🇷', code: 'GR', example: '69 1234 5678'),
+  CountryItem(name: 'Bulgaristan', dialCode: '+359', flag: '🇧🇬', code: 'BG', example: '87 123 4567'),
+  CountryItem(name: 'Romanya', dialCode: '+40', flag: '🇷🇴', code: 'RO', example: '712 345 678'),
+  CountryItem(name: 'Polonya', dialCode: '+48', flag: '🇵🇱', code: 'PL', example: '512 345 678'),
+  CountryItem(name: 'Çekya', dialCode: '+420', flag: '🇨🇿', code: 'CZ', example: '601 123 456'),
+  CountryItem(name: 'Macaristan', dialCode: '+36', flag: '🇭🇺', code: 'HU', example: '20 123 4567'),
+  CountryItem(name: 'İrlanda', dialCode: '+353', flag: '🇮🇪', code: 'IE', example: '85 123 4567'),
+  CountryItem(name: 'Amerika Birleşik Devletleri', dialCode: '+1', flag: '🇺🇸', code: 'US', example: '202 555 0123'),
+  CountryItem(name: 'Kanada', dialCode: '+1', flag: '🇨🇦', code: 'CA', example: '416 555 0123'),
+  CountryItem(name: 'Avustralya', dialCode: '+61', flag: '🇦🇺', code: 'AU', example: '412 345 678'),
+  CountryItem(name: 'Yeni Zelanda', dialCode: '+64', flag: '🇳🇿', code: 'NZ', example: '21 123 4567'),
+  CountryItem(name: 'Azerbaycan', dialCode: '+994', flag: '🇦🇿', code: 'AZ', example: '50 123 45 67'),
+  CountryItem(name: 'KKTC', dialCode: '+90', flag: '🇨🇾', code: 'CY', example: '533 123 45 67'),
+  CountryItem(name: 'Rusya', dialCode: '+7', flag: '🇷🇺', code: 'RU', example: '912 345 67 89'),
+  CountryItem(name: 'Kazakistan', dialCode: '+7', flag: '🇰🇿', code: 'KZ', example: '701 123 45 67'),
+  CountryItem(name: 'Özbekistan', dialCode: '+998', flag: '🇺🇿', code: 'UZ', example: '90 123 45 67'),
+  CountryItem(name: 'Türkmenistan', dialCode: '+993', flag: '🇹🇲', code: 'TM', example: '65 12 34 56'),
+  CountryItem(name: 'Kırgızistan', dialCode: '+996', flag: '🇰🇬', code: 'KG', example: '555 12 34 56'),
+  CountryItem(name: 'Gürcistan', dialCode: '+995', flag: '🇬🇪', code: 'GE', example: '555 12 34 56'),
+  CountryItem(name: 'Ukrayna', dialCode: '+380', flag: '🇺🇦', code: 'UA', example: '50 123 4567'),
+  CountryItem(name: 'Suudi Arabistan', dialCode: '+966', flag: '🇸🇦', code: 'SA', example: '50 123 4567'),
+  CountryItem(name: 'Birleşik Arap Emirlikleri', dialCode: '+971', flag: '🇦🇪', code: 'AE', example: '50 123 4567'),
+  CountryItem(name: 'Katar', dialCode: '+974', flag: '🇶🇦', code: 'QA', example: '3312 3456'),
+  CountryItem(name: 'Kuveyt', dialCode: '+965', flag: '🇰🇼', code: 'KW', example: '9123 4567'),
+  CountryItem(name: 'Bahreyn', dialCode: '+973', flag: '🇧🇭', code: 'BH', example: '3600 1234'),
+  CountryItem(name: 'Umman', dialCode: '+968', flag: '🇴🇲', code: 'OM', example: '9123 4567'),
+  CountryItem(name: 'Irak', dialCode: '+964', flag: '🇮🇶', code: 'IQ', example: '750 123 4567'),
+  CountryItem(name: 'Suriye', dialCode: '+963', flag: '🇸🇾', code: 'SY', example: '933 123 456'),
+  CountryItem(name: 'Ürdün', dialCode: '+962', flag: '🇯🇴', code: 'JO', example: '7 9012 3456'),
+  CountryItem(name: 'Lübnan', dialCode: '+961', flag: '🇱🇧', code: 'LB', example: '70 123 456'),
+  CountryItem(name: 'Mısır', dialCode: '+20', flag: '🇪🇬', code: 'EG', example: '100 123 4567'),
+  CountryItem(name: 'Fas', dialCode: '+212', flag: '🇲🇦', code: 'MA', example: '612 345678'),
+  CountryItem(name: 'Cezayir', dialCode: '+213', flag: '🇩🇿', code: 'DZ', example: '551 23 45 67'),
+  CountryItem(name: 'Tunus', dialCode: '+216', flag: '🇹🇳', code: 'TN', example: '20 123 456'),
+  CountryItem(name: 'Japonya', dialCode: '+81', flag: '🇯🇵', code: 'JP', example: '90 1234 5678'),
+  CountryItem(name: 'Güney Kore', dialCode: '+82', flag: '🇰🇷', code: 'KR', example: '10 1234 5678'),
+  CountryItem(name: 'Çin', dialCode: '+86', flag: '🇨🇳', code: 'CN', example: '138 0000 0000'),
+  CountryItem(name: 'Hindistan', dialCode: '+91', flag: '🇮🇳', code: 'IN', example: '98765 43210'),
+  CountryItem(name: 'Pakistan', dialCode: '+92', flag: '🇵🇰', code: 'PK', example: '300 1234567'),
+  CountryItem(name: 'Brezilya', dialCode: '+55', flag: '🇧🇷', code: 'BR', example: '11 91234 5678'),
+  CountryItem(name: 'Meksika', dialCode: '+52', flag: '🇲🇽', code: 'MX', example: '55 1234 5678'),
+  CountryItem(name: 'Güney Afrika', dialCode: '+27', flag: '🇿🇦', code: 'ZA', example: '82 123 4567'),
+];
+
 /// Firebase SMS OTP ile telefon numarası doğrulama sayfası.
 ///
 /// İki mod:
@@ -29,6 +105,8 @@ class PhoneOtpPage extends StatefulWidget {
 
 class _PhoneOtpPageState extends State<PhoneOtpPage>
     with SingleTickerProviderStateMixin {
+  CountryItem _selectedCountry = kSupportedCountries.first;
+
   // ── Controllers ────────────────────────────────────────────────────────────
   final _phoneCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
@@ -82,7 +160,7 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
               .toString()
               .trim();
           final existingPhone =
-              (data?['phone'] ?? data?['phoneNumber'] ?? '')
+              (data?['phone'] ?? data?['phoneNumber'] ?? user.phoneNumber ?? '')
                   .toString()
                   .trim();
           setState(() {
@@ -90,12 +168,66 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
               _nameCtrl.text = existingName;
             }
             if (_phoneCtrl.text.trim().isEmpty && existingPhone.isNotEmpty) {
-              _phoneCtrl.text = existingPhone.replaceFirst('+90', '0');
+              _parseAndSetExistingPhone(existingPhone);
             }
           });
         }).catchError((_) {});
       }
     } catch (_) {}
+  }
+
+  void _parseAndSetExistingPhone(String raw) {
+    var clean = raw.trim();
+    if (clean.isEmpty) return;
+    if (clean.startsWith('00')) {
+      clean = '+${clean.substring(2)}';
+    }
+    if (clean.startsWith('+')) {
+      // Dial code ile eşleşen ülkeyi bul (en uzun eşleşme)
+      CountryItem? bestMatch;
+      for (final c in kSupportedCountries) {
+        if (clean.startsWith(c.dialCode)) {
+          if (bestMatch == null || c.dialCode.length > bestMatch.dialCode.length) {
+            bestMatch = c;
+          }
+        }
+      }
+      if (bestMatch != null) {
+        _selectedCountry = bestMatch;
+        _phoneCtrl.text = clean.substring(bestMatch.dialCode.length).replaceAll(RegExp(r'\D'), '');
+        return;
+      }
+    }
+    // Türkiye varsayımı
+    _selectedCountry = kSupportedCountries.first;
+    var digits = clean.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('90') && digits.length == 12) digits = digits.substring(2);
+    if (digits.length == 10 && !digits.startsWith('0')) digits = '0$digits';
+    _phoneCtrl.text = digits;
+  }
+
+  void _onPhoneChanged(String val) {
+    final trimmed = val.trim();
+    if (trimmed.startsWith('+')) {
+      // Kullanıcı doğrudan uluslararası kod yapıştırdıysa (+49, +33 vb.)
+      CountryItem? match;
+      for (final c in kSupportedCountries) {
+        if (trimmed.startsWith(c.dialCode)) {
+          if (match == null || c.dialCode.length > match.dialCode.length) {
+            match = c;
+          }
+        }
+      }
+      if (match != null) {
+        final found = match;
+        setState(() {
+          _selectedCountry = found;
+          final national = trimmed.substring(found.dialCode.length).replaceAll(RegExp(r'\D'), '');
+          _phoneCtrl.text = national;
+          _phoneCtrl.selection = TextSelection.fromPosition(TextPosition(offset: national.length));
+        });
+      }
+    }
   }
 
   @override
@@ -112,26 +244,67 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
 
   // ── Yardımcılar ───────────────────────────────────────────────────────────
 
-  /// "05xx xxx xx xx" → "+905xxxxxxxxx"
+  /// Numarayı tam E.164 standardına dönüştürür (+<ülke_kodu><numara>)
   String _toE164(String raw) {
     final digits = raw.replaceAll(RegExp(r'\D'), '');
-    if (digits.startsWith('90') && digits.length == 12) return '+$digits';
-    if (digits.startsWith('0') && digits.length == 11) {
-      return '+9${digits}';
+    final dialDigits = _selectedCountry.dialCode.replaceAll(RegExp(r'\D'), '');
+
+    if (_selectedCountry.dialCode == '+90') {
+      if (digits.startsWith('90') && digits.length == 12) return '+$digits';
+      if (digits.startsWith('0') && digits.length == 11) {
+        return '+9${digits}';
+      }
+      if (digits.length == 10) return '+90$digits';
+      return '+90$digits';
+    } else {
+      // Diğer ülkeler (başında ülke kodu zaten varsa veya 0 ile başlıyorsa temizle)
+      if (digits.startsWith(dialDigits)) {
+        return '+$digits';
+      }
+      var national = digits;
+      if (national.startsWith('0')) {
+        national = national.substring(1);
+      }
+      return '+${dialDigits}$national';
     }
-    if (digits.length == 10) return '+90$digits';
-    return '+$digits';
   }
 
-  bool _isValidTrPhone(String raw) {
+  bool _isValidPhone(String raw) {
     final digits = raw.replaceAll(RegExp(r'\D'), '');
-    // 10 hane (5xxxxxxxxx), 11 hane (05xxxxxxxxx), 12 hane (905xxxxxxxxx)
-    final normalized = digits.startsWith('0')
-        ? digits.substring(1)
-        : digits.startsWith('90')
-            ? digits.substring(2)
-            : digits;
-    return RegExp(r'^5[0-9]{9}$').hasMatch(normalized);
+    if (digits.isEmpty) return false;
+
+    if (_selectedCountry.dialCode == '+90') {
+      final normalized = digits.startsWith('0')
+          ? digits.substring(1)
+          : digits.startsWith('90')
+              ? digits.substring(2)
+              : digits;
+      return RegExp(r'^5[0-9]{9}$').hasMatch(normalized);
+    } else {
+      // Uluslararası: yerel numara en az 5, en fazla 14 basamak; toplam 7-15 hane
+      final dialDigits = _selectedCountry.dialCode.replaceAll(RegExp(r'\D'), '');
+      final cleanLocal = digits.startsWith('0') ? digits.substring(1) : digits;
+      final totalLen = digits.startsWith(dialDigits)
+          ? digits.length
+          : dialDigits.length + cleanLocal.length;
+      return totalLen >= 7 && totalLen <= 15;
+    }
+  }
+
+  void _showCountryPicker() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _CountryPickerSheet(
+        selected: _selectedCountry,
+        onSelected: (country) {
+          setState(() {
+            _selectedCountry = country;
+          });
+        },
+      ),
+    );
   }
 
   void _setError(String? msg) => setState(() => _errorMsg = msg);
@@ -323,8 +496,12 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
 
   Future<void> _sendCode({bool isResend = false}) async {
     final raw = _phoneCtrl.text.trim();
-    if (!_isValidTrPhone(raw)) {
-      _setError('Geçerli bir Türkiye telefon numarası girin.\n(Örn: 05xx xxx xx xx)');
+    if (!_isValidPhone(raw)) {
+      if (_selectedCountry.dialCode == '+90') {
+        _setError('Geçerli bir Türkiye cep telefonu numarası girin.\n(Örn: 05xx xxx xx xx)');
+      } else {
+        _setError('Geçerli bir ${_selectedCountry.name} cep telefonu girin.\n(Örn: ${_selectedCountry.example})');
+      }
       return;
     }
     final name = _nameCtrl.text.trim();
@@ -672,11 +849,13 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
     if (confirm != true) return;
 
     try {
+      final formattedPhone = phone.isNotEmpty ? _toE164(phone) : (user?.phoneNumber ?? '');
       final docRef = await FirebaseFirestore.instance.collection('phone_verification_requests').add({
         'uid': uid,
         'email': email,
         'fullName': cleanName.isNotEmpty ? cleanName : (user?.displayName ?? 'İsimsiz Kullanıcı'),
-        'phoneNumber': phone.isNotEmpty ? _toE164(phone) : (user?.phoneNumber ?? ''),
+        'phoneNumber': formattedPhone,
+        'country': '${_selectedCountry.flag} ${_selectedCountry.name} (${_selectedCountry.dialCode})',
         'status': 'pending',
         'issueReason': noteCtrl.text.trim(),
         'errorDetails': _errorMsg ?? '',
@@ -685,8 +864,8 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
       });
 
       await FirebaseFirestore.instance.collection('admin_notifications_log').add({
-        'title': '🚨 Tel Doğrulama Sorunu: ${cleanName.isNotEmpty ? cleanName : phone}',
-        'body': '${email.isNotEmpty ? email + " • " : ""}$phone numaralı kullanıcı SMS kodu alamadığını bildirdi. Yönetimden manuel onaylayabilirsiniz.',
+        'title': '🚨 Tel Doğrulama Sorunu: ${cleanName.isNotEmpty ? cleanName : formattedPhone}',
+        'body': '${email.isNotEmpty ? email + " • " : ""}$formattedPhone (${_selectedCountry.flag} ${_selectedCountry.name}) kullanıcısı SMS kodu alamadığını bildirdi. Yönetimden manuel onaylayabilirsiniz.',
         'type': 'phone_verification_request',
         'docId': docRef.id,
         'seen': false,
@@ -805,7 +984,7 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
         ),
         const SizedBox(height: 8),
         Text(
-          'SMS ile doğrulama kodu göndereceğiz.\nTürk operatörler (Turkcell, Vodafone, Türk Telekom) desteklenir.',
+          'SMS ile 6 haneli doğrulama kodu göndereceğiz.\nTürkiye, Almanya, Fransa ve tüm dünya operatörleri desteklenir.',
           style: GoogleFonts.inter(
               fontSize: 13, color: Colors.black54, height: 1.5),
         ),
@@ -841,7 +1020,7 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
           ),
         ),
         const SizedBox(height: 14),
-        // Tel input
+        // Tel input (Ülke kodu seçimi + numara)
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
@@ -856,25 +1035,32 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
           ),
           child: Row(
             children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-                decoration: const BoxDecoration(
-                  border: Border(
-                      right: BorderSide(color: Color(0xFFE5E7EB), width: 1)),
-                ),
-                child: Row(
-                  children: [
-                    Text('🇹🇷',
-                        style: GoogleFonts.inter(
-                            fontSize: 18, fontWeight: FontWeight.w600)),
-                    const SizedBox(width: 6),
-                    Text('+90',
-                        style: GoogleFonts.inter(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.black87)),
-                  ],
+              InkWell(
+                onTap: _showCountryPicker,
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                  decoration: const BoxDecoration(
+                    border: Border(
+                        right: BorderSide(color: Color(0xFFE5E7EB), width: 1)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(_selectedCountry.flag,
+                          style: const TextStyle(fontSize: 20)),
+                      const SizedBox(width: 6),
+                      Text(_selectedCountry.dialCode,
+                          style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87)),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.arrow_drop_down,
+                          size: 18, color: Colors.black54),
+                    ],
+                  ),
                 ),
               ),
               Expanded(
@@ -882,14 +1068,15 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
                   controller: _phoneCtrl,
                   keyboardType: TextInputType.phone,
                   inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[\d\s\-]')),
-                    LengthLimitingTextInputFormatter(15),
+                    FilteringTextInputFormatter.allow(RegExp(r'[\d\s\-\+]')),
+                    LengthLimitingTextInputFormatter(18),
                   ],
+                  onChanged: _onPhoneChanged,
                   onSubmitted: (_) => _sending ? null : _sendCode(),
                   style: GoogleFonts.inter(
                       fontSize: 17, fontWeight: FontWeight.w600),
                   decoration: InputDecoration(
-                    hintText: '05xx xxx xx xx',
+                    hintText: _selectedCountry.example,
                     hintStyle:
                         GoogleFonts.inter(color: Colors.black26, fontSize: 15),
                     border: InputBorder.none,
@@ -962,7 +1149,9 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
 
   Widget _buildOtpStep() {
     final phone = _toE164(_phoneCtrl.text.trim());
-    final display = phone.replaceFirst('+90', '0');
+    final display = _selectedCountry.dialCode == '+90'
+        ? phone.replaceFirst('+90', '0')
+        : '${_selectedCountry.flag} $phone';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1208,6 +1397,312 @@ class _ErrorCard extends StatelessWidget {
               style: const TextStyle(
                   color: Color(0xFFB02020), fontSize: 12.5, height: 1.5),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Ülke ve Alan Kodu Seçici Modal ──────────────────────────────────────────
+
+class _CountryPickerSheet extends StatefulWidget {
+  final CountryItem selected;
+  final ValueChanged<CountryItem> onSelected;
+
+  const _CountryPickerSheet({
+    Key? key,
+    required this.selected,
+    required this.onSelected,
+  }) : super(key: key);
+
+  @override
+  State<_CountryPickerSheet> createState() => _CountryPickerSheetState();
+}
+
+class _CountryPickerSheetState extends State<_CountryPickerSheet> {
+  final _searchCtrl = TextEditingController();
+  String _filter = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lowerFilter = _filter.trim().toLowerCase();
+    final filtered = kSupportedCountries.where((c) {
+      if (lowerFilter.isEmpty) return true;
+      final cleanDial = c.dialCode.replaceAll('+', '').toLowerCase();
+      return c.name.toLowerCase().contains(lowerFilter) ||
+          c.code.toLowerCase().contains(lowerFilter) ||
+          c.dialCode.contains(lowerFilter) ||
+          cleanDial.contains(lowerFilter);
+    }).toList();
+
+    final popularCountries = kSupportedCountries.where((c) {
+      return ['TR', 'DE', 'FR', 'NL', 'AT', 'CH', 'BE', 'GB', 'US', 'AZ'].contains(c.code);
+    }).toList();
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.85,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 44,
+            height: 4.5,
+            decoration: BoxDecoration(
+              color: Colors.black12,
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Ülke & Alan Kodu Seçin',
+                        style: GoogleFonts.inter(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Tüm ülkelerden SMS ile kayıt ve giriş desteklenir',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.black45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.black54),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: (val) => setState(() => _filter = val),
+                decoration: InputDecoration(
+                  hintText: 'Ülke adı veya kodu arayın (örn. Almanya, +49)...',
+                  hintStyle: GoogleFonts.inter(color: Colors.black38, fontSize: 13.5),
+                  prefixIcon: const Icon(Icons.search, color: Colors.black45, size: 20),
+                  suffixIcon: _filter.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.cancel, size: 18, color: Colors.black38),
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            setState(() => _filter = '');
+                          },
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (_filter.isEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'SIK KULLANILAN ÜLKELER',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                    color: Colors.black45,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 42,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: popularCountries.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (ctx, i) {
+                  final c = popularCountries[i];
+                  final isSel = c.dialCode == widget.selected.dialCode &&
+                      c.code == widget.selected.code;
+                  return InkWell(
+                    onTap: () {
+                      widget.onSelected(c);
+                      Navigator.pop(context);
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSel ? const Color(0xFF6366F1).withOpacity(0.12) : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSel ? const Color(0xFF6366F1) : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(c.flag, style: const TextStyle(fontSize: 16)),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${c.name} (${c.dialCode})',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: isSel ? FontWeight.w800 : FontWeight.w600,
+                              color: isSel ? const Color(0xFF6366F1) : Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Divider(height: 1),
+          ],
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.public_off, size: 40, color: Colors.black26),
+                          const SizedBox(height: 12),
+                          Text(
+                            '"$_filter" için ülke bulunamadı.',
+                            style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Özel bir alan kodu ile devam etmek için aşağıya tıklayın.',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(fontSize: 12, color: Colors.black45),
+                          ),
+                          const SizedBox(height: 14),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              final dial = _filter.startsWith('+') ? _filter : '+$_filter';
+                              final customCountry = CountryItem(
+                                name: 'Özel Ülke ($dial)',
+                                dialCode: dial,
+                                flag: '🌐',
+                                code: 'XX',
+                                example: 'Telefon numarası',
+                              );
+                              widget.onSelected(customCountry);
+                              Navigator.pop(context);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF6366F1),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            icon: const Icon(Icons.add, size: 18),
+                            label: Text(
+                              '${_filter.startsWith('+') ? _filter : "+$_filter"} Kodunu Kullan',
+                              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1, indent: 64),
+                    itemBuilder: (ctx, i) {
+                      final item = filtered[i];
+                      final isSel = item.dialCode == widget.selected.dialCode &&
+                          item.code == widget.selected.code;
+                      return ListTile(
+                        leading: Container(
+                          width: 40,
+                          height: 40,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            item.flag,
+                            style: const TextStyle(fontSize: 22),
+                          ),
+                        ),
+                        title: Text(
+                          item.name,
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: isSel ? FontWeight.w800 : FontWeight.w600,
+                            color: isSel ? const Color(0xFF6366F1) : Colors.black87,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Örnek: ${item.example}',
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            color: Colors.black38,
+                          ),
+                        ),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: isSel
+                                ? const Color(0xFF6366F1)
+                                : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            item.dialCode,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: isSel ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ),
+                        onTap: () {
+                          widget.onSelected(item);
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
+                  ),
           ),
         ],
       ),

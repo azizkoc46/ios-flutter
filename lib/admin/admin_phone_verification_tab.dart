@@ -67,8 +67,11 @@ class _AdminPhoneVerificationTabState extends State<AdminPhoneVerificationTab> {
         FirebaseFirestore.instance.collection(_usersCol).doc(uid),
         {
           'phoneVerified': true,
+          'isPhoneVerified': true,
+          'phone': phone,
           'phoneNumber': phone,
           'phoneVerifiedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
         },
         SetOptions(merge: true),
       );

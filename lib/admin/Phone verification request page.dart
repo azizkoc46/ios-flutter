@@ -27,7 +27,6 @@ class _PhoneVerificationRequestPageState
   final _phoneCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   bool _loading = false;
-  bool _submitted = false;
   String? _existingStatus;
 
   @override
@@ -84,11 +83,13 @@ class _PhoneVerificationRequestPageState
       return;
     }
 
-    // Basit Türkiye telefon formatı kontrolü
+    // Türkiye veya uluslararası telefon formatı kontrolü
     final cleanPhone = phone.replaceAll(' ', '').replaceAll('-', '');
-    if (!RegExp(r'^(\+90|0)?[0-9]{10}$').hasMatch(cleanPhone)) {
+    final isTrValid = RegExp(r'^(\+90|0)?[0-9]{10}$').hasMatch(cleanPhone);
+    final isIntlValid = cleanPhone.startsWith('+') && RegExp(r'^\+[0-9]{7,15}$').hasMatch(cleanPhone);
+    if (!isTrValid && !isIntlValid) {
       _snack(
-          'Geçerli bir Türkiye telefon numarası girin. (Örn: 05xx xxx xx xx)',
+          'Geçerli bir telefon numarası girin. (Örn: 05xx xxx xx xx veya +49...)',
           Colors.red);
       return;
     }
@@ -118,7 +119,6 @@ class _PhoneVerificationRequestPageState
       );
 
       setState(() {
-        _submitted = true;
         _existingStatus = 'pending';
       });
     } catch (e) {

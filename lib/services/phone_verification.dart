@@ -6,8 +6,55 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+/// Verilen telefon numarasını uluslararası E.164 standardına normalize eder (+<ülke_kodu><numara>).
+/// Türkiye numaraları için 05xx veya 5xx girdilerini +905xxxxxxxxx yapar.
+/// Yurt dışı numaraları için (+49, +33, +31 vb.) geçerli E.164 formatını (+ ve 7-15 hane) döndürür.
+String? normalizeInternationalPhone(String input, [String defaultDialCode = '+90']) {
+  var trimmed = input.trim().replaceAll(RegExp(r'[\s().\-]'), '');
+  if (trimmed.isEmpty) return null;
+
+  if (trimmed.startsWith('00')) {
+    trimmed = '+${trimmed.substring(2)}';
+  }
+
+  if (trimmed.startsWith('+')) {
+    final digits = trimmed.substring(1).replaceAll(RegExp(r'\D'), '');
+    // Uluslararası E.164 standardı: 7 ile 15 basamak arası
+    if (digits.length >= 7 && digits.length <= 15) {
+      return '+$digits';
+    }
+    return null;
+  }
+
+  // Başında + yoksa: Türkiye formatı kontrolü
+  final digits = trimmed.replaceAll(RegExp(r'\D'), '');
+  if (digits.startsWith('90') && digits.length == 12 && digits.substring(2).startsWith('5')) {
+    return '+$digits';
+  }
+  if (digits.startsWith('05') && digits.length == 11) {
+    return '+9${digits}';
+  }
+  if (digits.startsWith('5') && digits.length == 10) {
+    return '+90$digits';
+  }
+
+  // Farklı bir ülke için hane girildiyse ve defaultDialCode belirtildiyse
+  if (digits.length >= 6 && digits.length <= 14) {
+    final cleanDial = defaultDialCode.replaceAll(RegExp(r'\D'), '');
+    return '+$cleanDial$digits';
+  }
+
+  return null;
+}
+
+/// Geriye uyumluluk için: Hem Türkiye cep telefonlarını hem de tüm uluslararası
+/// (+ ve 7-15 hane) telefon numaralarını geçerli kabul eder ve E.164 döndürür.
 String? normalizeTurkishMobile(String input) {
-  var digits = input.replaceAll(RegExp(r'[\s()+.\-]'), '');
+  final trimmed = input.trim();
+  if (trimmed.startsWith('+') || trimmed.startsWith('00')) {
+    return normalizeInternationalPhone(trimmed);
+  }
+  var digits = trimmed.replaceAll(RegExp(r'[\s()+.\-]'), '');
   if (digits.startsWith('0090')) digits = digits.substring(4);
   if (digits.startsWith('90') && digits.length == 12) {
     digits = digits.substring(2);
@@ -15,7 +62,10 @@ String? normalizeTurkishMobile(String input) {
   if (digits.startsWith('0') && digits.length == 11) {
     digits = digits.substring(1);
   }
-  return RegExp(r'^5\d{9}$').hasMatch(digits) ? '+90$digits' : null;
+  if (RegExp(r'^5\d{9}$').hasMatch(digits)) {
+    return '+90$digits';
+  }
+  return normalizeInternationalPhone(input);
 }
 
 String phoneVerificationError(Object error) {
@@ -27,7 +77,7 @@ String phoneVerificationError(Object error) {
   }
   final message = switch (code) {
     'invalid-phone-number' =>
-      'Geçerli bir Türkiye cep telefonu numarası girin.',
+      'Geçerli bir cep telefonu numarası girin.',
     'invalid-verification-code' =>
       'Kod hatalı. SMS içindeki 6 haneli kodu tekrar girin.',
     'session-expired' ||

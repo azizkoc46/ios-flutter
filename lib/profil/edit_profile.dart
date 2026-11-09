@@ -259,42 +259,42 @@ class _EditProfileState extends State<EditProfile>
   }
 
   // ── Telefon Doğrulama Akışı ──
-  Future<void> _startPhoneVerification([String? targetPhone]) async {
-    final rawPhone = targetPhone ?? _phoneController.text.trim();
-    final phone = normalizeTurkishMobile(rawPhone);
-    if (phone == null) {
-      _showError('Lütfen geçerli bir cep telefonu girin (Örn: 05xx xxx xx xx)');
-      return;
-    }
-
-    final verifiedPhone = await Navigator.of(context).push<dynamic>(
+  Future<void> _startPhoneVerification() async {
+    final verified = await Navigator.of(context).push<dynamic>(
       MaterialPageRoute(builder: (_) => const PhoneOtpPage(verifyOnly: true)),
     );
 
-    if (!mounted || verifiedPhone != true) return;
+    if (!mounted || verified != true) return;
 
-    setState(() {
-      _phoneController.text = rawPhone;
-      _originalPhone = rawPhone;
-      isPhoneVerified = true;
-      final updatedDisplayName =
-          FirebaseAuth.instance.currentUser?.displayName;
-      if (updatedDisplayName != null && updatedDisplayName.isNotEmpty) {
-        _fullnameController.text = updatedDisplayName;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('customers')
+            .doc(user.uid)
+            .get();
+        final data = snap.data();
+        final savedPhone =
+            (data?['phone'] ?? data?['phoneNumber'] ?? user.phoneNumber ?? '')
+                .toString();
+        final updatedDisplayName =
+            (data?['fullname'] ?? user.displayName ?? '').toString();
+        setState(() {
+          if (savedPhone.isNotEmpty) {
+            _phoneController.text = savedPhone;
+            _originalPhone = savedPhone;
+          }
+          if (updatedDisplayName.isNotEmpty) {
+            _fullnameController.text = updatedDisplayName;
+          }
+          isPhoneVerified = true;
+        });
+        _showSuccess('Telefon numaranız başarıyla doğrulandı!');
+      } catch (_) {
+        setState(() => isPhoneVerified = true);
+        _showSuccess('Telefon numaranız başarıyla doğrulandı!');
       }
-    });
-
-    try {
-      await firebase.collection('customers').doc(userId).set({
-        'phone': rawPhone,
-        'phoneNumber': rawPhone,
-        'isPhoneVerified': true,
-        'phoneVerified': true,
-        'updatedAt': Timestamp.now(),
-      }, SetOptions(merge: true));
-    } catch (_) {}
-
-    _showSuccess('Telefon numaranız başarıyla doğrulandı!');
+    }
   }
 
   // ── Profil Bilgilerini Kaydet ──
@@ -792,198 +792,6 @@ class _EditProfileState extends State<EditProfile>
                             "Kaydet",
                             style: TextStyle(
                               fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Telefon Numarası Güncelleme / Doğrulama Modalı
-  void _showEditPhoneSheet(bool isDark) {
-    final phoneInputController = TextEditingController(text: _phoneController.text);
-    final formKey = GlobalKey<FormState>();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom,
-        ),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E1E24) : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: SafeArea(
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: successGreen.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.phone_iphone_rounded,
-                            color: successGreen, size: 22),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Telefon Numarası Güncelle",
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.white : Colors.black87,
-                              ),
-                            ),
-                            Text(
-                              "Güvenliğiniz için yeni numaranıza SMS kodu iletilecektir.",
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: isDark
-                                    ? Colors.grey.shade400
-                                    : Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-                  TextFormField(
-                    controller: phoneInputController,
-                    autofocus: true,
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
-                    decoration: InputDecoration(
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.only(left: 14, right: 10),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text("🇹🇷 +90 ",
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 15)),
-                            Container(
-                                width: 1,
-                                height: 20,
-                                color: Colors.grey.withValues(alpha: 0.3)),
-                          ],
-                        ),
-                      ),
-                      hintText: "5xx xxx xx xx",
-                      hintStyle: TextStyle(
-                          color: Colors.grey.shade400, letterSpacing: 0),
-                      filled: true,
-                      fillColor: isDark
-                          ? const Color(0xFF2C2C32)
-                          : const Color(0xFFF1F5F9),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 16),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none,
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide:
-                            const BorderSide(color: successGreen, width: 2),
-                      ),
-                    ),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) {
-                        return "Telefon numarası gereklidir";
-                      }
-                      if (normalizeTurkishMobile(v.trim()) == null) {
-                        return "Geçerli bir cep telefonu girin (5xx xxx xx xx)";
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14)),
-                          ),
-                          child: Text(
-                            "Vazgeç",
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: isDark
-                                  ? Colors.grey.shade400
-                                  : Colors.grey.shade600,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            if (formKey.currentState!.validate()) {
-                              final newPhone = phoneInputController.text.trim();
-                              Navigator.pop(ctx);
-                              _startPhoneVerification(newPhone);
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: successGreen,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14)),
-                          ),
-                          child: const Text(
-                            "SMS Kodu Gönder",
-                            style: TextStyle(
-                              fontSize: 14,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -1605,7 +1413,7 @@ class _EditProfileState extends State<EditProfile>
                 ),
           actionText: isPhoneVerified ? "Değiştir" : "Doğrula",
           actionColor: isPhoneVerified ? primaryBlue : successGreen,
-          onTap: () => _showEditPhoneSheet(isDark),
+          onTap: () => _startPhoneVerification(),
           isDark: isDark,
           showDivider: true,
         ),
