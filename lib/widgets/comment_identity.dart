@@ -2,6 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 
+enum PrivacyChoice {
+  fullName,
+  initials,
+  anonymous,
+}
+
 class CommentIdentity {
   static String initialsOnly(String name) {
     final parts = name
@@ -25,8 +31,13 @@ class CommentIdentity {
         'userName',
         'sender'
       ]}) {
+    if (data['isAnonymous'] == true || data['namePrivacy'] == 'anonymous') {
+      return "Pazarcık Sakini";
+    }
     final rawName = rawFullName(data, nameFields: nameFields);
-    if (data['isNameHidden'] == true) return initialsOnly(rawName);
+    if (data['isNameHidden'] == true || data['namePrivacy'] == 'initials') {
+      return initialsOnly(rawName);
+    }
     return (data['authorDisplayName'] ?? rawName).toString();
   }
 
@@ -70,41 +81,100 @@ class CommentIdentity {
     return "Kullanıcı";
   }
 
-  static Future<bool?> askHideName(BuildContext context) {
-    return showCupertinoDialog<bool>(
+  static Future<bool?> askHideName(BuildContext context) async {
+    final choice = await askPrivacyChoice(context);
+    if (choice == null) return null;
+    return choice != PrivacyChoice.fullName;
+  }
+
+  static Future<PrivacyChoice?> askPrivacyChoice(BuildContext context,
+      {String? namePreview}) async {
+    String name = namePreview ?? await currentUserFullName();
+    final initials = initialsOnly(name);
+
+    return showCupertinoDialog<PrivacyChoice>(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text("Adınız nasıl görünsün?"),
-        content: const Text(
-          "Yorumda tam adınızı gösterebilir veya sadece baş harflerinizi kullanabilirsiniz.",
+        title: const Text("İsminiz Nasıl Görünsün?"),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8.0),
+          child: Text(
+            "Yorum veya yanıtınızda adınızın görünürlüğünü seçebilirsiniz:\n\n"
+            "• Tam Adım: $name\n"
+            "• Baş Harfler: $initials\n"
+            "• Gizli: Pazarcık Sakini",
+            textAlign: TextAlign.left,
+          ),
         ),
         actions: [
           CupertinoDialogAction(
-            child: const Text("Tam adım görünsün"),
-            onPressed: () => Navigator.pop(context, false),
+            child: Text("Tam Adım ($name)"),
+            onPressed: () => Navigator.pop(context, PrivacyChoice.fullName),
           ),
           CupertinoDialogAction(
-            child: const Text("Baş harflerim görünsün"),
-            onPressed: () => Navigator.pop(context, true),
+            child: Text("Baş Harfler ($initials)"),
+            onPressed: () => Navigator.pop(context, PrivacyChoice.initials),
+          ),
+          CupertinoDialogAction(
+            child: const Text("Gizli (Pazarcık Sakini)"),
+            onPressed: () => Navigator.pop(context, PrivacyChoice.anonymous),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
             child: const Text("Vazgeç"),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, null),
           ),
         ],
       ),
     );
   }
 
+  static Map<String, dynamic> authorFieldsWithMode({
+    required String fullName,
+    required PrivacyChoice choice,
+  }) {
+    String displayName;
+    bool isHidden;
+    bool isAnon;
+    String privacyMode;
+
+    switch (choice) {
+      case PrivacyChoice.fullName:
+        displayName = fullName;
+        isHidden = false;
+        isAnon = false;
+        privacyMode = 'full';
+        break;
+      case PrivacyChoice.initials:
+        displayName = initialsOnly(fullName);
+        isHidden = true;
+        isAnon = false;
+        privacyMode = 'initials';
+        break;
+      case PrivacyChoice.anonymous:
+        displayName = "Pazarcık Sakini";
+        isHidden = true;
+        isAnon = true;
+        privacyMode = 'anonymous';
+        break;
+    }
+
+    return {
+      'authorFullName': fullName,
+      'authorDisplayName': displayName,
+      'isNameHidden': isHidden,
+      'isAnonymous': isAnon,
+      'namePrivacy': privacyMode,
+    };
+  }
+
   static Map<String, dynamic> authorFields({
     required String fullName,
     required bool hideName,
   }) {
-    return {
-      'authorFullName': fullName,
-      'authorDisplayName': hideName ? initialsOnly(fullName) : fullName,
-      'isNameHidden': hideName,
-    };
+    return authorFieldsWithMode(
+      fullName: fullName,
+      choice: hideName ? PrivacyChoice.initials : PrivacyChoice.fullName,
+    );
   }
 }

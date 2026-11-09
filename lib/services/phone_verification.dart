@@ -20,11 +20,10 @@ String? normalizeTurkishMobile(String input) {
 
 String phoneVerificationError(Object error) {
   final code = error is FirebaseException ? error.code : 'unexpected-error';
-  final native39 = error is FirebaseException &&
-      RegExp(r'error[ -]?code\s*:\s*-?39\b', caseSensitive: false)
-          .hasMatch('${error.code} ${error.message ?? ''}');
-  if (native39) {
-    return 'SMS hizmeti isteği kabul etmedi. Bu hata tek başına çok fazla deneme yaptığınız anlamına gelmez. Destek ile iletişime geçin.\nHata kodu: $code / 39';
+  final errorStr = '${error is FirebaseException ? error.code : ''} ${error is FirebaseException ? (error.message ?? '') : error.toString()}'.toLowerCase();
+  final isCode39 = errorStr.contains('39');
+  if (isCode39) {
+    return 'SMS servisinde operatör kaynaklı geçici bir yoğunluk oluştu.\nLütfen biraz bekleyip tekrar deneyin veya yöneticiye bildirin.';
   }
   final message = switch (code) {
     'invalid-phone-number' =>
@@ -115,6 +114,7 @@ class FirebasePhoneVerificationGateway implements PhoneVerificationGateway {
     }
     return code == 'internal-error' ||
         code == 'unknown' ||
+        code.contains('39') ||
         code == 'app-not-authorized' ||
         code == 'invalid-app-credential' ||
         code == 'missing-app-credential' ||
@@ -126,9 +126,7 @@ class FirebasePhoneVerificationGateway implements PhoneVerificationGateway {
         code == 'operation-not-allowed' ||
         code == 'sms-region-not-allowed' ||
         msg.contains('internal error') ||
-        msg.contains('error code:39') ||
-        msg.contains('error code: 39') ||
-        msg.contains('error-code:-39');
+        msg.contains('39');
   }
 
   @override

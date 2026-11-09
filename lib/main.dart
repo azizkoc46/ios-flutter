@@ -15,7 +15,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
+// import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pazarcik_portal/views/cekgonder.dart';
 import 'package:pazarcik_portal/views/bildirimkutusuanasayfa.dart';
@@ -119,21 +119,22 @@ void _startPostLaunchServices() {
     _ensureGuestSession().catchError((e) => debugPrint('Guest session hatası: $e'));
     _checkAndRefreshSellerSubscription().catchError((e) => debugPrint('Seller subscription hatası: $e'));
     if (!kIsWeb) {
+      // NOT: Play Integrity ve DeviceCheck aktivasyonu, Google sunucularında SMS Toll-Fraud
+      // ve SHA sertifika uyuşmazlığı durumlarında Firebase Phone Auth isteklerinin
+      // sunucu tarafında "Error code: 39" ile topluca reddedilmesine yol açtığı için
+      // doğrudan zorlanmamaktadır. Firebase kendi SafetyNet/reCAPTCHA fallback mekanizmasını kullanır.
+      /*
       try {
         if (kDebugMode) {
           await FirebaseAppCheck.instance.activate(
             androidProvider: AndroidProvider.debug,
             appleProvider: AppleProvider.deviceCheck,
           );
-        } else {
-          await FirebaseAppCheck.instance.activate(
-            androidProvider: AndroidProvider.playIntegrity,
-            appleProvider: AppleProvider.deviceCheck,
-          );
         }
       } catch (e) {
         debugPrint('App Check başlatma hatası: $e');
       }
+      */
 
       try {
         FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);

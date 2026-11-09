@@ -521,16 +521,43 @@ class _SellerStorePageState extends State<SellerStorePage> {
                           final reply = replyDoc.data() as Map<String, dynamic>;
                           final replyName = CommentIdentity.visibleName(
                             reply,
-                            nameFields: const ['reviewerName'],
+                            nameFields: const ['reviewerName', 'authorDisplayName', 'userName'],
                           );
+                          final isSellerReply = reply['reviewerId'] == widget.sellerId;
                           return Padding(
                             padding: const EdgeInsets.only(left: 18, top: 8),
-                            child: Text(
-                              "$replyName: ${reply['comment'] ?? ''}",
-                              style: const TextStyle(
-                                height: 1.4,
-                                color: Color(0xFF475569),
-                              ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (isSellerReply) ...[
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                    margin: const EdgeInsets.only(right: 6, top: 1),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade50,
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: Colors.green.shade300, width: 0.8),
+                                    ),
+                                    child: const Text(
+                                      "Satıcı",
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF15803D),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                Expanded(
+                                  child: Text(
+                                    "$replyName: ${reply['comment'] ?? ''}",
+                                    style: const TextStyle(
+                                      height: 1.4,
+                                      color: Color(0xFF475569),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           );
                         }),
@@ -600,14 +627,14 @@ class _SellerStorePageState extends State<SellerStorePage> {
       ),
     );
     if (send != true || controller.text.trim().isEmpty) return;
-    final hideName = await CommentIdentity.askHideName(context);
-    if (hideName == null) return;
     final fullName = await CommentIdentity.currentUserFullName();
+    final privacy = await CommentIdentity.askPrivacyChoice(context, namePreview: fullName);
+    if (privacy == null) return;
     await FirebaseFirestore.instance.collection('seller_reviews').add({
       'sellerId': widget.sellerId,
       'reviewerId': user.uid,
       'reviewerName': fullName,
-      ...CommentIdentity.authorFields(fullName: fullName, hideName: hideName),
+      ...CommentIdentity.authorFieldsWithMode(fullName: fullName, choice: privacy),
       'rating': 0,
       'comment': controller.text.trim(),
       'parentId': parentId,

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/phone_verification.dart';
 
@@ -255,6 +256,30 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
                                         : const Color(0xFFB42318),
                                     fontSize: 14,
                                     height: 1.5))),
+                        const SizedBox(height: 10),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final user = FirebaseAuth.instance.currentUser;
+                            final email = user?.email ?? '';
+                            final name = _name.text.trim();
+                            final phone = widget.phone;
+                            final text = 'Merhaba, Pazarcık Portal uygulamasında telefon doğrulama kodu alamıyorum.\n'
+                                'İsmim: $name\n'
+                                'E-posta: $email\n'
+                                'Telefon: $phone\n'
+                                'Hesabımı manuel olarak doğrulayabilir misiniz?';
+                            final url = Uri.parse('https://wa.me/905464664646?text=${Uri.encodeComponent(text)}');
+                            if (await canLaunchUrl(url)) {
+                              await launchUrl(url, mode: LaunchMode.externalApplication);
+                            }
+                          },
+                          icon: const Icon(CupertinoIcons.chat_bubble_2_fill, size: 16),
+                          label: const Text('WhatsApp ile Destek Al'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF25D366),
+                            side: const BorderSide(color: Color(0xFF25D366)),
+                          ),
+                        ),
                       ],
                       const SizedBox(height: 24),
                       FilledButton(

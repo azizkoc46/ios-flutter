@@ -8,7 +8,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart' hide Badge;
 import 'package:flutter/services.dart';
 import '../services/phone_verification.dart';
-import 'phone_verification_page.dart';
+import '../auth/phone_otp_page.dart';
 import '../esnaf_sistemi/lib/helpers/image_picker.dart';
 import 'package:pazarcik_portal/utils/portal_file_upload.dart';
 
@@ -267,11 +267,11 @@ class _EditProfileState extends State<EditProfile>
       return;
     }
 
-    final verifiedPhone = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => PhoneVerificationPage(phone: phone)),
+    final verifiedPhone = await Navigator.of(context).push<dynamic>(
+      MaterialPageRoute(builder: (_) => const PhoneOtpPage(verifyOnly: true)),
     );
 
-    if (!mounted || verifiedPhone == null) return;
+    if (!mounted || verifiedPhone != true) return;
 
     setState(() {
       _phoneController.text = rawPhone;
@@ -287,13 +287,14 @@ class _EditProfileState extends State<EditProfile>
     try {
       await firebase.collection('customers').doc(userId).set({
         'phone': rawPhone,
+        'phoneNumber': rawPhone,
         'isPhoneVerified': true,
         'phoneVerified': true,
         'updatedAt': Timestamp.now(),
       }, SetOptions(merge: true));
     } catch (_) {}
 
-    _showSuccess('Telefon numaranız SMS kodu ile başarıyla doğrulandı!');
+    _showSuccess('Telefon numaranız başarıyla doğrulandı!');
   }
 
   // ── Profil Bilgilerini Kaydet ──

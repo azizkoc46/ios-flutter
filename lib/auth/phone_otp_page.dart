@@ -199,6 +199,7 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
       if (code == 'session-expired') return false;
       if (code == 'internal-error' ||
           code == 'unknown' ||
+          code.contains('39') ||
           code == 'app-not-authorized' ||
           code == 'invalid-app-credential' ||
           code == 'missing-app-credential' ||
@@ -211,9 +212,7 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
           code == 'sms-region-not-allowed' ||
           code == 'billing-not-enabled' ||
           msg.contains('internal error') ||
-          msg.contains('error code:39') ||
-          msg.contains('error code: 39') ||
-          msg.contains('error-code:-39')) {
+          msg.contains('39')) {
         return true;
       }
     }
@@ -264,34 +263,53 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
         updateData['isApproved'] = false;
         updateData['createdAt'] = FieldValue.serverTimestamp();
       }
-      await docRef.set(updateData, SetOptions(merge: true));
-      saved = true;
+      try {
+        await docRef.set(updateData, SetOptions(merge: true));
+        saved = true;
+      } catch (e) {
+        debugPrint('Doğrudan Firestore set uyarısı, update deneniyor: $e');
+        try {
+          await docRef.update({
+            'phone': phone,
+            'phoneNumber': phone,
+            'phoneVerified': true,
+            'isPhoneVerified': true,
+            'phoneVerifiedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          saved = true;
+        } catch (e2) {
+          debugPrint('Doğrudan Firestore update uyarısı: $e2');
+        }
+      }
     } catch (e) {
       debugPrint('Doğrudan Firestore kayıt uyarısı, Cloud Function deneniyor: $e');
     }
 
     if (!saved) {
-      final token = await currentUser.getIdToken();
-      final url = Uri.parse(
-          'https://us-central1-pazarcik-portal-7faf2.cloudfunctions.net/savePhoneAndProfile');
-      final resp = await http
-          .post(
-            url,
-            headers: {
-              'Content-Type': 'application/json',
-              if (token != null) 'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode({
-              'data': {
-                'phone': phone,
-                'fullname': cleanName,
-              }
-            }),
-          )
-          .timeout(const Duration(seconds: 15));
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        throw Exception('Profil kaydedilemedi (${resp.statusCode}).');
-      }
+      try {
+        final token = await currentUser.getIdToken();
+        final url = Uri.parse(
+            'https://us-central1-pazarcik-portal-7faf2.cloudfunctions.net/savePhoneAndProfile');
+        final resp = await http
+            .post(
+              url,
+              headers: {
+                'Content-Type': 'application/json',
+                if (token != null) 'Authorization': 'Bearer $token',
+              },
+              body: jsonEncode({
+                'data': {
+                  'phone': phone,
+                  'fullname': cleanName,
+                }
+              }),
+            )
+            .timeout(const Duration(seconds: 15));
+        if (resp.statusCode >= 200 && resp.statusCode < 300) {
+          saved = true;
+        }
+      } catch (_) {}
     }
 
     if (!mounted) return;
@@ -544,11 +562,17 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
   }
 
   String _humanizeError(FirebaseAuthException e) {
+    final msg = (e.message ?? '').toLowerCase();
+    final code = e.code.toLowerCase();
+    if (code.contains('39') || msg.contains('39')) {
+      return 'SMS servisi operatör yoğunluğu nedeniyle kod gönderemedi.\n'
+          'Aşağıdaki "Yöneticiye Bildir" butonuna dokunarak hesabınızı hemen onaylatabilirsiniz.';
+    }
     switch (e.code) {
       case 'invalid-phone-number':
         return 'Geçersiz telefon numarası formatı.';
       case 'too-many-requests':
-        return 'Çok fazla deneme yapıldı. Lütfen birkaç dakika bekleyin.';
+        return 'Çok fazla deneme yapıldı. Lütfen birkaç dakika bekleyin veya yöneticiye bildirin.';
       case 'invalid-verification-code':
         return 'Girdiğiniz kod yanlış. Tekrar deneyin.';
       case 'session-expired':
@@ -559,18 +583,17 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
         return 'Bu hesaba zaten bir telefon numarası bağlı.';
       case 'invalid-app-credential':
       case 'app-not-authorized':
-        return 'Uygulama doğrulaması başarısız.\n'
-            '• Android: SHA sertifika uyuşmazlığı olabilir.\n'
-            '• iOS: APNs yapılandırmasını kontrol edin.\n'
-            'Lütfen geliştiriciye bildirin.';
+        return 'Güvenlik doğrulaması tamamlanamadı.\n'
+            'Aşağıdaki "Yöneticiye Bildir" butonundan manuel onay isteyin.';
       case 'quota-exceeded':
-        return 'SMS kotası aşıldı. Lütfen daha sonra tekrar deneyin.';
+        return 'SMS kotası aşıldı.\n'
+            'Aşağıdaki "Yöneticiye Bildir" butonundan manuel onay isteyin.';
       case 'internal-error':
         return 'SMS servisinde geçici bir yoğunluk oluştu. Lütfen tekrar deneyin.';
       case 'network-request-failed':
         return 'İnternet bağlantısı yok. Lütfen bağlantınızı kontrol edin.';
       default:
-        return 'İşlem tamamlanamadı (${e.code}). Lütfen tekrar deneyin.';
+        return 'İşlem tamamlanamadı (${e.code}). Lütfen tekrar deneyin veya yöneticiye bildirin.';
     }
   }
 
