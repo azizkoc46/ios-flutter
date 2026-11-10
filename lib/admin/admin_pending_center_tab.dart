@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'admin_phone_verification_tab.dart';
 
 /// Bu dosyayı BusinessAddPage'de işletme eklenirken de çağırın:
 ///
@@ -336,6 +337,7 @@ class AdminPendingCenterTab extends StatelessWidget {
             style: TextStyle(color: Colors.black54),
           ),
           const SizedBox(height: 18),
+          _buildPhoneVerificationBanner(context),
           _buildCorporateApplications(context),
           _buildBusinessApplications(context),
           _buildPendingAds(context),
@@ -343,6 +345,115 @@ class AdminPendingCenterTab extends StatelessWidget {
           const SizedBox(height: 80),
         ],
       ),
+    );
+  }
+
+  Widget _buildPhoneVerificationBanner(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('phone_verification_requests')
+          .limit(60)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        final docs = snapshot.data!.docs;
+        final pendingDocs = docs.where((doc) {
+          final d = doc.data() as Map<String, dynamic>;
+          final st = (d['status'] ?? 'pending').toString().toLowerCase().trim();
+          return st != 'approved' && st != 'rejected' && st != 'cancelled';
+        }).toList();
+
+        if (pendingDocs.isEmpty) return const SizedBox.shrink();
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF6366F1).withOpacity(0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(CupertinoIcons.phone_fill,
+                    color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${pendingDocs.length} Telefon Doğrulama Onayı Bekliyor',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Kullanıcılar SMS/kod sorunu veya onay talebi bildirdi.',
+                      style: TextStyle(color: Colors.white70, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    CupertinoPageRoute(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(
+                          title: const Text('Telefon Doğrulama Yönetimi',
+                              style: TextStyle(
+                                  color: Colors.black87,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16)),
+                          backgroundColor: Colors.white,
+                          elevation: 0,
+                          leading: const CupertinoNavigationBarBackButton(
+                              color: Colors.black),
+                        ),
+                        body: const AdminPhoneVerificationTab(),
+                      ),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF4F46E5),
+                  elevation: 0,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('İncele ➔',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

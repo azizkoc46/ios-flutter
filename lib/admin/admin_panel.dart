@@ -35,15 +35,24 @@ class AdminPanelScreen extends StatefulWidget {
   State<AdminPanelScreen> createState() => _AdminPanelScreenState();
 }
 
-class _AdminPanelScreenState extends State<AdminPanelScreen> {
+class _AdminPanelScreenState extends State<AdminPanelScreen>
+    with SingleTickerProviderStateMixin {
   static const Color _primary = Color(0xFF6366F1);
   bool _checkingAdmin = true;
   bool _isAuthorized = false;
+  late final TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 21, vsync: this);
     _checkAdminAccess();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkAdminAccess() async {
@@ -176,9 +185,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       );
     }
 
-    return DefaultTabController(
-      length: 19,
-      child: Scaffold(
+    return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: AppBar(
           backgroundColor: Colors.white,
@@ -217,10 +224,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               color: Colors.orange,
               filterField: 'seen',
               filterValue: false,
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('Bildirimler sayfası açılacak')));
-              },
+              onTap: _showNotificationsSheet,
             ),
             const SizedBox(width: 4),
             _buildAddMenu(),
@@ -236,6 +240,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 ),
               ),
               child: TabBar(
+                controller: _tabController,
                 isScrollable: true,
                 labelColor: _primary,
                 unselectedLabelColor: Colors.black45,
@@ -272,8 +277,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             ),
           ),
         ),
-        body: const TabBarView(
-          children: [
+        body: TabBarView(
+          controller: _tabController,
+          children: const [
             AdminStatsTab(),
             AdminPendingCenterTab(),
             AdminPhoneVerificationTab(),
@@ -297,8 +303,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             AdminSettingsTab(),
           ],
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildAddMenu() {
@@ -355,6 +360,20 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               style:
                   const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
         ],
+      ),
+    );
+  }
+
+  void _showNotificationsSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _AdminNotificationsSheet(
+        onGoToPhoneVerification: () {
+          Navigator.pop(ctx);
+          _tabController.animateTo(2); // Tel. Doğrulama sekmesi
+        },
       ),
     );
   }
@@ -469,6 +488,315 @@ class _BadgeIcon extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Yönetici Bildirimleri Alt Çekmecesi (Modal Sheet)
+// ─────────────────────────────────────────────────────────────────────────────
+class _AdminNotificationsSheet extends StatelessWidget {
+  final VoidCallback onGoToPhoneVerification;
+
+  const _AdminNotificationsSheet({
+    required this.onGoToPhoneVerification,
+  });
+
+  Future<void> _markAllAsRead(List<QueryDocumentSnapshot> docs) async {
+    final batch = FirebaseFirestore.instance.batch();
+    for (final doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      if (data['seen'] != true) {
+        batch.update(doc.reference, {'seen': true});
+      }
+    }
+    await batch.commit();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.78,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          // Çekme kolu
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 8),
+              width: 44,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+
+          // Başlık ve Eylemler
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('admin_notifications_log')
+                .limit(60)
+                .snapshots(),
+            builder: (context, snapshot) {
+              final docs = snapshot.data?.docs ?? [];
+              final unreadCount = docs.where((d) {
+                final m = d.data() as Map<String, dynamic>;
+                return m['seen'] != true;
+              }).length;
+
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 16, 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(CupertinoIcons.bell_fill,
+                              color: Colors.orange, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Yönetici Bildirimleri',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 16,
+                                    color: Colors.black87),
+                              ),
+                              Text(
+                                unreadCount > 0
+                                    ? '$unreadCount yeni okunmamış bildirim'
+                                    : 'Tüm bildirimler okundu',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: unreadCount > 0
+                                        ? Colors.orange.shade800
+                                        : Colors.grey.shade600,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (unreadCount > 0)
+                          TextButton.icon(
+                            onPressed: () => _markAllAsRead(docs),
+                            icon: const Icon(CupertinoIcons.checkmark_circle,
+                                size: 14),
+                            label: const Text('Tümünü Oku',
+                                style: TextStyle(
+                                    fontSize: 12, fontWeight: FontWeight.bold)),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                ],
+              );
+            },
+          ),
+
+          // Bildirim Listesi
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('admin_notifications_log')
+                  .limit(60)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Bildirimler yüklenemedi: ${snapshot.error}',
+                        style: const TextStyle(color: Colors.red)),
+                  );
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CupertinoActivityIndicator());
+                }
+
+                final docs = snapshot.data!.docs;
+                if (docs.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(CupertinoIcons.bell_slash,
+                            size: 50, color: Colors.grey.shade300),
+                        const SizedBox(height: 12),
+                        const Text('Henüz bir bildirim bulunmuyor.',
+                            style: TextStyle(
+                                color: Colors.black45,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  );
+                }
+
+                // Bellek içinde tarihe göre sıralama
+                final sortedDocs = List<QueryDocumentSnapshot>.from(docs);
+                sortedDocs.sort((a, b) {
+                  final aData = a.data() as Map<String, dynamic>;
+                  final bData = b.data() as Map<String, dynamic>;
+                  final aTs = aData['createdAt'] ?? aData['timestamp'];
+                  final bTs = bData['createdAt'] ?? bData['timestamp'];
+                  DateTime aTime = aTs is Timestamp ? aTs.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+                  DateTime bTime = bTs is Timestamp ? bTs.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+                  return bTime.compareTo(aTime);
+                });
+
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 12),
+                  itemCount: sortedDocs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final doc = sortedDocs[index];
+                    final data = doc.data() as Map<String, dynamic>;
+                    final isSeen = data['seen'] == true;
+                    final title = (data['title'] ?? 'Yeni Bildirim').toString();
+                    final body = (data['body'] ?? '').toString();
+                    final type = (data['type'] ?? 'general').toString();
+                    final isPhoneReq = type == 'phone_verification_request' ||
+                        title.contains('Tel Doğrulama') ||
+                        title.contains('SMS Doğrulama');
+
+                    final ts = data['createdAt'] ?? data['timestamp'];
+                    DateTime? dt;
+                    if (ts is Timestamp) dt = ts.toDate();
+                    if (ts is int) dt = DateTime.fromMillisecondsSinceEpoch(ts);
+                    final timeStr = dt != null
+                        ? '${dt.day}.${dt.month}.${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}'
+                        : '';
+
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () async {
+                        if (!isSeen) {
+                          await doc.reference.update({'seen': true});
+                        }
+                        if (isPhoneReq) {
+                          onGoToPhoneVerification();
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isSeen
+                              ? Colors.white
+                              : const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isSeen
+                                ? Colors.grey.shade200
+                                : Colors.amber.shade300,
+                            width: isSeen ? 1 : 1.5,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                if (!isSeen)
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    margin: const EdgeInsets.only(right: 8),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.orange,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                Expanded(
+                                  child: Text(
+                                    title,
+                                    style: TextStyle(
+                                      fontWeight: isSeen
+                                          ? FontWeight.w700
+                                          : FontWeight.w900,
+                                      fontSize: 14,
+                                      color: isSeen
+                                          ? Colors.black87
+                                          : const Color(0xFF92400E),
+                                    ),
+                                  ),
+                                ),
+                                if (timeStr.isNotEmpty)
+                                  Text(
+                                    timeStr,
+                                    style: const TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.black45,
+                                        fontWeight: FontWeight.w600),
+                                  ),
+                              ],
+                            ),
+                            if (body.isNotEmpty) ...[
+                              const SizedBox(height: 5),
+                              Text(
+                                body,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isSeen
+                                      ? Colors.black54
+                                      : const Color(0xFF78350F),
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                            if (isPhoneReq) ...[
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  onPressed: () async {
+                                    await doc.reference.update({'seen': true});
+                                    onGoToPhoneVerification();
+                                  },
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: const Color(0xFF6366F1),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 6),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  icon: const Icon(CupertinoIcons.phone_fill,
+                                      size: 13),
+                                  label: const Text('Talebi İncele & Onayla',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800)),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
