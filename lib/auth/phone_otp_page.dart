@@ -124,6 +124,9 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
   int _resendCountdown = 0;
   Timer? _countdownTimer;
   Timer? _smsFallbackTimer;
+  bool _hasAttemptedSend = false;
+  int _reportCooldownSeconds = 0;
+  Timer? _reportCooldownTimer;
 
   // ── Animation ─────────────────────────────────────────────────────────────
   late final AnimationController _animCtrl;
@@ -238,6 +241,7 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
     for (final n in _otpNodes) n.dispose();
     _countdownTimer?.cancel();
     _smsFallbackTimer?.cancel();
+    _reportCooldownTimer?.cancel();
     _animCtrl.dispose();
     super.dispose();
   }
@@ -320,6 +324,28 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
         setState(() => _resendCountdown--);
       }
     });
+  }
+
+  void _startReportCooldown() {
+    _reportCooldownSeconds = 60;
+    if (mounted) setState(() {});
+    _reportCooldownTimer?.cancel();
+    _reportCooldownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      if (_reportCooldownSeconds <= 0) {
+        t.cancel();
+      } else {
+        setState(() => _reportCooldownSeconds--);
+      }
+    });
+  }
+
+  bool get _canReportIssue {
+    if (_errorMsg != null && _errorMsg!.trim().isNotEmpty) return true;
+    return _hasAttemptedSend && _reportCooldownSeconds <= 0;
   }
 
   // ── OTP Kutucukları ───────────────────────────────────────────────────────
@@ -512,7 +538,9 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
     setState(() {
       _sending = true;
       _errorMsg = null;
+      _hasAttemptedSend = true;
     });
+    _startReportCooldown();
 
     final phone = _toE164(raw);
 
@@ -1124,23 +1152,37 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
                 GoogleFonts.inter(fontSize: 11, color: Colors.black38),
           ),
         ),
-        const SizedBox(height: 14),
-        Center(
-          child: OutlinedButton.icon(
-            onPressed: _reportVerificationIssue,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFFDC2626),
-              side: const BorderSide(color: Color(0xFFFCA5A5)),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            icon: const Icon(CupertinoIcons.exclamationmark_triangle_fill, size: 16),
-            label: Text(
-              'SMS Gelmiyor mu? / Yöneticiye Bildir',
-              style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w700),
+        if (_hasAttemptedSend || (_errorMsg != null && _errorMsg!.isNotEmpty)) ...[
+          const SizedBox(height: 14),
+          Center(
+            child: OutlinedButton.icon(
+              onPressed: _canReportIssue ? _reportVerificationIssue : null,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFDC2626),
+                disabledForegroundColor: Colors.black38,
+                side: BorderSide(
+                  color: _canReportIssue
+                      ? const Color(0xFFFCA5A5)
+                      : Colors.black12,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: Icon(
+                _canReportIssue
+                    ? CupertinoIcons.exclamationmark_triangle_fill
+                    : CupertinoIcons.clock,
+                size: 16,
+              ),
+              label: Text(
+                _canReportIssue
+                    ? 'SMS Gelmiyor mu? / Yöneticiye Bildir'
+                    : 'SMS Bekleniyor... ($_reportCooldownSeconds sn)',
+                style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w700),
+              ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -1347,17 +1389,26 @@ class _PhoneOtpPageState extends State<PhoneOtpPage>
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _reportVerificationIssue,
+                  onPressed: _canReportIssue ? _reportVerificationIssue : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFDC2626),
+                    disabledBackgroundColor: Colors.grey.shade300,
                     foregroundColor: Colors.white,
+                    disabledForegroundColor: Colors.black45,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 11),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  icon: const Icon(CupertinoIcons.paperplane_fill, size: 15),
+                  icon: Icon(
+                    _canReportIssue
+                        ? CupertinoIcons.paperplane_fill
+                        : CupertinoIcons.clock_fill,
+                    size: 15,
+                  ),
                   label: Text(
-                    'Yöneticiye Bildir (Manuel Onay İste)',
+                    _canReportIssue
+                        ? 'Yöneticiye Bildir (Manuel Onay İste)'
+                        : 'SMS Gelmezse Bildir ($_reportCooldownSeconds sn)',
                     style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800),
                   ),
                 ),
